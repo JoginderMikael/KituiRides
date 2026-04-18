@@ -1,0 +1,39 @@
+version: "3.9"
+services:
+  postgres:
+    image: postgres:16
+    container_name: kituirides-postgres
+    environment:
+      POSTGRES_DB: kituirides
+      POSTGRES_USER: kituirides
+      POSTGRES_PASSWORD: kituirides
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: kituirides-redis
+    ports:
+      - "6379:6379"
+
+  backend:
+    build: ./backend
+    container_name: kituirides-backend
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "8080:8080"
+
+  frontend:
+    build: ./frontend
+    container_name: kituirides-frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+
+volumes:
+  pgdata:

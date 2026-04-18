@@ -1,0 +1,34 @@
+server:
+  port: 8080
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/kituirides
+    username: kituirides
+    password: kituirides
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  jwt:
+    secret: replace-with-at-least-32-random-characters
+    expiration-ms: 86400000
+  mpesa:
+    shortcode: "174379"
+    passkey: "sandbox-passkey"
+    callback-url: "https://example.com/api/payments/mpesa/callback"
+    consumer-key: "sandbox-key"
+    consumer-secret: "sandbox-secret"
+
+logging:
+  level:
+    org.springframework.security: INFO
