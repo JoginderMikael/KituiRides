@@ -1,13 +1,14 @@
 import { Navigate, Outlet } from "react-router-dom";
-import { getSession } from "../lib/auth";
+import { roleHomePath } from "../lib/auth";
+import { useAuth } from "../hooks/useAuth";
 
-export default function ProtectedRoute({ roles }) {
-  const session = getSession();
+export default function ProtectedRoute({ role }) {
+  const { session } = useAuth();
   if (!session) {
     return <Navigate to="/login" replace />;
   }
-  if (roles && !roles.some((role) => session.roles.includes(role))) {
-    return <Navigate to="/" replace />;
+  if (role && session.role !== role) {
+    return <Navigate to={roleHomePath(session.role)} replace />;
   }
   return <Outlet />;
 }

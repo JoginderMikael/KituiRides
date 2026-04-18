@@ -1,6 +1,9 @@
 import { createBrowserRouter } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import AppShell from "../components/AppShell";
 import ProtectedRoute from "../components/ProtectedRoute";
+import { useAuth } from "../hooks/useAuth";
+import { roleHomePath } from "../lib/auth";
 import AdminPanel from "../pages/AdminPanel";
 import CustomerDashboard from "../pages/CustomerDashboard";
 import DriverDashboard from "../pages/DriverDashboard";
@@ -20,6 +23,11 @@ function RouterErrorFallback() {
   );
 }
 
+function RoleHomeRedirect() {
+  const { role } = useAuth();
+  return <Navigate to={roleHomePath(role)} replace />;
+}
+
 export const router = createBrowserRouter([
   { path: "/login", element: <LoginPage />, errorElement: <RouterErrorFallback /> },
   { path: "/register", element: <RegisterPage />, errorElement: <RouterErrorFallback /> },
@@ -31,16 +39,23 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         errorElement: <RouterErrorFallback />,
         children: [
-          { path: "/", element: <CustomerDashboard /> },
+          { path: "/", element: <RoleHomeRedirect /> },
           {
-            element: <ProtectedRoute roles={["RIDER", "ADMIN"]} />,
+            element: <ProtectedRoute role="CUSTOMER" />,
+            children: [{ path: "/customer", element: <CustomerDashboard /> }]
+          },
+          {
+            element: <ProtectedRoute role="DRIVER" />,
             children: [{ path: "/driver", element: <DriverDashboard /> }]
           },
           {
-            element: <ProtectedRoute roles={["ADMIN"]} />,
+            element: <ProtectedRoute role="ADMIN" />,
             children: [{ path: "/admin", element: <AdminPanel /> }]
           },
-          { path: "/support", element: <SupportPage /> }
+          {
+            element: <ProtectedRoute role="SUPPORT_AGENT" />,
+            children: [{ path: "/support", element: <SupportPage /> }]
+          }
         ]
       }
     ]

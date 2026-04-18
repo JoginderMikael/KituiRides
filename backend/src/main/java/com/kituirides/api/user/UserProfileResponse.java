@@ -1,7 +1,6 @@
 package com.kituirides.api.user;
 
 import com.kituirides.api.domain.enums.Role;
-import java.util.Set;
 
 public record UserProfileResponse(
     Long id,
@@ -9,6 +8,6 @@ public record UserProfileResponse(
     String lastName,
     String email,
     String phoneNumber,
-    Set<Role> roles
+    Role role
 ) {
 }

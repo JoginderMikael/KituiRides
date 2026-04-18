@@ -1,10 +1,15 @@
 package com.kituirides.api.support;
 
+import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.SupportTicket;
+import com.kituirides.api.domain.entity.SupportTicketReply;
+import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.repository.SupportTicketRepository;
+import com.kituirides.api.repository.SupportTicketReplyRepository;
 import com.kituirides.api.security.CurrentUserService;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class SupportService {
 
     private final SupportTicketRepository supportTicketRepository;
+    private final SupportTicketReplyRepository supportTicketReplyRepository;
     private final CurrentUserService currentUserService;
 
     @Transactional
@@ -33,11 +39,57 @@ public class SupportService {
             .toList();
     }
 
-    public List<TicketResponse> allTickets() {
-        return supportTicketRepository.findAll().stream().map(this::toResponse).toList();
+    public List<TicketResponse> assignedOrOpenTicketsForAgent() {
+        var agent = currentUserService.getCurrentUser();
+        if (agent.getRole() != Role.SUPPORT_AGENT && agent.getRole() != Role.ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only support agents can view support queue");
+        }
+        return supportTicketRepository.findAll().stream()
+            .filter(ticket -> ticket.getAssignedTo() == null || ticket.getAssignedTo().getId().equals(agent.getId()))
+            .map(this::toResponse)
+            .toList();
+    }
+
+    @Transactional
+    public TicketResponse replyToTicket(Long ticketId, TicketReplyRequest request) {
+        var agent = currentUserService.getCurrentUser();
+        SupportTicket ticket = getTicket(ticketId);
+        if (ticket.getAssignedTo() == null) {
+            ticket.setAssignedTo(agent);
+        }
+        SupportTicketReply reply = new SupportTicketReply();
+        reply.setTicket(ticket);
+        reply.setAuthor(agent);
+        reply.setMessage(request.message());
+        supportTicketReplyRepository.save(reply);
+        return toResponse(supportTicketRepository.save(ticket));
+    }
+
+    @Transactional
+    public TicketResponse updateTicket(Long ticketId, UpdateTicketRequest request) {
+        var agent = currentUserService.getCurrentUser();
+        SupportTicket ticket = getTicket(ticketId);
+        if (ticket.getAssignedTo() == null) {
+            ticket.setAssignedTo(agent);
+        }
+        ticket.setStatus(request.status());
+        return toResponse(supportTicketRepository.save(ticket));
+    }
+
+    private SupportTicket getTicket(Long ticketId) {
+        return supportTicketRepository.findById(ticketId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Support ticket not found"));
     }
 
     private TicketResponse toResponse(SupportTicket ticket) {
+        List<TicketReplyResponse> replies = supportTicketReplyRepository.findByTicketOrderByCreatedAtAsc(ticket).stream()
+            .map(reply -> new TicketReplyResponse(
+                reply.getId(),
+                reply.getAuthor().getId(),
+                reply.getMessage(),
+                reply.getCreatedAt()
+            ))
+            .toList();
         return new TicketResponse(
             ticket.getId(),
             ticket.getCreatedBy().getId(),
@@ -45,7 +97,8 @@ public class SupportService {
             ticket.getSubject(),
             ticket.getDescription(),
             ticket.getStatus(),
-            ticket.getCreatedAt()
+            ticket.getCreatedAt(),
+            replies
         );
     }
 }

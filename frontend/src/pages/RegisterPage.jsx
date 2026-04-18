@@ -2,24 +2,26 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { register } from "../features/auth/authApi";
-import { saveSession } from "../lib/auth";
+import { roleHomePath } from "../lib/auth";
+import { useAuth } from "../hooks/useAuth";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const { login: setAuth } = useAuth();
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phoneNumber: "2547",
     password: "",
-    roles: ["CUSTOMER"]
+    role: "CUSTOMER"
   });
 
   const mutation = useMutation({
     mutationFn: register,
     onSuccess: (data) => {
-      saveSession(data);
-      navigate("/");
+      setAuth(data);
+      navigate(roleHomePath(data.role), { replace: true });
     }
   });
 
@@ -45,11 +47,11 @@ export default function RegisterPage() {
           value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
         <select
           className="col-span-2 rounded border p-2"
-          onChange={(e) => setForm({ ...form, roles: [e.target.value] })}
+          onChange={(e) => setForm({ ...form, role: e.target.value })}
           defaultValue="CUSTOMER"
         >
           <option value="CUSTOMER">Customer</option>
-          <option value="RIDER">Rider (Driver)</option>
+          <option value="DRIVER">Driver</option>
           <option value="SUPPORT_AGENT">Support Agent</option>
           <option value="ADMIN">Admin</option>
         </select>

@@ -11,3 +11,7 @@ export function getUsers() {
 export function getRides() {
   return unwrap(apiClient.get("/admin/rides"));
 }
+
+export function approveDriver(driverUserId, approved) {
+  return unwrap(apiClient.patch(`/admin/drivers/${driverUserId}/approve`, { approved }));
+}

@@ -1,13 +1,13 @@
 import { Link, Outlet, useNavigate } from "react-router-dom";
-import { clearSession, getSession } from "../lib/auth";
+import { roleHomePath } from "../lib/auth";
+import { useAuth } from "../hooks/useAuth";
 
 export default function AppShell() {
   const navigate = useNavigate();
-  const session = getSession();
-  const roles = session?.roles || [];
+  const { session, role, logout } = useAuth();
 
-  function logout() {
-    clearSession();
+  function onLogout() {
+    logout();
     navigate("/login");
   }
 
@@ -15,13 +15,14 @@ export default function AppShell() {
     <div className="min-h-screen bg-gradient-to-b from-teal-50 to-orange-50">
       <header className="border-b bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link to="/" className="text-xl font-bold text-brand-primary">KituiRides</Link>
+          <Link to={roleHomePath(role)} className="text-xl font-bold text-brand-primary">KituiRides</Link>
           <nav className="flex items-center gap-4 text-sm">
-            {roles.includes("CUSTOMER") && <Link to="/">Customer</Link>}
-            {roles.includes("RIDER") && <Link to="/driver">Driver</Link>}
-            {roles.includes("ADMIN") && <Link to="/admin">Admin</Link>}
-            <Link to="/support">Support</Link>
-            <button onClick={logout} className="rounded bg-brand-accent px-3 py-1 text-white">Logout</button>
+            {role === "CUSTOMER" && <Link to="/customer">Customer</Link>}
+            {role === "DRIVER" && <Link to="/driver">Driver</Link>}
+            {role === "ADMIN" && <Link to="/admin">Admin</Link>}
+            {role === "SUPPORT_AGENT" && <Link to="/support">Support</Link>}
+            <span className="text-slate-500">{session?.email}</span>
+            <button onClick={onLogout} className="rounded bg-brand-accent px-3 py-1 text-white">Logout</button>
           </nav>
         </div>
       </header>

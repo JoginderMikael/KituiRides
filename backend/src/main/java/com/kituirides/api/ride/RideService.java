@@ -102,8 +102,11 @@ public class RideService {
         if (ride.getRider() == null || !ride.getRider().getId().equals(currentUser.getId())) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only assigned rider can complete this ride");
         }
-        if (ride.getStatus() != RideStatus.STARTED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must be started before completion");
+        if (ride.getStatus() != RideStatus.STARTED && ride.getStatus() != RideStatus.ACCEPTED) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must be accepted before completion");
+        }
+        if (ride.getStartedAt() == null) {
+            ride.setStartedAt(Instant.now());
         }
         ride.setStatus(RideStatus.COMPLETED);
         ride.setCompletedAt(Instant.now());
@@ -117,9 +120,18 @@ public class RideService {
         return rideRepository.findByCustomerOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
     }
 
-    public List<RideResponse> myRiderRides() {
+    public List<RideResponse> myDriverRides() {
         User currentUser = currentUserService.getCurrentUser();
         return rideRepository.findByRiderOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
+    }
+
+    public RideResponse customerRideById(Long rideId) {
+        User currentUser = currentUserService.getCurrentUser();
+        Ride ride = getRideById(rideId);
+        if (!ride.getCustomer().getId().equals(currentUser.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Ride does not belong to current customer");
+        }
+        return toResponse(ride);
     }
 
     public List<RideResponse> listAll() {

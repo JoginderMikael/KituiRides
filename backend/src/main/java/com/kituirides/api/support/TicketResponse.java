@@ -2,6 +2,7 @@ package com.kituirides.api.support;
 
 import com.kituirides.api.domain.enums.TicketStatus;
 import java.time.Instant;
+import java.util.List;
 
 public record TicketResponse(
     Long id,
@@ -10,6 +11,7 @@ public record TicketResponse(
     String subject,
     String description,
     TicketStatus status,
-    Instant createdAt
+    Instant createdAt,
+    List<TicketReplyResponse> replies
 ) {
 }

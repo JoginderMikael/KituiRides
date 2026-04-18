@@ -2,16 +2,18 @@ import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { login } from "../features/auth/authApi";
-import { saveSession } from "../lib/auth";
+import { roleHomePath } from "../lib/auth";
+import { useAuth } from "../hooks/useAuth";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { login: setAuth } = useAuth();
   const [form, setForm] = useState({ email: "", password: "" });
   const mutation = useMutation({
     mutationFn: login,
     onSuccess: (data) => {
-      saveSession(data);
-      navigate("/");
+      setAuth(data);
+      navigate(roleHomePath(data.role), { replace: true });
     }
   });
 

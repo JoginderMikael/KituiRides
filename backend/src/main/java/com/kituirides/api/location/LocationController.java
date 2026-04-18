@@ -20,6 +20,7 @@ public class LocationController {
     private final LocationService locationService;
 
     @PostMapping("/me")
+    @PreAuthorize("hasRole('DRIVER')")
     public ResponseEntity<ApiResponse<Void>> updateMyLocation(@Valid @RequestBody LocationUpdateRequest request) {
         locationService.updateMyLocation(request);
         return ResponseEntity.ok(ApiResponse.ok(null, "Location updated"));

@@ -31,7 +31,7 @@ public class PaymentController {
     }
 
     @GetMapping("/ride/{rideId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'RIDER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'DRIVER', 'ADMIN')")
     public ResponseEntity<ApiResponse<PaymentResponse>> getByRide(@PathVariable Long rideId) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.getByRideId(rideId)));
     }

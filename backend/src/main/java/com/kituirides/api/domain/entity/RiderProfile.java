@@ -9,6 +9,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.math.BigDecimal;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -33,4 +34,7 @@ public class RiderProfile {
 
     @Column(nullable = false)
     private Boolean available = false;
+
+    @Column(nullable = false, precision = 12, scale = 2)
+    private BigDecimal totalEarnings = BigDecimal.ZERO;
 }

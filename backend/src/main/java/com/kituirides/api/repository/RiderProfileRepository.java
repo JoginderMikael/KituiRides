@@ -8,5 +8,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface RiderProfileRepository extends JpaRepository<RiderProfile, Long> {
     Optional<RiderProfile> findByUser(User user);
+    Optional<RiderProfile> findByUserId(Long userId);
     List<RiderProfile> findByVerifiedTrueAndAvailableTrue();
 }

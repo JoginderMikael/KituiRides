@@ -45,7 +45,7 @@ public class UserService {
             user.getLastName(),
             user.getEmail(),
             user.getPhoneNumber(),
-            user.getRoles()
+            user.getRole()
         );
     }
 }

@@ -140,8 +140,8 @@ npm run dev
 ## 6) Key API Prefixes
 
 - `/api/auth`
-- `/api/users`
-- `/api/rides`
+- `/api/customer`
+- `/api/driver`
 - `/api/payments`
 - `/api/admin`
 - `/api/support`

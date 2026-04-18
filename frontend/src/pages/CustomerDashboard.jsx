@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { getCustomerRides, nearbyDrivers, requestRide } from "../features/rides/rideApi";
+import { createCustomerTicket, getCustomerRides, nearbyDrivers, requestRide } from "../features/customer/customerApi";
 import { initiateMpesaPayment } from "../features/rides/paymentApi";
 
 export default function CustomerDashboard() {
@@ -13,6 +13,7 @@ export default function CustomerDashboard() {
     pickupAddress: "Kitui Town CBD",
     dropoffAddress: "Kalundu"
   });
+  const [ticket, setTicket] = useState({ subject: "", description: "" });
 
   const ridesQuery = useQuery({ queryKey: ["customer-rides"], queryFn: getCustomerRides });
   const driversQuery = useQuery({ queryKey: ["nearby-drivers"], queryFn: nearbyDrivers });
@@ -26,6 +27,7 @@ export default function CustomerDashboard() {
     mutationFn: initiateMpesaPayment,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
   });
+  const ticketMutation = useMutation({ mutationFn: createCustomerTicket });
 
   useEffect(() => {
     let disconnect = () => {};
@@ -108,6 +110,23 @@ export default function CustomerDashboard() {
             </div>
           ))}
         </div>
+      </section>
+
+      <section className="rounded-xl bg-white p-5 shadow">
+        <h2 className="mb-3 text-xl font-semibold">Need support?</h2>
+        <form
+          className="space-y-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            ticketMutation.mutate(ticket);
+          }}
+        >
+          <input className="w-full rounded border p-2" placeholder="Subject" value={ticket.subject}
+            onChange={(e) => setTicket({ ...ticket, subject: e.target.value })} />
+          <textarea className="w-full rounded border p-2" rows={3} placeholder="Describe issue"
+            value={ticket.description} onChange={(e) => setTicket({ ...ticket, description: e.target.value })} />
+          <button className="rounded bg-slate-700 px-4 py-2 text-white">Submit Ticket</button>
+        </form>
       </section>
     </div>
   );
