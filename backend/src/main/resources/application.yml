@@ -3,10 +3,12 @@ server:
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/kituirides
-    username: kituirides
-    password: kituirides
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/kituirides}
+    username: ${DB_USERNAME:kituirides}
+    password: ${DB_PASSWORD:kituirides}
+    driver-class-name: org.postgresql.Driver
   jpa:
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
       ddl-auto: update
     open-in-view: false
@@ -32,3 +34,9 @@ app:
 logging:
   level:
     org.springframework.security: INFO
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

@@ -96,6 +96,31 @@ frontend/src/
 docker compose up --build
 ```
 
+### Docker-Only Quickstart (Recommended)
+```bash
+# 1) Ensure Docker Desktop is running
+# 2) From project root:
+docker compose up --build -d
+
+# 3) Check status:
+docker compose ps
+
+# 4) Open apps:
+# Frontend: http://localhost:5173
+# Backend API: http://localhost:8080/api
+# Postgres (container): localhost:5433
+```
+
+Stop and clean:
+```bash
+docker compose down
+```
+
+Stop and also remove database volume (fresh reset):
+```bash
+docker compose down -v
+```
+
 ### Option B: Run services individually
 ```bash
 # infrastructure
@@ -126,3 +151,35 @@ npm run dev
 
 - M-Pesa integration is represented by a mock `MpesaClient` adapter in this MVP and can be swapped to real Daraja API calls without changing controller/service contracts.
 - Map block is intentionally scaffolded in customer page for quick integration of Google Maps or Mapbox SDK next.
+
+## 8) Local Postgres Troubleshooting
+
+If backend fails with `Unable to determine Dialect without JDBC metadata`, JPA could not get DB metadata (usually wrong DB URL/user/password or missing database).
+
+Set datasource explicitly before running backend:
+
+```bash
+# PowerShell
+$env:DB_URL="jdbc:postgresql://localhost:5432/kituirides"
+$env:DB_USERNAME="kituirides"
+$env:DB_PASSWORD="kituirides"
+mvn spring-boot:run
+```
+
+If your local PostgreSQL uses `postgres/postgres`, use:
+
+```bash
+# PowerShell
+$env:DB_URL="jdbc:postgresql://localhost:5432/kituirides"
+$env:DB_USERNAME="postgres"
+$env:DB_PASSWORD="postgres"
+mvn spring-boot:run
+```
+
+Create DB/user (run inside `psql` as a superuser):
+
+```sql
+CREATE DATABASE kituirides;
+CREATE USER kituirides WITH ENCRYPTED PASSWORD 'kituirides';
+GRANT ALL PRIVILEGES ON DATABASE kituirides TO kituirides;
+```
