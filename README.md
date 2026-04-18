@@ -107,7 +107,8 @@ docker compose ps
 
 # 4) Open apps:
 # Frontend: http://localhost:5173
-# Backend API: http://localhost:8080/api
+# Backend API direct (optional): http://localhost:8080/api
+# Frontend now proxies /api and /ws to backend internally via nginx.
 ```
 
 Stop and clean:
