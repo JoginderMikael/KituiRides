@@ -4,7 +4,12 @@ const USER_KEY = "kituirides_user";
 export function saveSession(authResponse) {
   const token = authResponse?.token;
   const decoded = decodeJwt(token);
-  const role = decoded?.role || authResponse?.role;
+  const role = normalizeRole(
+    decoded?.role ||
+    authResponse?.role ||
+    decoded?.roles?.[0] ||
+    authResponse?.roles?.[0]
+  );
   const session = {
     token,
     userId: authResponse?.userId || decoded?.userId,
@@ -23,7 +28,9 @@ export function getSession() {
   const raw = localStorage.getItem(USER_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    const role = normalizeRole(parsed?.role || parsed?.roles?.[0]);
+    return { ...parsed, role };
   } catch {
     return null;
   }
@@ -37,6 +44,7 @@ export function clearSession() {
 export function roleHomePath(role) {
   if (role === "CUSTOMER") return "/customer";
   if (role === "DRIVER") return "/driver";
+  if (role === "RIDER") return "/driver";
   if (role === "ADMIN") return "/admin";
   if (role === "SUPPORT_AGENT") return "/support";
   return "/login";
@@ -54,4 +62,9 @@ function decodeJwt(token) {
   } catch {
     return null;
   }
+}
+
+function normalizeRole(role) {
+  if (role === "RIDER") return "DRIVER";
+  return role || null;
 }
