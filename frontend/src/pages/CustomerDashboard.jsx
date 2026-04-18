@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { getCustomerRides, nearbyDrivers, requestRide } from "../features/rides/rideApi";
 import { initiateMpesaPayment } from "../features/rides/paymentApi";
-import { connectRideSocket } from "../lib/socket";
 
 export default function CustomerDashboard() {
   const queryClient = useQueryClient();
@@ -29,11 +28,18 @@ export default function CustomerDashboard() {
   });
 
   useEffect(() => {
-    const disconnect = connectRideSocket({
-      onRideUpdate: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] }),
-      onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers"] })
-    });
-    return disconnect;
+    let disconnect = () => {};
+    import("../lib/socket")
+      .then(({ connectRideSocket }) => {
+        disconnect = connectRideSocket({
+          onRideUpdate: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] }),
+          onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers"] })
+        });
+      })
+      .catch(() => {
+        // Keep dashboard usable even if websocket client fails to initialize.
+      });
+    return () => disconnect();
   }, [queryClient]);
 
   return (
