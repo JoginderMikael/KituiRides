@@ -27,7 +27,7 @@ export default function AdminPanel() {
         <h2 className="mb-2 text-lg font-semibold">Rides</h2>
         <div className="space-y-1 text-sm">
           {(rides.data || []).map((r) => (
-            <p key={r.id}>#{r.id} {r.pickupAddress} -> {r.dropoffAddress} ({r.status})</p>
+            <p key={r.id}>#{r.id} {r.pickupAddress} {"->"} {r.dropoffAddress} ({r.status})</p>
           ))}
         </div>
       </section>

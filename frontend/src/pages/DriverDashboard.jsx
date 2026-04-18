@@ -28,7 +28,7 @@ export default function DriverDashboard() {
         <div className="space-y-2">
           {(ridesQuery.data || []).map((ride) => (
             <div key={ride.id} className="rounded border p-3 text-sm">
-              <p>{ride.pickupAddress} -> {ride.dropoffAddress}</p>
+              <p>{ride.pickupAddress} {"->"} {ride.dropoffAddress}</p>
               <p>Status: {ride.status}</p>
               <div className="mt-2 flex gap-2">
                 {(ride.status === "MATCHED" || ride.status === "REQUESTED") && (

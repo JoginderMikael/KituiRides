@@ -89,7 +89,7 @@ export default function CustomerDashboard() {
         <div className="space-y-2">
           {(ridesQuery.data || []).map((ride) => (
             <div key={ride.id} className="rounded border p-3 text-sm">
-              <p className="font-medium">{ride.pickupAddress} -> {ride.dropoffAddress}</p>
+              <p className="font-medium">{ride.pickupAddress} {"->"} {ride.dropoffAddress}</p>
               <p>Status: {ride.status} | Fare: KES {ride.finalFare}</p>
               {ride.status === "COMPLETED" && (
                 <button

@@ -7,6 +7,7 @@ import com.kituirides.api.security.CurrentUserService;
 import com.kituirides.api.websocket.RealtimePublisher;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -34,9 +35,8 @@ public class LocationService {
     public List<NearbyDriverResponse> nearbyDrivers() {
         var nearby = riderProfileRepository.findByVerifiedTrueAndAvailableTrue().stream()
             .map(profile -> locationPingRepository.findTopByUserOrderByTimestampDesc(profile.getUser())
-                .map(ping -> new NearbyDriverResponse(profile.getUser().getId(), ping.getLatitude(), ping.getLongitude()))
-                .orElse(null))
-            .filter(item -> item != null)
+                .map(ping -> new NearbyDriverResponse(profile.getUser().getId(), ping.getLatitude(), ping.getLongitude())))
+            .flatMap(Optional::stream)
             .toList();
         realtimePublisher.publishNearbyDrivers(nearby);
         return nearby;
