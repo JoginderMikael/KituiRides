@@ -5,9 +5,12 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(getSession());
+  const [userProfile, setUserProfile] = useState(null);
 
   const value = useMemo(() => ({
     session,
+    user: userProfile,
+    setUser: setUserProfile,
     role: session?.role || null,
     login: (authResponse) => {
       saveSession(authResponse);
@@ -16,8 +19,9 @@ export function AuthProvider({ children }) {
     logout: () => {
       clearSession();
       setSession(null);
+      setUserProfile(null);
     }
-  }), [session]);
+  }), [session, userProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

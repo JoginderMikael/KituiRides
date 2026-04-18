@@ -10,6 +10,7 @@ import DriverDashboard from "../pages/DriverDashboard";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import SupportPage from "../pages/SupportPage";
+import UserProfile from "../pages/UserProfile";
 
 function RouterErrorFallback() {
   return (
@@ -40,6 +41,7 @@ export const router = createBrowserRouter([
         errorElement: <RouterErrorFallback />,
         children: [
           { path: "/", element: <RoleHomeRedirect /> },
+          { path: "/profile", element: <UserProfile /> },
           {
             element: <ProtectedRoute role="CUSTOMER" />,
             children: [{ path: "/customer", element: <CustomerDashboard /> }]
