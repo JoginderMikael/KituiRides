@@ -7,8 +7,6 @@ services:
       POSTGRES_DB: kituirides
       POSTGRES_USER: kituirides
       POSTGRES_PASSWORD: kituirides
-    ports:
-      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:

@@ -108,7 +108,6 @@ docker compose ps
 # 4) Open apps:
 # Frontend: http://localhost:5173
 # Backend API: http://localhost:8080/api
-# Postgres (container): localhost:5433
 ```
 
 Stop and clean:
