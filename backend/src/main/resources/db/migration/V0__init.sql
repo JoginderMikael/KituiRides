@@ -1,0 +1,72 @@
+-- Create users table
+CREATE TABLE IF NOT EXISTS users (
+    id BIGSERIAL PRIMARY KEY,
+    first_name VARCHAR(255) NOT NULL,
+    last_name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone_number VARCHAR(255) NOT NULL UNIQUE,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50),
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create rides table
+CREATE TABLE IF NOT EXISTS rides (
+    id BIGSERIAL PRIMARY KEY,
+    pickup_location VARCHAR(255),
+    dropoff_location VARCHAR(255),
+    status VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create vehicles table
+CREATE TABLE IF NOT EXISTS vehicles (
+    id BIGSERIAL PRIMARY KEY,
+    registration VARCHAR(255),
+    model VARCHAR(255),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create payments table
+CREATE TABLE IF NOT EXISTS payments (
+    id BIGSERIAL PRIMARY KEY,
+    amount NUMERIC(19,2),
+    status VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create ratings table
+CREATE TABLE IF NOT EXISTS ratings (
+    id BIGSERIAL PRIMARY KEY,
+    score INTEGER,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create support_tickets table
+CREATE TABLE IF NOT EXISTS support_tickets (
+    id BIGSERIAL PRIMARY KEY,
+    subject VARCHAR(255),
+    status VARCHAR(50),
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create location_pings table
+CREATE TABLE IF NOT EXISTS location_pings (
+    id BIGSERIAL PRIMARY KEY,
+    latitude NUMERIC,
+    longitude NUMERIC,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create rider_profiles table
+CREATE TABLE IF NOT EXISTS rider_profiles (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Create support_ticket_replies table
+CREATE TABLE IF NOT EXISTS support_ticket_replies (
+    id BIGSERIAL PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

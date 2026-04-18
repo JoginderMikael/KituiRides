@@ -1,5 +1,17 @@
-ALTER TABLE users ADD COLUMN IF NOT EXISTS role VARCHAR(50);
+-- Add role column if it doesn't exist
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_name = 'users'
+          AND column_name = 'role'
+    ) THEN
+        ALTER TABLE users ADD COLUMN role VARCHAR(50);
+    END IF;
+END $$;
 
+-- Migrate from user_roles table if it exists
 DO $$
 BEGIN
     IF EXISTS (
@@ -16,14 +28,13 @@ BEGIN
     END IF;
 END $$;
 
+-- Set default role for users without one
 UPDATE users
 SET role = 'CUSTOMER'
 WHERE role IS NULL OR role = '';
 
-UPDATE users
-SET role = 'DRIVER'
-WHERE role = 'RIDER';
-
+-- Ensure role is not null
 ALTER TABLE users ALTER COLUMN role SET NOT NULL;
 
+-- Drop old user_roles table if it exists
 DROP TABLE IF EXISTS user_roles;
