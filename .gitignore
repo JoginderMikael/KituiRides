@@ -5,3 +5,4 @@ frontend/dist/
 .vscode/
 *.log
 errorlog.txt
+phase 3.txt

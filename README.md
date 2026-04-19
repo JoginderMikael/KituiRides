@@ -147,12 +147,110 @@ npm run dev
 - `/api/support`
 - `/api/locations`
 
-## 7) Notes
+## 7) Initial Admin User Creation
+
+**CRITICAL: On first system launch, the application automatically creates a default superadmin account with the following credentials:**
+
+```
+Email: admin@example.com
+Password: admin@example.com
+First Name: Super
+Last Name: Admin
+Phone: replace-with-admin-phone
+```
+
+**⚠️ IMPORTANT**: Change this password immediately after first login in a production environment.
+
+The superadmin account is created automatically via the `DataInitializer` class when the Spring Boot application starts for the first time. If the superadmin already exists, it will not be recreated.
+
+### Initial Configuration Values
+
+On first startup, the system also creates default admin configuration settings:
+
+| Setting | Default Value | Description |
+|---------|---------------|-------------|
+| BASE_FARE | 150 KES | Base fare for trip commencement |
+| FUEL_COST_PER_LITER | 200 KES | Current fuel cost per liter |
+| DRIVER_MARKUP | 1.5 | Driver markup multiplier (150%) |
+| COMPANY_COMMISSION_RATE | 0.20 | Company commission rate (20%) |
+| MOTORCYCLE_FUEL_ECONOMY | 37 km/L | Motorcycle fuel economy |
+
+These can be modified via the admin dashboard at `/api/admin/settings/`.
+
+## 8) User Roles & Permissions
+
+### ADMIN Role
+- Full system access
+- Can approve/reject driver applications
+- Can manage pricing configuration
+- Can create and manage support agents
+- Can view all users and rides
+- Can handle support escalations
+
+### DRIVER Role
+- Can request rides
+- Can view their wallet and earnings
+- Can upload required documents
+- Can chat with customers and support agents
+- Can request withdrawals
+
+### CUSTOMER Role
+- Can request rides
+- Can select payment method (M-Pesa or Cash)
+- Can chat with drivers
+- Can provide ride ratings
+- Can contact support
+
+### SUPPORT_AGENT Role
+- Can view and handle support tickets
+- Can chat with customers and drivers
+- **Cannot** perform admin duties
+- **Cannot** create their own account (must be created by ADMIN)
+
+## 9) Support Agent Management
+
+Support agents **cannot** create their own accounts. They must be created by an admin:
+
+1. Admin creates support agent account via admin panel
+2. Admin provides support agent with login credentials
+3. Support agent can then login and handle support tickets
+4. Admin can upgrade support agents to admin role if needed
+
+### Support Agent Workflow
+
+1. Customer/Driver creates support ticket during dispute
+2. Support agent is notified
+3. Support agent opens chat with involved parties
+4. Support agent reviews evidence and makes decision
+5. Support agent closes ticket and documents resolution
+
+## 10) Driver Account Creation (Two-Step Process)
+
+### Step 1: Driver Registration
+- First Name, Last Name
+- Email, Phone Number
+- Password
+- Personal ID verification
+
+### Step 2: Vehicle Information
+- Vehicle Type (Car/Motorcycle)
+- Vehicle Make & Model
+- License Plate Number
+- Engine Size (determines fuel economy)
+- Vehicle Insurance Details
+
+### Admin Approval
+- Admin reviews driver information
+- Admin verifies documents
+- Admin approves or rejects application
+- If approved, driver can start accepting rides
+
+## 11) Notes & PostgreSQL Troubleshooting
 
 - M-Pesa integration is represented by a mock `MpesaClient` adapter in this MVP and can be swapped to real Daraja API calls without changing controller/service contracts.
 - Map block is intentionally scaffolded in customer page for quick integration of Google Maps or Mapbox SDK next.
 
-## 8) Local Postgres Troubleshooting
+### Local PostgreSQL Troubleshooting
 
 If backend fails with `Unable to determine Dialect without JDBC metadata`, JPA could not get DB metadata (usually wrong DB URL/user/password or missing database).
 

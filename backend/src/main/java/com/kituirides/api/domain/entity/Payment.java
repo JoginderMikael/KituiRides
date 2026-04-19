@@ -1,6 +1,7 @@
 package com.kituirides.api.domain.entity;
 
 import com.kituirides.api.domain.enums.PaymentStatus;
+import com.kituirides.api.domain.enums.PaymentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -42,6 +43,10 @@ public class Payment {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status = PaymentStatus.PENDING;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    private PaymentType paymentType = PaymentType.MPESA;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();

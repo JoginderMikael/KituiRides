@@ -1,6 +1,8 @@
 package com.kituirides.api.domain.entity;
 
 import com.kituirides.api.domain.enums.RideStatus;
+import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.domain.enums.PaymentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -74,4 +76,28 @@ public class Ride {
     private Instant acceptedAt;
     private Instant startedAt;
     private Instant completedAt;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20, nullable = false)
+    private VehicleType vehicleType = VehicleType.CAR;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 20, nullable = false)
+    private PaymentType paymentType = PaymentType.MPESA;
+
+    @Column(precision = 10, scale = 2)
+    private BigDecimal distanceKm;
+
+    @Column(nullable = false)
+    private Boolean paymentApproved = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "support_ticket_id")
+    private SupportTicket supportTicket;
+
+    @Column
+    private Instant driverStartedAt;
+
+    @Column
+    private Instant customerCanceledAt;
 }
