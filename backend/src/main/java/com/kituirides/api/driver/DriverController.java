@@ -42,8 +42,19 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.ok(driverService.acceptRide(id), "Ride accepted"));
     }
 
+    @PostMapping("/rides/{id}/start")
+    public ResponseEntity<ApiResponse<RideResponse>> startRide(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(driverService.startRide(id), "Ride started"));
+    }
+
     @PostMapping("/rides/{id}/complete")
     public ResponseEntity<ApiResponse<RideResponse>> completeRide(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.ok(driverService.completeRide(id), "Ride completed"));
+    }
+
+    @PostMapping("/vehicle")
+    public ResponseEntity<ApiResponse<Void>> updateVehicle(@Valid @RequestBody UpdateVehicleDetailsRequest request) {
+        driverService.updateVehicleDetails(request);
+        return ResponseEntity.ok(ApiResponse.ok(null, "Vehicle details updated"));
     }
 }

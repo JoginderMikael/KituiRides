@@ -46,4 +46,22 @@ public class Vehicle {
 
     @Column
     private Integer engineSize;
+
+    @Column
+    private Integer yearOfManufacture;
+
+    @Column
+    private String frontPhotoUrl;
+
+    @Column
+    private String rearPhotoUrl;
+
+    @Column
+    private String interiorPhotoUrl;
+
+    @Column
+    private String insurancePhotoUrl;
+
+    @Column
+    private String chassisPhotoUrl;
 }

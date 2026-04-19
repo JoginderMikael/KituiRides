@@ -8,6 +8,7 @@ public record UserProfileResponse(
     String lastName,
     String email,
     String phoneNumber,
-    Role role
+    Role role,
+    String profilePhotoUrl
 ) {
 }

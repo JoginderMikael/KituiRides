@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { register } from "../features/auth/authApi";
 import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
+import { apiClient } from "../lib/apiClient";
 import { Button, Input, Card } from "../components/UIComponents";
 
 export default function RegisterPage() {
@@ -16,13 +17,40 @@ export default function RegisterPage() {
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    role: "CUSTOMER"
+    role: "CUSTOMER",
+    idNumber: "",
+    licenseNumber: "",
+    // Step 2
+    carMake: "",
+    carModel: "",
+    carColor: "",
+    plateNumber: "",
+    engineSize: "",
+    yearOfManufacture: "",
+    isOwner: true,
+    vehicleType: "CAR"
   });
+  const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordMatch, setPasswordMatch] = useState(true);
 
   const mutation = useMutation({
-    mutationFn: register,
+    mutationFn: async (data) => {
+      const res = await register(data);
+      if (data.role === "DRIVER") {
+        await apiClient.post("/driver/vehicle", {
+          make: data.carMake,
+          model: data.carModel,
+          color: data.carColor,
+          plateNumber: data.plateNumber,
+          engineSize: parseInt(data.engineSize),
+          yearOfManufacture: parseInt(data.yearOfManufacture),
+          isOwner: data.isOwner,
+          vehicleType: data.vehicleType
+        });
+      }
+      return res;
+    },
     onSuccess: (data) => {
       setAuth(data);
       navigate(roleHomePath(data.role), { replace: true });
@@ -69,106 +97,196 @@ export default function RegisterPage() {
               mutation.mutate(form);
             }}
           >
-            {/* Name Fields */}
-            <div className="grid md:grid-cols-2 gap-4">
-              <Input
-                label="First Name"
-                placeholder="John"
-                value={form.firstName}
-                onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                required
-              />
-              <Input
-                label="Last Name"
-                placeholder="Doe"
-                value={form.lastName}
-                onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                required
-              />
-            </div>
+            {step === 1 && (
+              <>
+                {/* Name Fields */}
+                <div className="grid md:grid-cols-2 gap-4">
+                  <Input
+                    label="First Name"
+                    placeholder="John"
+                    value={form.firstName}
+                    onChange={(e) => setForm({ ...form, firstName: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Last Name"
+                    placeholder="Doe"
+                    value={form.lastName}
+                    onChange={(e) => setForm({ ...form, lastName: e.target.value })}
+                    required
+                  />
+                </div>
 
-            {/* Email */}
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="you@example.com"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              required
-            />
-
-            {/* Phone */}
-            <Input
-              label="Phone Number"
-              type="tel"
-              placeholder="254700000000"
-              value={form.phoneNumber}
-              onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
-              required
-            />
-
-            {/* Password */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={handlePasswordChange}
+                {/* Email */}
+                <Input
+                  label="Email Address"
+                  type="email"
+                  placeholder="you@example.com"
+                  value={form.email}
+                  onChange={(e) => setForm({ ...form, email: e.target.value })}
                   required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-800"
-                >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
-                </button>
+
+                {/* Phone */}
+                <Input
+                  label="Phone Number"
+                  type="tel"
+                  placeholder="254700000000"
+                  value={form.phoneNumber}
+                  onChange={(e) => setForm({ ...form, phoneNumber: e.target.value })}
+                  required
+                />
+
+                {/* Password */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Password <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="••••••••"
+                      value={form.password}
+                      onChange={handlePasswordChange}
+                      required
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-800"
+                    >
+                      {showPassword ? "👁️" : "👁️‍🗨️"}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirm Password */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Confirm Password <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••••••"
+                    value={form.confirmPassword}
+                    onChange={handleConfirmPasswordChange}
+                    required
+                    className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
+                      passwordMatch
+                        ? "border-gray-300 focus:ring-teal-600"
+                        : "border-red-500 focus:ring-red-600"
+                    }`}
+                  />
+                  {!passwordMatch && (
+                    <p className="text-red-500 text-sm mt-1">✕ Passwords do not match</p>
+                  )}
+                </div>
+
+                {/* Role Selection */}
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Account Type <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={form.role}
+                    onChange={(e) => setForm({ ...form, role: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  >
+                    <option value="CUSTOMER">👤 Customer - Book Rides</option>
+                    <option value="DRIVER">🚗 Driver - Offer Rides</option>
+                  </select>
+                </div>
+
+                {form.role === "DRIVER" && (
+                  <div className="space-y-4 pt-4 border-t">
+                    <Input
+                      label="ID Number"
+                      placeholder="12345678"
+                      value={form.idNumber}
+                      onChange={(e) => setForm({ ...form, idNumber: e.target.value })}
+                      required
+                    />
+                    <Input
+                      label="License Number"
+                      placeholder="DL-12345"
+                      value={form.licenseNumber}
+                      onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
+                      required
+                    />
+                  </div>
+                )}
+              </>
+            )}
+
+            {step === 2 && form.role === "DRIVER" && (
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="font-bold text-gray-700">Vehicle Details (Step 2)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Car Make"
+                    placeholder="Toyota"
+                    value={form.carMake}
+                    onChange={(e) => setForm({ ...form, carMake: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Car Model"
+                    placeholder="Vitz"
+                    value={form.carModel}
+                    onChange={(e) => setForm({ ...form, carModel: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Plate Number"
+                    placeholder="KAA 001A"
+                    value={form.plateNumber}
+                    onChange={(e) => setForm({ ...form, plateNumber: e.target.value })}
+                    required
+                  />
+                  <Input
+                    label="Engine Size (cc)"
+                    type="number"
+                    placeholder="1500"
+                    value={form.engineSize}
+                    onChange={(e) => setForm({ ...form, engineSize: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Input
+                    label="Year"
+                    type="number"
+                    placeholder="2015"
+                    value={form.yearOfManufacture}
+                    onChange={(e) => setForm({ ...form, yearOfManufacture: e.target.value })}
+                    required
+                  />
+                  <div className="flex flex-col">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
+                    <select
+                      value={form.vehicleType}
+                      onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                    >
+                      <option value="CAR">Car</option>
+                      <option value="MOTORCYCLE">Motorcycle</option>
+                    </select>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    checked={form.isOwner}
+                    onChange={(e) => setForm({ ...form, isOwner: e.target.checked })}
+                    id="isOwner"
+                  />
+                  <label htmlFor="isOwner" className="text-sm text-gray-700">I am the owner of this vehicle</label>
+                </div>
               </div>
-            </div>
-
-            {/* Confirm Password */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Confirm Password <span className="text-red-500">*</span>
-              </label>
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="••••••••"
-                value={form.confirmPassword}
-                onChange={handleConfirmPasswordChange}
-                required
-                className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 ${
-                  passwordMatch
-                    ? "border-gray-300 focus:ring-teal-600"
-                    : "border-red-500 focus:ring-red-600"
-                }`}
-              />
-              {!passwordMatch && (
-                <p className="text-red-500 text-sm mt-1">✕ Passwords do not match</p>
-              )}
-            </div>
-
-            {/* Role Selection */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Account Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={form.role}
-                onChange={(e) => setForm({ ...form, role: e.target.value })}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-              >
-                <option value="CUSTOMER">👤 Customer - Book Rides</option>
-                <option value="DRIVER">🚗 Driver - Offer Rides</option>
-                <option value="SUPPORT_AGENT">👨‍💼 Support Agent - Help Users</option>
-                <option value="ADMIN">⚙️ Admin - Manage Platform</option>
-              </select>
-            </div>
+            )}
 
             {/* Error Message */}
             {mutation.isError && (
@@ -178,14 +296,31 @@ export default function RegisterPage() {
             )}
 
             {/* Submit Button */}
-            <Button
-              className="w-full"
-              size="lg"
-              loading={mutation.isPending}
-              disabled={!passwordMatch}
-            >
-              Create Account
-            </Button>
+            {form.role === "DRIVER" && step === 1 ? (
+              <Button
+                type="button"
+                className="w-full"
+                size="lg"
+                onClick={() => setStep(2)}
+                disabled={!passwordMatch || !form.idNumber || !form.licenseNumber}
+              >
+                Next Step (Vehicle Details)
+              </Button>
+            ) : (
+              <div className="flex space-x-2">
+                {step === 2 && (
+                   <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
+                )}
+                <Button
+                  className="w-full"
+                  size="lg"
+                  loading={mutation.isPending}
+                  disabled={!passwordMatch}
+                >
+                  {form.role === "DRIVER" ? "Submit Application" : "Create Account"}
+                </Button>
+              </div>
+            )}
           </form>
 
           {/* Divider */}

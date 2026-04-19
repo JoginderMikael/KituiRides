@@ -35,4 +35,10 @@ public class PaymentController {
     public ResponseEntity<ApiResponse<PaymentResponse>> getByRide(@PathVariable Long rideId) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.getByRideId(rideId)));
     }
+
+    @PostMapping("/ride/{rideId}/approve-cash")
+    @PreAuthorize("hasAnyRole('DRIVER', 'ADMIN')")
+    public ResponseEntity<ApiResponse<PaymentResponse>> approveCash(@PathVariable Long rideId) {
+        return ResponseEntity.ok(ApiResponse.ok(paymentService.approveCashPayment(rideId), "Cash payment approved"));
+    }
 }

@@ -47,4 +47,7 @@ public class User {
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    @Column
+    private String profilePhotoUrl;
 }

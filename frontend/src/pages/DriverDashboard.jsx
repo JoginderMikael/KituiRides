@@ -8,6 +8,7 @@ import {
   updateDriverLocation,
   updateDriverStatus
 } from "../features/driver/driverApi";
+import { apiClient, unwrap } from "../lib/apiClient";
 import {
   Card,
   Badge,
@@ -37,6 +38,18 @@ export default function DriverDashboard() {
   });
 
   const acceptMutation = useMutation({ mutationFn: acceptDriverRide, onSuccess: refresh });
+  const startMutation = useMutation({
+    mutationFn: async (rideId) => {
+      return unwrap(apiClient.post(`/driver/rides/${rideId}/start`));
+    },
+    onSuccess: refresh
+  });
+  const approvePaymentMutation = useMutation({
+    mutationFn: async (rideId) => {
+      return unwrap(apiClient.post(`/payments/ride/${rideId}/approve-cash`));
+    },
+    onSuccess: refresh
+  });
   const completeMutation = useMutation({ mutationFn: completeDriverRide, onSuccess: refresh });
   const locationMutation = useMutation({ mutationFn: updateDriverLocation, onSuccess: refresh });
 
@@ -253,14 +266,34 @@ export default function DriverDashboard() {
                       ✓ Accept
                     </Button>
                   )}
-                  {(ride.status === "ACCEPTED" || ride.status === "STARTED") && (
+                  {ride.status === "ACCEPTED" && (
+                    <Button
+                      variant="orange"
+                      size="sm"
+                      onClick={() => startMutation.mutate(ride.id)}
+                      loading={startMutation.isPending}
+                    >
+                      ▶ Start Journey
+                    </Button>
+                  )}
+                  {ride.status === "STARTED" && !ride.paymentApproved && (
+                    <Button
+                      variant="info"
+                      size="sm"
+                      onClick={() => approvePaymentMutation.mutate(ride.id)}
+                      loading={approvePaymentMutation.isPending}
+                    >
+                      💳 Approve Cash Payment
+                    </Button>
+                  )}
+                  {ride.status === "STARTED" && ride.paymentApproved && (
                     <Button
                       variant="success"
                       size="sm"
                       onClick={() => completeMutation.mutate(ride.id)}
                       loading={completeMutation.isPending}
                     >
-                      ✓ Complete
+                      ✓ Complete Trip
                     </Button>
                   )}
                   <Button
@@ -337,6 +370,13 @@ export default function DriverDashboard() {
                 </p>
               </div>
             </div>
+
+            {selectedRide.customerName && (
+              <div className="bg-orange-50 p-4 rounded-lg border border-orange-200">
+                <p className="text-orange-800 font-semibold mb-1">Customer: {selectedRide.customerName}</p>
+                <p className="text-orange-700">📞 {selectedRide.customerPhone}</p>
+              </div>
+            )}
 
             <div>
               <p className="text-gray-600 text-sm mb-2">Coordinates</p>

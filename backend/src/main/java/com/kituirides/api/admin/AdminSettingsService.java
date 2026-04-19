@@ -123,7 +123,7 @@ public class AdminSettingsService {
      */
     private String getDefaultValue(String configKey) {
         return switch (configKey) {
-            case "BASE_FARE" -> "150";
+            case "BASE_FARE" -> "100";
             case "FUEL_COST_PER_LITER" -> "200";
             case "DRIVER_MARKUP" -> "1.5";
             case "COMPANY_COMMISSION_RATE" -> "0.20";

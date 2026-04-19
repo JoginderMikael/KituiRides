@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { replyTicket, supportTickets, updateTicket } from "../features/support/supportApi";
+import { apiClient, unwrap } from "../lib/apiClient";
 import {
   Card,
   Badge,
@@ -14,9 +15,41 @@ export default function SupportPage() {
   const [replyByTicketId, setReplyByTicketId] = useState({});
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [filterStatus, setFilterStatus] = useState("ALL");
+  const [rideSearchId, setRideSearchId] = useState("");
+  const [searchedRide, setSearchedRide] = useState(null);
+  const [newKms, setNewKms] = useState("");
   const queryClient = useQueryClient();
 
   const tickets = useQuery({ queryKey: ["support-tickets"], queryFn: supportTickets });
+
+  const searchRideMutation = useMutation({
+    mutationFn: async (rideId) => {
+      return unwrap(apiClient.get(`/rides/${rideId}`));
+    },
+    onSuccess: (data) => {
+      setSearchedRide(data);
+    }
+  });
+
+  const fixKmsMutation = useMutation({
+    mutationFn: async ({ rideId, kms }) => {
+      return unwrap(apiClient.patch(`/support/rides/${rideId}/kms?kms=${kms}`));
+    },
+    onSuccess: (data) => {
+      setSearchedRide(data);
+      alert("KMs updated successfully");
+    }
+  });
+
+  const forceApproveMutation = useMutation({
+    mutationFn: async (rideId) => {
+      return unwrap(apiClient.post(`/support/rides/${rideId}/approve-payment`));
+    },
+    onSuccess: (data) => {
+      setSearchedRide(data);
+      alert("Payment force-approved successfully");
+    }
+  });
 
   const replyMutation = useMutation({
     mutationFn: ({ ticketId, message }) => replyTicket(ticketId, { message }),
@@ -87,6 +120,54 @@ export default function SupportPage() {
           <p className="text-3xl font-bold text-green-600 mt-2">{stats.resolved}</p>
         </Card>
       </div>
+
+      {/* Ride Conflict Resolution */}
+      <Card>
+        <h2 className="text-xl font-bold text-gray-800 mb-4">Ride Conflict Resolution</h2>
+        <div className="flex gap-3 mb-4">
+          <Input 
+            placeholder="Enter Ride ID (e.g. 1)" 
+            value={rideSearchId} 
+            onChange={e => setRideSearchId(e.target.value)} 
+          />
+          <Button onClick={() => searchRideMutation.mutate(rideSearchId)} loading={searchRideMutation.isPending}>Search Ride</Button>
+        </div>
+
+        {searchedRide && (
+          <div className="p-4 border rounded-lg bg-gray-50 space-y-3">
+            <div className="flex justify-between">
+              <div>
+                <p className="font-bold">Ride #{searchedRide.id}</p>
+                <p className="text-sm">{searchedRide.pickupAddress} → {searchedRide.dropoffAddress}</p>
+              </div>
+              <Badge label={searchedRide.status} variant="info" />
+            </div>
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <p><strong>Distance:</strong> {searchedRide.distanceKm} KM</p>
+              <p><strong>Fare:</strong> KES {searchedRide.finalFare}</p>
+              <p><strong>Payment:</strong> {searchedRide.paymentApproved ? "Approved ✓" : "Pending ⏳"}</p>
+            </div>
+            
+            <div className="pt-3 border-t flex flex-wrap gap-4 items-end">
+              <div>
+                <label className="block text-xs font-bold mb-1">Fix Distance (KM)</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="number" 
+                    className="px-2 py-1 border rounded w-24 text-sm" 
+                    value={newKms} 
+                    onChange={e => setNewKms(e.target.value)} 
+                  />
+                  <Button size="sm" variant="warning" onClick={() => fixKmsMutation.mutate({ rideId: searchedRide.id, kms: newKms })} loading={fixKmsMutation.isPending}>Update KM</Button>
+                </div>
+              </div>
+              {!searchedRide.paymentApproved && (
+                <Button size="sm" variant="success" onClick={() => forceApproveMutation.mutate(searchedRide.id)} loading={forceApproveMutation.isPending}>Force Approve Payment</Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* Filter Buttons */}
       <div className="flex flex-wrap gap-2">

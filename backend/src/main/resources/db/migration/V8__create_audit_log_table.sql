@@ -1,6 +1,6 @@
 -- Create audit log table
 CREATE TABLE audit_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     admin_id BIGINT NOT NULL,
     entity_type VARCHAR(100),
     entity_id BIGINT,

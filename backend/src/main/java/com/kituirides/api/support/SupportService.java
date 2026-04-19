@@ -3,10 +3,19 @@ package com.kituirides.api.support;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.SupportTicketReply;
+import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.repository.SupportTicketRepository;
 import com.kituirides.api.repository.SupportTicketReplyRepository;
+import com.kituirides.api.repository.RideRepository;
+import com.kituirides.api.repository.RiderProfileRepository;
+import com.kituirides.api.repository.VehicleRepository;
+import com.kituirides.api.ride.RideResponse;
+import com.kituirides.api.ride.RideService;
+import com.kituirides.api.payment.PaymentService;
+import com.kituirides.api.payment.PriceCalculationService;
 import com.kituirides.api.security.CurrentUserService;
+import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,7 +28,13 @@ public class SupportService {
 
     private final SupportTicketRepository supportTicketRepository;
     private final SupportTicketReplyRepository supportTicketReplyRepository;
+    private final RideRepository rideRepository;
     private final CurrentUserService currentUserService;
+    private final RideService rideService;
+    private final PaymentService paymentService;
+    private final PriceCalculationService priceCalculationService;
+    private final RiderProfileRepository riderProfileRepository;
+    private final VehicleRepository vehicleRepository;
 
     @Transactional
     public TicketResponse createTicket(CreateTicketRequest request) {
@@ -74,6 +89,44 @@ public class SupportService {
         }
         ticket.setStatus(request.status());
         return toResponse(supportTicketRepository.save(ticket));
+    }
+
+    @Transactional
+    public RideResponse fixRideKms(Long rideId, BigDecimal newKms) {
+        var agent = currentUserService.getCurrentUser();
+        if (agent.getRole() != Role.SUPPORT_AGENT && agent.getRole() != Role.ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only support agents can fix ride KMs");
+        }
+        
+        Ride ride = rideService.getRideById(rideId);
+        ride.setDistanceKm(newKms);
+        
+        var profile = riderProfileRepository.findByUserId(ride.getRider().getId())
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Driver profile not found"));
+        var vehicle = vehicleRepository.findByRiderProfile(profile)
+            .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Driver has no vehicle"));
+
+        BigDecimal newFare = priceCalculationService.calculatePrice(
+            newKms, 
+            ride.getVehicleType(), 
+            vehicle.getEngineSize(), 
+            ride.getSurgeMultiplier()
+        );
+        ride.setFinalFare(newFare);
+        
+        rideRepository.save(ride);
+        
+        return rideService.toResponse(ride);
+    }
+
+    @Transactional
+    public RideResponse forceApprovePayment(Long rideId) {
+        var agent = currentUserService.getCurrentUser();
+        if (agent.getRole() != Role.SUPPORT_AGENT && agent.getRole() != Role.ADMIN) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only support agents can force approve payment");
+        }
+        paymentService.approveCashPayment(rideId);
+        return rideService.toResponse(rideService.getRideById(rideId));
     }
 
     private SupportTicket getTicket(Long ticketId) {

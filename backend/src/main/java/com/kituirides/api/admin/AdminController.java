@@ -11,6 +11,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -42,6 +43,25 @@ public class AdminController {
     public ResponseEntity<ApiResponse<Void>> approveDriver(@PathVariable Long id,
                                                            @Valid @RequestBody ApproveDriverRequest request) {
         String message = adminService.approveDriver(id, request.approved());
+        return ResponseEntity.ok(ApiResponse.ok(null, message));
+    }
+
+    @PatchMapping("/drivers/{id}/details")
+    public ResponseEntity<ApiResponse<Void>> updateDriverDetails(@PathVariable Long id,
+                                                                 @Valid @RequestBody UpdateDriverDetailsRequest request) {
+        String message = adminService.updateDriverDetails(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(null, message));
+    }
+
+    @PostMapping("/support-agents")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> createSupportAgent(@Valid @RequestBody CreateSupportAgentRequest request) {
+        UserProfileResponse response = adminService.createSupportAgent(request);
+        return ResponseEntity.ok(ApiResponse.ok(response, "Support agent created"));
+    }
+
+    @PatchMapping("/users/{id}/upgrade")
+    public ResponseEntity<ApiResponse<Void>> upgradeToAdmin(@PathVariable Long id) {
+        String message = adminService.upgradeToAdmin(id);
         return ResponseEntity.ok(ApiResponse.ok(null, message));
     }
 }

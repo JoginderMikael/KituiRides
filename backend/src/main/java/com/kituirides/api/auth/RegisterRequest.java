@@ -11,6 +11,8 @@ public record RegisterRequest(
     @NotBlank @Email String email,
     @NotBlank String phoneNumber,
     @NotBlank String password,
-    @NotNull Role role
+    @NotNull Role role,
+    String idNumber,
+    String licenseNumber
 ) {
 }

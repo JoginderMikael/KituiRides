@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { approveDriver, getDashboard, getRides, getUsers } from "../features/admin/adminApi";
+import { approveDriver, createSupportAgent, getDashboard, getRides, getUsers, updateDriverDetails, upgradeUserToAdmin } from "../features/admin/adminApi";
+import AdminSettingsPanel from "../components/AdminSettingsPanel";
 import {
   Card,
   Badge,
@@ -17,6 +18,9 @@ export default function AdminPanel() {
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRide, setSelectedRide] = useState(null);
   const [filterRole, setFilterRole] = useState("ALL");
+  const [showSupportModal, setShowSupportModal] = useState(false);
+  const [supportForm, setSupportForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+  const [editDriverForm, setEditDriverForm] = useState(null);
 
   const dashboard = useQuery({ queryKey: ["admin-dashboard"], queryFn: getDashboard });
   const users = useQuery({ queryKey: ["admin-users"], queryFn: getUsers });
@@ -28,6 +32,31 @@ export default function AdminPanel() {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
     },
+  });
+
+  const upgradeMutation = useMutation({
+    mutationFn: upgradeUserToAdmin,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setSelectedUser(null);
+    }
+  });
+
+  const createSupportMutation = useMutation({
+    mutationFn: createSupportAgent,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setShowSupportModal(false);
+      setSupportForm({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+    }
+  });
+
+  const updateDriverMutation = useMutation({
+    mutationFn: ({ id, payload }) => updateDriverDetails(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      setEditDriverForm(null);
+    }
   });
 
   const filteredUsers =
@@ -78,6 +107,9 @@ export default function AdminPanel() {
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold text-gray-800">Users Management</h2>
           <div className="flex gap-2">
+            <Button variant="orange" size="sm" onClick={() => setShowSupportModal(true)}>
+              + Add Support Agent
+            </Button>
             {["ALL", "CUSTOMER", "DRIVER", "ADMIN", "SUPPORT_AGENT"].map((role) => (
               <Button
                 key={role}
@@ -140,6 +172,31 @@ export default function AdminPanel() {
                     >
                       View
                     </Button>
+
+                    {user.role === "DRIVER" && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="text-teal-600 border-teal-200"
+                        onClick={() => setEditDriverForm({
+                          id: user.id,
+                          firstName: user.firstName,
+                          lastName: user.lastName,
+                          email: user.email,
+                          phoneNumber: user.phoneNumber,
+                          idNumber: user.idNumber || "",
+                          licenseNumber: user.licenseNumber || "",
+                          isOwner: user.isOwner !== false,
+                          carModel: user.carModel || "",
+                          plateNumber: user.plateNumber || "",
+                          engineSize: user.engineSize || 1500,
+                          yearOfManufacture: user.yearOfManufacture || 2015,
+                          vehicleType: user.vehicleType || "CAR"
+                        })}
+                      >
+                        Edit
+                      </Button>
+                    )}
 
                     {user.role === "DRIVER" && !user.verified && (
                       <>
@@ -259,6 +316,9 @@ export default function AdminPanel() {
               <div>
                 <p className="text-gray-600 text-sm mb-1">Role</p>
                 <Badge label={selectedUser.role} variant="teal" size="md" />
+                {selectedUser.role === "SUPPORT_AGENT" && (
+                   <Button size="xs" variant="outline" className="mt-2" onClick={() => upgradeMutation.mutate(selectedUser.id)} loading={upgradeMutation.isPending}>Upgrade to Admin</Button>
+                )}
               </div>
               <div>
                 <p className="text-gray-600 text-sm mb-1">Status</p>
@@ -343,6 +403,58 @@ export default function AdminPanel() {
               </p>
             </div>
           </div>
+        </Modal>
+      )}
+      {/* Support Agent Modal */}
+      {showSupportModal && (
+        <Modal isOpen={showSupportModal} title="Create Support Agent" onClose={() => setShowSupportModal(false)}>
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault();
+            createSupportMutation.mutate(supportForm);
+          }}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="First Name" value={supportForm.firstName} onChange={e => setSupportForm({...supportForm, firstName: e.target.value})} required />
+              <Input label="Last Name" value={supportForm.lastName} onChange={e => setSupportForm({...supportForm, lastName: e.target.value})} required />
+            </div>
+            <Input label="Email" type="email" value={supportForm.email} onChange={e => setSupportForm({...supportForm, email: e.target.value})} required />
+            <Input label="Phone" value={supportForm.phoneNumber} onChange={e => setSupportForm({...supportForm, phoneNumber: e.target.value})} required />
+            <Button className="w-full" loading={createSupportMutation.isPending}>Create Agent</Button>
+          </form>
+        </Modal>
+      )}
+
+      {/* Admin Settings Section */}
+      <AdminSettingsPanel />
+
+      {/* Edit Driver Modal */}
+      {editDriverForm && (
+        <Modal isOpen={!!editDriverForm} title="Edit Driver Details" onClose={() => setEditDriverForm(null)} size="lg">
+          <form className="space-y-4" onSubmit={(e) => {
+            e.preventDefault();
+            updateDriverMutation.mutate({ id: editDriverForm.id, payload: editDriverForm });
+          }}>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="First Name" value={editDriverForm.firstName} onChange={e => setEditDriverForm({...editDriverForm, firstName: e.target.value})} required />
+              <Input label="Last Name" value={editDriverForm.lastName} onChange={e => setEditDriverForm({...editDriverForm, lastName: e.target.value})} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Email" type="email" value={editDriverForm.email} onChange={e => setEditDriverForm({...editDriverForm, email: e.target.value})} required />
+              <Input label="Phone" value={editDriverForm.phoneNumber} onChange={e => setEditDriverForm({...editDriverForm, phoneNumber: e.target.value})} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="ID Number" value={editDriverForm.idNumber} onChange={e => setEditDriverForm({...editDriverForm, idNumber: e.target.value})} required />
+              <Input label="License" value={editDriverForm.licenseNumber} onChange={e => setEditDriverForm({...editDriverForm, licenseNumber: e.target.value})} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Car Model" value={editDriverForm.carModel} onChange={e => setEditDriverForm({...editDriverForm, carModel: e.target.value})} required />
+              <Input label="Plate" value={editDriverForm.plateNumber} onChange={e => setEditDriverForm({...editDriverForm, plateNumber: e.target.value})} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <Input label="Engine Size" type="number" value={editDriverForm.engineSize} onChange={e => setEditDriverForm({...editDriverForm, engineSize: e.target.value})} required />
+              <Input label="Year" type="number" value={editDriverForm.yearOfManufacture} onChange={e => setEditDriverForm({...editDriverForm, yearOfManufacture: e.target.value})} required />
+            </div>
+            <Button className="w-full" loading={updateDriverMutation.isPending}>Save Changes</Button>
+          </form>
         </Modal>
       )}
     </div>

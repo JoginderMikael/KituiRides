@@ -75,7 +75,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeAdminConfigs() {
         // Define default configs
         String[][] configs = {
-            {"BASE_FARE", "150", "Base fare for trip commencement (KES)"},
+            {"BASE_FARE", "100", "Base fare for trip commencement (KES)"},
             {"FUEL_COST_PER_LITER", "200", "Current fuel cost per liter (KES)"},
             {"DRIVER_MARKUP", "1.5", "Driver markup multiplier for profit margin"},
             {"COMPANY_COMMISSION_RATE", "0.20", "Company commission rate (20% = 0.20)"},

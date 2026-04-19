@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { createCustomerTicket, getCustomerRides, nearbyDrivers, requestRide } from "../features/customer/customerApi";
 import { initiateMpesaPayment } from "../features/rides/paymentApi";
+import { apiClient, unwrap } from "../lib/apiClient";
 import {
   Card,
   Badge,
@@ -22,7 +23,9 @@ export default function CustomerDashboard() {
     dropoffLat: -1.3656,
     dropoffLng: 38.0118,
     pickupAddress: "Kitui Town CBD",
-    dropoffAddress: "Kalundu"
+    dropoffAddress: "Kalundu",
+    vehicleType: "CAR",
+    riderId: null
   });
   const [ticket, setTicket] = useState({ subject: "", description: "" });
   const [selectedRide, setSelectedRide] = useState(null);
@@ -44,8 +47,19 @@ export default function CustomerDashboard() {
         dropoffLat: -1.3656,
         dropoffLng: 38.0118,
         pickupAddress: "Kitui Town CBD",
-        dropoffAddress: "Kalundu"
+        dropoffAddress: "Kalundu",
+        vehicleType: "CAR",
+        riderId: null
       });
+    }
+  });
+
+  const cancelRideMutation = useMutation({
+    mutationFn: async (rideId) => {
+      return unwrap(apiClient.post(`/rides/${rideId}/cancel`));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
     }
   });
 
@@ -166,6 +180,34 @@ export default function CustomerDashboard() {
             />
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">🚗 Vehicle Type</label>
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                value={form.vehicleType}
+                onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
+              >
+                <option value="CAR">Car</option>
+                <option value="MOTORCYCLE">Motorcycle</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">👨‍💼 Selected Driver</label>
+              <select
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                value={form.riderId || ""}
+                onChange={(e) => setForm({ ...form, riderId: e.target.value })}
+                required
+              >
+                <option value="" disabled>Select a driver from below</option>
+                {(driversQuery.data || []).map(d => (
+                  <option key={d.riderId} value={d.riderId}>{d.driverName} ({d.carModel})</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
           {/* Coordinates */}
           <details className="text-sm">
             <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-semibold">
@@ -242,13 +284,17 @@ export default function CustomerDashboard() {
         ) : (
           <div className="space-y-3">
             {(driversQuery.data || []).map((driver, idx) => (
-              <Card key={idx} className="border-l-4 border-l-teal-600">
+              <Card key={idx} className={`border-l-4 border-l-teal-600 cursor-pointer hover:bg-teal-50 ${form.riderId == driver.riderId ? 'bg-teal-100 ring-2 ring-teal-500' : ''}`}
+                    onClick={() => setForm({ ...form, riderId: driver.riderId })}>
                 <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-semibold text-gray-800">Driver #{driver.riderId}</p>
-                    <p className="text-sm text-gray-600">
-                      📍 {driver.latitude.toFixed(4)}, {driver.longitude.toFixed(4)}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <Avatar seed={driver.driverName} size="md" />
+                    <div>
+                      <p className="font-semibold text-gray-800">{driver.driverName}</p>
+                      <p className="text-sm text-gray-600">
+                        🚗 {driver.carModel} • {driver.plateNumber}
+                      </p>
+                    </div>
                   </div>
                   <Badge label="Online" variant="success" size="md" />
                 </div>
@@ -305,6 +351,21 @@ export default function CustomerDashboard() {
                   >
                     Details
                   </Button>
+                  {ride.status !== "COMPLETED" && ride.status !== "CANCELLED" && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="text-red-600 border-red-200 hover:bg-red-50"
+                      onClick={() => {
+                        if (window.confirm("Are you sure you want to cancel this ride?")) {
+                          cancelRideMutation.mutate(ride.id);
+                        }
+                      }}
+                      loading={cancelRideMutation.isPending}
+                    >
+                      Cancel
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -424,6 +485,13 @@ export default function CustomerDashboard() {
                 </p>
               </div>
             </div>
+
+            {selectedRide.riderName && (
+              <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
+                <p className="text-teal-800 font-semibold mb-1">Driver: {selectedRide.riderName}</p>
+                <p className="text-teal-700">📞 {selectedRide.riderPhone}</p>
+              </div>
+            )}
 
             <div>
               <p className="text-gray-600 text-sm mb-2">Coordinates</p>

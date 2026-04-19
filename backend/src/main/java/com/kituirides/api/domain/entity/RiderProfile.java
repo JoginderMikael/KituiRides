@@ -29,6 +29,15 @@ public class RiderProfile {
     @Column(nullable = false, unique = true)
     private String licenseNumber;
 
+    @Column(unique = true)
+    private String idNumber;
+
+    @Column
+    private String passportPhotoUrl;
+
+    @Column
+    private Boolean isOwner = true;
+
     @Column(nullable = false)
     private Boolean verified = false;
 

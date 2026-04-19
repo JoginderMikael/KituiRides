@@ -8,12 +8,12 @@ ALTER TABLE vehicles ADD COLUMN engine_size INT;
 -- Create admin configuration table for pricing parameters
 
 CREATE TABLE admin_config (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     config_key VARCHAR(100) NOT NULL UNIQUE,
     config_value VARCHAR(255) NOT NULL,
     description TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Insert default values
@@ -28,28 +28,28 @@ INSERT INTO admin_config (config_key, config_value, description) VALUES
 -- Create driver wallet for commission tracking
 
 CREATE TABLE driver_wallet (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     driver_id BIGINT NOT NULL UNIQUE,
     balance DECIMAL(10, 2) DEFAULT 0,
     total_earned DECIMAL(10, 2) DEFAULT 0,
     total_withdrawn DECIMAL(10, 2) DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (driver_id) REFERENCES rider_profile(id)
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (driver_id) REFERENCES rider_profiles(id)
 );
 
 -- V5__update_payment_status.sql
 -- Update payment table with new payment status
 
 ALTER TABLE payments ADD COLUMN payment_type VARCHAR(20) DEFAULT 'MPESA';
-ALTER TABLE payments MODIFY COLUMN status VARCHAR(50) DEFAULT 'PENDING';
+ALTER TABLE payments ALTER COLUMN status SET DEFAULT 'PENDING';
 -- Status values: PENDING, PAID_MPESA, PAID_CASH, APPROVED
 
 -- V6__create_chat_tables.sql
 -- Create chat system tables
 
 CREATE TABLE conversations (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     ride_id BIGINT,
     participant1_id BIGINT NOT NULL,
     participant2_id BIGINT NOT NULL,
@@ -57,7 +57,7 @@ CREATE TABLE conversations (
     support_agent_id BIGINT,
     status VARCHAR(20) DEFAULT 'ACTIVE', -- ACTIVE, CLOSED, ARCHIVED
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (ride_id) REFERENCES rides(id),
     FOREIGN KEY (participant1_id) REFERENCES users(id),
     FOREIGN KEY (participant2_id) REFERENCES users(id),
@@ -65,7 +65,7 @@ CREATE TABLE conversations (
 );
 
 CREATE TABLE messages (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     conversation_id BIGINT NOT NULL,
     sender_id BIGINT NOT NULL,
     content TEXT NOT NULL,
@@ -79,7 +79,7 @@ CREATE TABLE messages (
 -- Create driver documents table
 
 CREATE TABLE documents (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     driver_id BIGINT NOT NULL,
     document_type VARCHAR(50), -- passport_photo, id_front, id_back, driver_license_front, driver_license_back, car_front, car_back, car_interior, insurance_sticker, chassis_number
     file_path VARCHAR(500),
@@ -97,7 +97,7 @@ CREATE TABLE documents (
 -- Create audit log for tracking admin changes
 
 CREATE TABLE audit_log (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     admin_id BIGINT NOT NULL,
     entity_type VARCHAR(100),
     entity_id BIGINT,
@@ -118,7 +118,24 @@ ALTER TABLE rides ADD COLUMN payment_approved BOOLEAN DEFAULT FALSE;
 ALTER TABLE rides ADD COLUMN support_ticket_id BIGINT;
 ALTER TABLE rides ADD COLUMN driver_started_at TIMESTAMP;
 ALTER TABLE rides ADD COLUMN customer_canceled_at TIMESTAMP;
-ALTER TABLE rides ADD COLUMN FOREIGN KEY (support_ticket_id) REFERENCES support_tickets(id);
+ALTER TABLE rides ADD FOREIGN KEY (support_ticket_id) REFERENCES support_tickets(id);
+
+-- V11__update_users_and_profiles_for_phase_3.sql
+-- Add missing fields for Phase 3 requirements
+
+ALTER TABLE users ADD COLUMN profile_photo_url VARCHAR(500);
+
+ALTER TABLE rider_profiles ADD COLUMN id_number VARCHAR(50) UNIQUE;
+ALTER TABLE rider_profiles ADD COLUMN passport_photo_url VARCHAR(500);
+ALTER TABLE rider_profiles ADD COLUMN is_owner BOOLEAN DEFAULT TRUE;
+
+ALTER TABLE vehicles ADD COLUMN year_of_manufacture INT;
+ALTER TABLE vehicles ADD COLUMN color VARCHAR(50);
+ALTER TABLE vehicles ADD COLUMN front_photo_url VARCHAR(500);
+ALTER TABLE vehicles ADD COLUMN rear_photo_url VARCHAR(500);
+ALTER TABLE vehicles ADD COLUMN interior_photo_url VARCHAR(500);
+ALTER TABLE vehicles ADD COLUMN insurance_photo_url VARCHAR(500);
+ALTER TABLE vehicles ADD COLUMN chassis_photo_url VARCHAR(500);
 
 -- V10__insert_initial_admin.sql
 -- Insert initial admin account

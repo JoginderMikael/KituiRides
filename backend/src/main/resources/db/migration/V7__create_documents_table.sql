@@ -1,6 +1,6 @@
 -- Create driver documents table
 CREATE TABLE documents (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+    id BIGSERIAL PRIMARY KEY,
     driver_id BIGINT NOT NULL,
     document_type VARCHAR(50),
     file_path VARCHAR(500),

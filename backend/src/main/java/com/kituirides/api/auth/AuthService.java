@@ -46,7 +46,8 @@ public class AuthService {
         if (saved.getRole() == Role.DRIVER) {
             RiderProfile profile = new RiderProfile();
             profile.setUser(saved);
-            profile.setLicenseNumber("PENDING-" + saved.getId());
+            profile.setLicenseNumber(request.licenseNumber() != null ? request.licenseNumber() : "PENDING-" + saved.getId());
+            profile.setIdNumber(request.idNumber());
             profile.setVerified(false);
             profile.setAvailable(false);
             riderProfileRepository.save(profile);

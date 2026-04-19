@@ -89,13 +89,17 @@ public class PriceCalculationService {
         // For cars, calculate based on engine size
         if (engineSize != null) {
             if (engineSize <= 1000) {
-                return BigDecimal.valueOf(15.0); // 1.0L engines: ~15 km/l
+                return BigDecimal.valueOf(20.0); // 500-1000cc -> 650cc -> 20 km/l
             } else if (engineSize <= 1500) {
-                return BigDecimal.valueOf(12.0); // 1.5L engines: ~12 km/l
+                return BigDecimal.valueOf(15.0); // 1000-1500cc -> 1500cc -> 15 km/l
             } else if (engineSize <= 2000) {
-                return BigDecimal.valueOf(10.0); // 2.0L engines: ~10 km/l
+                return BigDecimal.valueOf(13.0); // 1500-2000cc -> 1800cc -> 13 km/l
+            } else if (engineSize <= 2500) {
+                return BigDecimal.valueOf(11.0); // 2000-2500cc -> 2200cc -> 11 km/l
+            } else if (engineSize <= 3000) {
+                return BigDecimal.valueOf(9.0); // 2500-3000cc -> 2800cc -> 9 km/l
             } else {
-                return BigDecimal.valueOf(8.0); // Larger engines: ~8 km/l
+                return BigDecimal.valueOf(7.0); // > 3000cc -> 3300cc -> 7 km/l
             }
         }
 
@@ -117,7 +121,7 @@ public class PriceCalculationService {
      */
     private BigDecimal getDefaultConfigValue(String configKey) {
         return switch (configKey) {
-            case "BASE_FARE" -> BigDecimal.valueOf(150);
+            case "BASE_FARE" -> BigDecimal.valueOf(100);
             case "FUEL_COST_PER_LITER" -> BigDecimal.valueOf(200);
             case "DRIVER_MARKUP" -> BigDecimal.valueOf(1.5);
             case "COMPANY_COMMISSION_RATE" -> BigDecimal.valueOf(0.20);

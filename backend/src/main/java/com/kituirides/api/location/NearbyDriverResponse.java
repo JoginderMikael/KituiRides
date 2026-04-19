@@ -3,6 +3,9 @@ package com.kituirides.api.location;
 public record NearbyDriverResponse(
     Long riderId,
     Double latitude,
-    Double longitude
+    Double longitude,
+    String carModel,
+    String plateNumber,
+    String driverName
 ) {
 }
