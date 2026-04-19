@@ -12,8 +12,8 @@ export function getCustomerRide(rideId) {
   return unwrap(apiClient.get(`/customer/rides/${rideId}`));
 }
 
-export function nearbyDrivers() {
-  return unwrap(apiClient.get("/customer/nearby-drivers"));
+export function nearbyDrivers(params) {
+  return unwrap(apiClient.get("/customer/nearby-drivers", { params }));
 }
 
 export function createCustomerTicket(payload) {
@@ -22,4 +22,8 @@ export function createCustomerTicket(payload) {
 
 export function myCustomerTickets() {
   return unwrap(apiClient.get("/customer/tickets"));
+}
+
+export function disputeRide(rideId, payload) {
+  return unwrap(apiClient.post(`/customer/rides/${rideId}/dispute`, payload));
 }

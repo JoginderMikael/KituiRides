@@ -1,5 +1,8 @@
 package com.kituirides.api.ride;
 
+import com.kituirides.api.domain.enums.DistanceSource;
+import com.kituirides.api.domain.enums.PaymentStatus;
+import com.kituirides.api.domain.enums.PaymentType;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.VehicleType;
 import java.math.BigDecimal;
@@ -15,6 +18,10 @@ public record RideResponse(
     String riderPhone,
     String pickupAddress,
     String dropoffAddress,
+    Double pickupLat,
+    Double pickupLng,
+    Double dropoffLat,
+    Double dropoffLng,
     BigDecimal estimatedFare,
     BigDecimal finalFare,
     Double surgeMultiplier,
@@ -22,10 +29,22 @@ public record RideResponse(
     RideStatus status,
     Instant requestedAt,
     Instant acceptedAt,
+    Instant arrivedAt,
     Instant startedAt,
+    Instant paymentPendingAt,
+    Instant paymentCompletedAt,
+    Instant cancelledAt,
+    Instant disputedAt,
     Instant completedAt,
     VehicleType vehicleType,
-    BigDecimal distanceKm,
-    Boolean paymentApproved
+    PaymentType paymentType,
+    PaymentStatus paymentStatus,
+    BigDecimal estimatedDistanceKm,
+    BigDecimal chargeableDistanceKm,
+    DistanceSource distanceSource,
+    Boolean manualDistanceRequired,
+    Boolean paymentApproved,
+    Long supportTicketId,
+    String disputeReason
 ) {
 }

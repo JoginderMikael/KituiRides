@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { apiClient } from "../lib/apiClient";
 
 /**
  * WalletView Component - Driver earnings and wallet management
@@ -11,36 +12,34 @@ import { useAuth } from '../hooks/useAuth';
  * - Request withdrawal
  */
 const WalletView = () => {
-  const { token } = useAuth();
+  const { session } = useAuth();
   const [wallet, setWallet] = useState(null);
-  const [withdrawalAmount, setWithdrawalAmount] = useState('');
+  const [withdrawalAmount, setWithdrawalAmount] = useState("");
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [errorMessage, setErrorMessage] = useState('');
-
-  const API_URL = 'http://localhost:8080/api/wallet';
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    if (!session?.token) {
+      setWallet(null);
+      setLoading(false);
+      return undefined;
+    }
     fetchWalletDetails();
-    // Refresh every 30 seconds
     const interval = setInterval(fetchWalletDetails, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [session?.token]);
 
   const fetchWalletDetails = async () => {
     try {
-      const response = await fetch(`${API_URL}/my-wallet`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setWallet(data);
-        setLoading(false);
-      }
+      const response = await apiClient.get("/wallet/my-wallet");
+      setWallet(response.data);
+      setLoading(false);
     } catch (error) {
-      console.error('Error fetching wallet:', error);
-      setErrorMessage('Failed to load wallet');
+      console.error("Error fetching wallet:", error);
+      setErrorMessage("Failed to load wallet");
+      setLoading(false);
     }
   };
 
@@ -48,41 +47,29 @@ const WalletView = () => {
     e.preventDefault();
     
     if (!withdrawalAmount || parseFloat(withdrawalAmount) <= 0) {
-      setErrorMessage('Please enter a valid amount');
+      setErrorMessage("Please enter a valid amount");
       return;
     }
 
     if (wallet && parseFloat(withdrawalAmount) > parseFloat(wallet.balance)) {
-      setErrorMessage('Insufficient balance');
+      setErrorMessage("Insufficient balance");
       return;
     }
 
     setProcessing(true);
-    setErrorMessage('');
-    setSuccessMessage('');
+    setErrorMessage("");
+    setSuccessMessage("");
 
     try {
-      const response = await fetch(`${API_URL}/withdrawal`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ amount: parseFloat(withdrawalAmount) })
+      const response = await apiClient.post("/wallet/withdrawal", {
+        amount: parseFloat(withdrawalAmount)
       });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSuccessMessage(data.message);
-        setWithdrawalAmount('');
-        fetchWalletDetails();
-      } else {
-        const error = await response.json();
-        setErrorMessage(error.message || 'Withdrawal failed');
-      }
+      setSuccessMessage(response.data.message);
+      setWithdrawalAmount("");
+      fetchWalletDetails();
     } catch (error) {
-      console.error('Error processing withdrawal:', error);
-      setErrorMessage('Failed to process withdrawal');
+      console.error("Error processing withdrawal:", error);
+      setErrorMessage(error.response?.data?.message || "Failed to process withdrawal");
     } finally {
       setProcessing(false);
     }
@@ -189,7 +176,7 @@ const WalletView = () => {
             disabled={processing || !withdrawalAmount || balance === 0}
             className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold py-3 px-4 rounded-lg transition"
           >
-            {processing ? 'Processing...' : 'Request Withdrawal'}
+            {processing ? "Processing..." : "Request Withdrawal"}
           </button>
         </form>
       </div>

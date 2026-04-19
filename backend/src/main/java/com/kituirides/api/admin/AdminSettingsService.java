@@ -7,11 +7,11 @@ import com.kituirides.api.domain.enums.AuditAction;
 import com.kituirides.api.repository.AdminConfigRepository;
 import com.kituirides.api.repository.AuditLogRepository;
 import java.time.Instant;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,6 +22,7 @@ public class AdminSettingsService {
 
     private final AdminConfigRepository configRepository;
     private final AuditLogRepository auditLogRepository;
+    private final StringRedisTemplate redisTemplate;
 
     /**
      * Get all admin configurations
@@ -34,9 +35,23 @@ public class AdminSettingsService {
      * Get specific configuration value
      */
     public String getConfigValue(String configKey) {
+        String cached = redisTemplate.opsForValue().get(cacheKey(configKey));
+        if (cached != null) {
+            return cached;
+        }
+
         return configRepository.findByConfigKey(configKey)
-                .map(AdminConfig::getConfigValue)
-                .orElse(null);
+                .map(config -> {
+                    redisTemplate.opsForValue().set(cacheKey(configKey), config.getConfigValue());
+                    return config.getConfigValue();
+                })
+                .orElseGet(() -> {
+                    String defaultValue = getDefaultValue(configKey);
+                    if (!defaultValue.isBlank()) {
+                        redisTemplate.opsForValue().set(cacheKey(configKey), defaultValue);
+                    }
+                    return defaultValue.isBlank() ? null : defaultValue;
+                });
     }
 
     /**
@@ -60,6 +75,7 @@ public class AdminSettingsService {
         config.setUpdatedAt(Instant.now());
 
         config = configRepository.save(config);
+        redisTemplate.opsForValue().set(cacheKey(configKey), newValue);
 
         // Log audit entry
         createAuditLog(admin, "AdminConfig", config.getId(), AuditAction.UPDATE, 
@@ -109,6 +125,7 @@ public class AdminSettingsService {
         config.setConfigValue(defaultValue);
         config.setUpdatedAt(Instant.now());
         config = configRepository.save(config);
+        redisTemplate.opsForValue().set(cacheKey(configKey), defaultValue);
 
         createAuditLog(admin, "AdminConfig", config.getId(), AuditAction.UPDATE,
                       Map.of("configKey", configKey, "value", oldValue),
@@ -123,11 +140,12 @@ public class AdminSettingsService {
      */
     private String getDefaultValue(String configKey) {
         return switch (configKey) {
-            case "BASE_FARE" -> "100";
+            case "BASE_FARE" -> "150";
             case "FUEL_COST_PER_LITER" -> "200";
             case "DRIVER_MARKUP" -> "1.5";
             case "COMPANY_COMMISSION_RATE" -> "0.20";
             case "MOTORCYCLE_FUEL_ECONOMY" -> "37";
+            case "SUPPORT_PHONE_NUMBER" -> "+254797753625";
             default -> "";
         };
     }
@@ -146,6 +164,10 @@ public class AdminSettingsService {
         auditLog.setNewValues(newValues);
         auditLog.setCreatedAt(Instant.now());
         auditLogRepository.save(auditLog);
+    }
+
+    private String cacheKey(String configKey) {
+        return "admin-config:" + configKey;
     }
 
     /**

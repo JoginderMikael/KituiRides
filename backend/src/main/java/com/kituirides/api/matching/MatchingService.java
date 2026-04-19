@@ -1,9 +1,20 @@
 package com.kituirides.api.matching;
 
 import com.kituirides.api.domain.entity.LocationPing;
+import com.kituirides.api.domain.entity.Vehicle;
+import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.payment.PriceCalculationService;
 import com.kituirides.api.repository.LocationPingRepository;
+import com.kituirides.api.repository.RideRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
+import com.kituirides.api.repository.VehicleRepository;
+import com.kituirides.api.ride.RideStateMachine;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -12,35 +23,90 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class MatchingService {
 
+    private static final double MATCH_RADIUS_KM = 5.0;
+    private static final int MAX_MATCHES = 10;
+    private static final Duration LOCATION_FRESHNESS = Duration.ofMinutes(2);
+
     private final RiderProfileRepository riderProfileRepository;
     private final LocationPingRepository locationPingRepository;
+    private final VehicleRepository vehicleRepository;
+    private final RideRepository rideRepository;
+    private final RideStateMachine rideStateMachine;
+    private final PriceCalculationService priceCalculationService;
 
-    public Optional<DriverMatchResult> findNearestAvailableRider(double pickupLat, double pickupLng) {
+    public List<DriverMatchResult> findEligibleDrivers(
+        double pickupLat,
+        double pickupLng,
+        double dropoffLat,
+        double dropoffLng,
+        VehicleType vehicleType
+    ) {
+        Instant freshnessCutoff = Instant.now().minus(LOCATION_FRESHNESS);
+        double estimatedDistance = haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        double surgeMultiplier = calculateSurgeMultiplier();
+
         return riderProfileRepository.findByVerifiedTrueAndAvailableTrue().stream()
             .map(profile -> {
-                Optional<LocationPing> ping = locationPingRepository.findTopByUserOrderByTimestampDesc(profile.getUser());
-                if (ping.isEmpty()) {
+                Vehicle vehicle = vehicleRepository.findByRiderProfile(profile).orElse(null);
+                if (vehicle == null || vehicle.getVehicleType() != vehicleType) {
                     return null;
                 }
-                double distanceKm = haversineKm(pickupLat, pickupLng, ping.get().getLatitude(), ping.get().getLongitude());
-                int eta = Math.max(2, (int) Math.round(distanceKm / 0.4));
-                return new DriverMatchResult(profile.getUser(), eta, distanceKm);
+                if (rideRepository.existsByRiderAndStatusIn(profile.getUser(), rideStateMachine.activeDriverStatuses())) {
+                    return null;
+                }
+
+                Optional<LocationPing> latestPing = locationPingRepository.findTopByUserOrderByTimestampDesc(profile.getUser());
+                if (latestPing.isEmpty() || latestPing.get().getTimestamp().isBefore(freshnessCutoff)) {
+                    return null;
+                }
+
+                double distanceToPickupKm = haversineKm(
+                    pickupLat,
+                    pickupLng,
+                    latestPing.get().getLatitude(),
+                    latestPing.get().getLongitude()
+                );
+                if (distanceToPickupKm > MATCH_RADIUS_KM) {
+                    return null;
+                }
+
+                BigDecimal estimatedPrice = priceCalculationService.calculatePrice(
+                    BigDecimal.valueOf(estimatedDistance),
+                    vehicleType,
+                    vehicle.getEngineSize(),
+                    surgeMultiplier
+                );
+
+                int eta = Math.max(2, (int) Math.round(distanceToPickupKm / 0.4));
+                return new DriverMatchResult(
+                    profile.getUser(),
+                    vehicle,
+                    latestPing.get().getLatitude(),
+                    latestPing.get().getLongitude(),
+                    eta,
+                    distanceToPickupKm,
+                    estimatedPrice
+                );
             })
             .filter(result -> result != null)
-            .min(Comparator.comparingDouble(DriverMatchResult::distanceKm));
+            .sorted(Comparator.comparingDouble(DriverMatchResult::distanceToPickupKm))
+            .limit(MAX_MATCHES)
+            .toList();
     }
 
     public double calculateSurgeMultiplier() {
-        long demand = riderProfileRepository.count() * 2L;
+        long demand = rideRepository.countByStatusIn(rideStateMachine.activeCustomerStatuses());
         long supply = riderProfileRepository.findByVerifiedTrueAndAvailableTrue().size();
-        if (supply == 0) {
-            return 1.8;
+        if (supply <= 0) {
+            return 1.0;
         }
-        double ratio = (double) demand / supply;
-        return Math.min(2.0, Math.max(1.0, ratio / 2.0));
+        double ratio = demand == 0 ? 1.0 : (double) demand / supply;
+        return BigDecimal.valueOf(Math.max(1.0, Math.min(1.5, ratio)))
+            .setScale(2, RoundingMode.HALF_UP)
+            .doubleValue();
     }
 
-    private double haversineKm(double lat1, double lon1, double lat2, double lon2) {
+    public double haversineKm(double lat1, double lon1, double lat2, double lon2) {
         final int earthRadiusKm = 6371;
         double dLat = Math.toRadians(lat2 - lat1);
         double dLon = Math.toRadians(lon2 - lon1);

@@ -3,6 +3,7 @@ package com.kituirides.api.repository;
 import com.kituirides.api.domain.entity.Conversation;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationStatus;
+import com.kituirides.api.domain.enums.ConversationType;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -26,4 +27,22 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
         or (c.participant1 = :user2 and c.participant2 = :user1)
         """)
     Optional<Conversation> findConversationBetween(@Param("user1") User user1, @Param("user2") User user2);
+
+    Optional<Conversation> findByRide_IdAndConversationType(Long rideId, ConversationType conversationType);
+
+    @Query("""
+        select c from Conversation c
+        where c.ride = :ride
+          and c.conversationType = :conversationType
+          and (
+            (c.participant1 = :user1 and c.participant2 = :user2)
+            or (c.participant1 = :user2 and c.participant2 = :user1)
+          )
+        """)
+    Optional<Conversation> findRideConversation(
+        @Param("ride") com.kituirides.api.domain.entity.Ride ride,
+        @Param("conversationType") ConversationType conversationType,
+        @Param("user1") User user1,
+        @Param("user2") User user2
+    );
 }

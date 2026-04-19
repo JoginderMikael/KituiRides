@@ -110,6 +110,8 @@ public class UserService {
             user.getEmail(),
             user.getPhoneNumber(),
             user.getRole(),
+            user.getActive(),
+            user.getCreatedAt(),
             user.getProfilePhotoUrl(),
             idNumber,
             licenseNumber,

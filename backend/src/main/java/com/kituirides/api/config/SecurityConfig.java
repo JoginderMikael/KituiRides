@@ -37,10 +37,11 @@ public class SecurityConfig {
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**", "/api/upload/**", "/uploads/**", "/ws/**", "/actuator/health", "/actuator/info").permitAll()
+                .requestMatchers("/api/support/contact").authenticated()
                 .requestMatchers("/api/admin/**").hasRole("ADMIN")
                 .requestMatchers("/api/driver/**").hasRole("DRIVER")
                 .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
-                .requestMatchers("/api/support/**").hasRole("SUPPORT_AGENT")
+                .requestMatchers("/api/support/**").hasAnyRole("SUPPORT_AGENT", "ADMIN")
                 .anyRequest().authenticated()
             )
             .authenticationProvider(authenticationProvider())

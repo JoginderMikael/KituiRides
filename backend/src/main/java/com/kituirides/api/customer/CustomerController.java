@@ -3,10 +3,12 @@ package com.kituirides.api.customer;
 import com.kituirides.api.common.ApiResponse;
 import com.kituirides.api.location.LocationService;
 import com.kituirides.api.location.NearbyDriverResponse;
+import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.ride.CreateRideRequest;
 import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
 import com.kituirides.api.support.CreateTicketRequest;
+import com.kituirides.api.support.RaiseRideDisputeRequest;
 import com.kituirides.api.support.SupportService;
 import com.kituirides.api.support.TicketResponse;
 import jakarta.validation.Valid;
@@ -19,6 +21,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -47,8 +50,32 @@ public class CustomerController {
     }
 
     @GetMapping("/nearby-drivers")
-    public ResponseEntity<ApiResponse<List<NearbyDriverResponse>>> nearbyDrivers() {
-        return ResponseEntity.ok(ApiResponse.ok(locationService.nearbyDrivers()));
+    public ResponseEntity<ApiResponse<List<NearbyDriverResponse>>> nearbyDrivers(
+        @RequestParam double pickupLat,
+        @RequestParam double pickupLng,
+        @RequestParam double dropoffLat,
+        @RequestParam double dropoffLng,
+        @RequestParam VehicleType vehicleType
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            locationService.nearbyDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType)
+        ));
+    }
+
+    @PostMapping("/rides/{id}/cancel")
+    public ResponseEntity<ApiResponse<RideResponse>> cancelRide(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(rideService.cancelRide(id), "Ride cancelled"));
+    }
+
+    @PostMapping("/rides/{id}/dispute")
+    public ResponseEntity<ApiResponse<RideResponse>> disputeRide(
+        @PathVariable Long id,
+        @Valid @RequestBody RaiseRideDisputeRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            supportService.raiseRideDispute(id, request.reason()),
+            "Ride dispute opened"
+        ));
     }
 
     @PostMapping("/tickets")

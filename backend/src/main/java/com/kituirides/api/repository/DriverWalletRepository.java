@@ -10,4 +10,5 @@ import org.springframework.stereotype.Repository;
 public interface DriverWalletRepository extends JpaRepository<DriverWallet, Long> {
     Optional<DriverWallet> findByDriver(RiderProfile driver);
     Optional<DriverWallet> findByDriver_Id(Long driverId);
+    Optional<DriverWallet> findByDriver_User_Id(Long userId);
 }

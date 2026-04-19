@@ -40,6 +40,9 @@ public class DriverWallet {
     @Column(nullable = false, precision = 10, scale = 2)
     private BigDecimal totalWithdrawn = BigDecimal.ZERO;
 
+    @Column(nullable = false, precision = 10, scale = 2)
+    private BigDecimal outstandingCommission = BigDecimal.ZERO;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 

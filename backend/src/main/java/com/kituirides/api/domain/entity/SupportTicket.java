@@ -1,6 +1,7 @@
 package com.kituirides.api.domain.entity;
 
 import com.kituirides.api.domain.enums.TicketStatus;
+import com.kituirides.api.domain.enums.TicketType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,9 +41,19 @@ public class SupportTicket {
     private String description;
 
     @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 30)
+    private TicketType ticketType = TicketType.GENERAL;
+
+    @Column(name = "ride_id")
+    private Long rideId;
+
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private TicketStatus status = TicketStatus.OPEN;
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    @Column(columnDefinition = "TEXT")
+    private String resolutionNotes;
 }

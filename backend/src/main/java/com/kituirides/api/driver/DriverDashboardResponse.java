@@ -10,6 +10,28 @@ public record DriverDashboardResponse(
     Boolean verified,
     Boolean online,
     BigDecimal totalEarnings,
-    RideResponse activeTrip
+    RideResponse activeTrip,
+    Integer pendingOfferCount,
+    String supportPhoneNumber,
+    DriverVehicleSummary vehicle,
+    DriverWalletSummary wallet
+) {
+}
+
+record DriverVehicleSummary(
+    String make,
+    String model,
+    String color,
+    String plateNumber,
+    Integer engineSize,
+    Integer yearOfManufacture
+) {
+}
+
+record DriverWalletSummary(
+    BigDecimal balance,
+    BigDecimal totalEarned,
+    BigDecimal totalWithdrawn,
+    BigDecimal outstandingCommission
 ) {
 }

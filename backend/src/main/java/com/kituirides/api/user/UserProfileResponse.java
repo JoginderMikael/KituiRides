@@ -2,6 +2,7 @@ package com.kituirides.api.user;
 
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.domain.enums.VehicleType;
+import java.time.Instant;
 
 public record UserProfileResponse(
     Long id,
@@ -10,6 +11,8 @@ public record UserProfileResponse(
     String email,
     String phoneNumber,
     Role role,
+    Boolean active,
+    Instant createdAt,
     String profilePhotoUrl,
     // Driver specific
     String idNumber,

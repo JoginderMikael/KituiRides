@@ -1,37 +1,43 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { approveDriver, createSupportAgent, getDashboard, getRides, getUsers, updateDriverDetails, upgradeUserToAdmin } from "../features/admin/adminApi";
 import AdminSettingsPanel from "../components/AdminSettingsPanel";
+import { Avatar, Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal, StatCard } from "../components/UIComponents";
 import {
-  Card,
-  Badge,
-  Button,
-  Avatar,
-  LoadingSpinner,
-  StatCard,
-  Modal,
-  EmptyState,
-} from "../components/UIComponents";
+  approveDriver,
+  createSupportAgent,
+  getDashboard,
+  getRides,
+  getUsers,
+  updateDriverDetails,
+  upgradeUserToAdmin
+} from "../features/admin/adminApi";
+import { supportTickets } from "../features/support/supportApi";
+import { rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
+
+function formatMoney(value) {
+  return `KES ${Number(value || 0).toFixed(2)}`;
+}
 
 export default function AdminPanel() {
   const queryClient = useQueryClient();
+  const [filterRole, setFilterRole] = useState("ALL");
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRide, setSelectedRide] = useState(null);
-  const [filterRole, setFilterRole] = useState("ALL");
-  const [showSupportModal, setShowSupportModal] = useState(false);
   const [supportForm, setSupportForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+  const [showSupportModal, setShowSupportModal] = useState(false);
   const [editDriverForm, setEditDriverForm] = useState(null);
 
-  const dashboard = useQuery({ queryKey: ["admin-dashboard"], queryFn: getDashboard });
-  const users = useQuery({ queryKey: ["admin-users"], queryFn: getUsers });
-  const rides = useQuery({ queryKey: ["admin-rides"], queryFn: getRides });
+  const dashboardQuery = useQuery({ queryKey: ["admin-dashboard"], queryFn: getDashboard });
+  const usersQuery = useQuery({ queryKey: ["admin-users"], queryFn: getUsers });
+  const ridesQuery = useQuery({ queryKey: ["admin-rides"], queryFn: getRides });
+  const ticketsQuery = useQuery({ queryKey: ["support-tickets"], queryFn: supportTickets });
 
   const approveMutation = useMutation({
     mutationFn: ({ id, approved }) => approveDriver(id, approved),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
-    },
+    }
   });
 
   const upgradeMutation = useMutation({
@@ -46,8 +52,8 @@ export default function AdminPanel() {
     mutationFn: createSupportAgent,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      setShowSupportModal(false);
       setSupportForm({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+      setShowSupportModal(false);
     }
   });
 
@@ -59,237 +65,182 @@ export default function AdminPanel() {
     }
   });
 
-  const filteredUsers =
-    filterRole === "ALL"
-      ? users.data || []
-      : (users.data || []).filter((u) => u.role === filterRole);
-
-  const driverCount = (users.data || []).filter((u) => u.role === "DRIVER").length;
-  const customerCount = (users.data || []).filter((u) => u.role === "CUSTOMER").length;
+  const users = usersQuery.data || [];
+  const rides = ridesQuery.data || [];
+  const driverEditRequests = (ticketsQuery.data || []).filter((ticket) => ticket.ticketType === "DRIVER_EDIT_REQUEST");
+  const filteredUsers = filterRole === "ALL" ? users : users.filter((user) => user.role === filterRole);
 
   return (
     <div className="space-y-6">
-      {/* Dashboard Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Admin Dashboard</h1>
-        <p className="text-gray-600">Manage users, rides, and system operations</p>
+        <h1 className="text-3xl font-bold text-slate-900">Admin Dashboard</h1>
+        <p className="mt-2 text-slate-600">Approve drivers, manage support staff, adjust pricing, and oversee ride operations.</p>
       </div>
 
-      {/* Statistics Cards */}
-      <div className="grid md:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Users"
-          value={dashboard.data?.totalUsers ?? "-"}
-          icon="👥"
-          trend={{ positive: true, text: "+12% this month" }}
-        />
-        <StatCard
-          label="Total Drivers"
-          value={driverCount}
-          icon="🚗"
-          trend={{ positive: true, text: "All verified" }}
-        />
-        <StatCard
-          label="Active Rides"
-          value={dashboard.data?.activeRideRequests ?? "-"}
-          icon="🚦"
-        />
-        <StatCard
-          label="Total Completed"
-          value={dashboard.data?.totalRides ?? "-"}
-          icon="✓"
-          trend={{ positive: true, text: "Revenue active" }}
-        />
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Total Users" value={dashboardQuery.data?.totalUsers ?? 0} icon="👥" />
+        <StatCard label="Total Rides" value={dashboardQuery.data?.totalRides ?? 0} icon="🚕" />
+        <StatCard label="Active Requests" value={dashboardQuery.data?.activeRideRequests ?? 0} icon="📡" />
+        <StatCard label="Driver Edit Tickets" value={driverEditRequests.length} icon="🛠" />
       </div>
 
-      {/* Users Management Section */}
-      <Card>
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-gray-800">Users Management</h2>
-          <div className="flex gap-2">
-            <Button variant="orange" size="sm" onClick={() => setShowSupportModal(true)}>
-              + Add Support Agent
-            </Button>
-            {["ALL", "CUSTOMER", "DRIVER", "ADMIN", "SUPPORT_AGENT"].map((role) => (
-              <Button
-                key={role}
-                variant={filterRole === role ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => setFilterRole(role)}
-              >
-                {role === "ALL" ? "All Users" : role}
+      <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Users</h2>
+              <p className="text-sm text-slate-500">Driver approvals and support/admin role changes happen here.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="orange" size="sm" onClick={() => setShowSupportModal(true)}>
+                Add Support Agent
               </Button>
-            ))}
+              {["ALL", "CUSTOMER", "DRIVER", "SUPPORT_AGENT", "ADMIN"].map((role) => (
+                <Button
+                  key={role}
+                  size="sm"
+                  variant={filterRole === role ? "primary" : "secondary"}
+                  onClick={() => setFilterRole(role)}
+                >
+                  {role}
+                </Button>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {users.isLoading ? (
-          <LoadingSpinner />
-        ) : filteredUsers.length === 0 ? (
-          <EmptyState
-            icon="👤"
-            title="No Users Found"
-            description="No users match the selected filter."
-          />
-        ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {filteredUsers.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-              >
-                <div className="flex items-center gap-4 flex-1">
-                  <Avatar name={`${user.firstName} ${user.lastName}`} size="md" />
-                  <div className="flex-1">
-                    <p className="font-semibold text-gray-800">
-                      {user.firstName} {user.lastName}
-                    </p>
-                    <div className="flex gap-2 mt-1">
-                      <p className="text-sm text-gray-600">{user.email}</p>
-                      {user.phoneNumber && (
-                        <p className="text-sm text-gray-600">• {user.phoneNumber}</p>
+          {usersQuery.isLoading ? (
+            <div className="mt-6"><LoadingSpinner /></div>
+          ) : !filteredUsers.length ? (
+            <div className="mt-6">
+              <EmptyState icon="👤" title="No users found" description="There are no users for the selected role filter." />
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {filteredUsers.map((user) => (
+                <div key={user.id} className="rounded-2xl border border-slate-200 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <Avatar name={`${user.firstName} ${user.lastName}`} size="md" />
+                      <div>
+                        <p className="font-semibold text-slate-900">{user.firstName} {user.lastName}</p>
+                        <p className="text-sm text-slate-600">{user.email} • {user.phoneNumber}</p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge label={user.role} variant="teal" size="sm" />
+                      {user.role === "DRIVER" && (
+                        <Badge label={user.verified ? "Verified" : "Pending"} variant={user.verified ? "success" : "warning"} size="sm" />
+                      )}
+                      <Button variant="secondary" size="sm" onClick={() => setSelectedUser(user)}>
+                        View
+                      </Button>
+                      {user.role === "DRIVER" && (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() =>
+                            setEditDriverForm({
+                              id: user.id,
+                              firstName: user.firstName,
+                              lastName: user.lastName,
+                              email: user.email,
+                              phoneNumber: user.phoneNumber,
+                              idNumber: user.idNumber || "",
+                              licenseNumber: user.licenseNumber || "",
+                              isOwner: user.isOwner ?? true,
+                              carMake: user.carMake || "",
+                              carModel: user.carModel || "",
+                              plateNumber: user.plateNumber || "",
+                              engineSize: user.engineSize || 1500,
+                              yearOfManufacture: user.yearOfManufacture || 2015,
+                              vehicleType: user.vehicleType || "CAR",
+                              profilePhotoUrl: user.profilePhotoUrl || "",
+                              carFrontUrl: user.carFrontUrl || "",
+                              carRearUrl: user.carRearUrl || "",
+                              carInteriorUrl: user.carInteriorUrl || "",
+                              insurancePhotoUrl: user.insurancePhotoUrl || "",
+                              chassisPhotoUrl: user.chassisPhotoUrl || ""
+                            })
+                          }
+                        >
+                          Edit
+                        </Button>
+                      )}
+                      {user.role === "DRIVER" && !user.verified && (
+                        <>
+                          <Button
+                            size="sm"
+                            onClick={() => approveMutation.mutate({ id: user.id, approved: true })}
+                            loading={approveMutation.isPending}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => approveMutation.mutate({ id: user.id, approved: false })}
+                            loading={approveMutation.isPending}
+                          >
+                            Reject
+                          </Button>
+                        </>
                       )}
                     </div>
                   </div>
                 </div>
+              ))}
+            </div>
+          )}
+        </Card>
 
-                <div className="flex items-center gap-3">
-                  <Badge label={user.role} variant="teal" size="sm" />
-
-                  {user.role === "DRIVER" && (
-                    <Badge
-                      label={user.verified ? "Verified" : "Pending"}
-                      variant={user.verified ? "success" : "warning"}
-                      size="sm"
-                    />
-                  )}
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => setSelectedUser(user)}
-                    >
-                      View
-                    </Button>
-
-                    {user.role === "DRIVER" && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="text-teal-600 border-teal-200"
-                        onClick={() => setEditDriverForm({
-                          id: user.id,
-                          firstName: user.firstName,
-                          lastName: user.lastName,
-                          email: user.email,
-                          phoneNumber: user.phoneNumber,
-                          idNumber: user.idNumber || "",
-                          licenseNumber: user.licenseNumber || "",
-                          isOwner: user.isOwner !== false,
-                          carMake: user.carMake || "",
-                          carModel: user.carModel || "",
-                          plateNumber: user.plateNumber || "",
-                          engineSize: user.engineSize || 1500,
-                          yearOfManufacture: user.yearOfManufacture || 2015,
-                          vehicleType: user.vehicleType || "CAR",
-                          profilePhotoUrl: user.profilePhotoUrl || "",
-                          carFrontUrl: user.carFrontUrl || "",
-                          carRearUrl: user.carRearUrl || "",
-                          carInteriorUrl: user.carInteriorUrl || "",
-                          insurancePhotoUrl: user.insurancePhotoUrl || "",
-                          chassisPhotoUrl: user.chassisPhotoUrl || ""
-                        })}
-                      >
-                        Edit
-                      </Button>
-                    )}
-
-                    {user.role === "DRIVER" && !user.verified && (
-                      <>
-                        <Button
-                          variant="success"
-                          size="sm"
-                          loading={approveMutation.isPending}
-                          onClick={() =>
-                            approveMutation.mutate({
-                              id: user.id,
-                              approved: true,
-                            })
-                          }
-                        >
-                          Approve
-                        </Button>
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() =>
-                            approveMutation.mutate({
-                              id: user.id,
-                              approved: false,
-                            })
-                          }
-                        >
-                          Reject
-                        </Button>
-                      </>
-                    )}
+        <Card>
+          <h2 className="text-2xl font-bold text-slate-900">Driver Edit Requests</h2>
+          <p className="text-sm text-slate-500">Support-created admin edit tickets are surfaced here so driver details stay locked after submission.</p>
+          {!driverEditRequests.length ? (
+            <div className="mt-6">
+              <EmptyState icon="🧰" title="No edit requests" description="Support-created driver edit requests will show up here." />
+            </div>
+          ) : (
+            <div className="mt-6 space-y-3">
+              {driverEditRequests.map((ticket) => (
+                <div key={ticket.id} className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">#{ticket.id} • {ticket.subject}</p>
+                      <p className="mt-1 text-sm text-slate-600">{ticket.description}</p>
+                    </div>
+                    <Badge label={ticket.status} variant={ticket.status === "RESOLVED" ? "success" : "warning"} size="sm" />
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
 
-      {/* Rides Management Section */}
       <Card>
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">Recent Rides</h2>
-
-        {rides.isLoading ? (
-          <LoadingSpinner />
-        ) : (rides.data || []).length === 0 ? (
-          <EmptyState
-            icon="🚗"
-            title="No Rides Found"
-            description="There are no rides in the system yet."
-          />
+        <h2 className="text-2xl font-bold text-slate-900">Recent Rides</h2>
+        {ridesQuery.isLoading ? (
+          <div className="mt-6"><LoadingSpinner /></div>
+        ) : !rides.length ? (
+          <div className="mt-6">
+            <EmptyState icon="🚗" title="No rides found" description="Rides will appear here once customers start requesting trips." />
+          </div>
         ) : (
-          <div className="space-y-3 max-h-96 overflow-y-auto">
-            {(rides.data || []).slice(0, 10).map((ride) => (
-              <div
-                key={ride.id}
-                className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 transition"
-              >
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-800 mb-1">
-                    {ride.pickupAddress} → {ride.dropoffAddress}
-                  </p>
-                  <div className="flex gap-4 text-sm text-gray-600">
-                    <span>🆔 #{ride.id}</span>
-                    <span>💰 KES {ride.finalFare?.toFixed(2) || "0.00"}</span>
+          <div className="mt-6 space-y-3">
+            {rides.slice(0, 12).map((ride) => (
+              <div key={ride.id} className="rounded-2xl border border-slate-200 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold text-slate-900">{ride.pickupAddress} to {ride.dropoffAddress}</p>
+                    <p className="text-sm text-slate-600">{formatMoney(ride.finalFare)}</p>
                   </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Badge
-                    label={ride.status}
-                    variant={
-                      ride.status === "COMPLETED"
-                        ? "success"
-                        : ride.status === "CANCELLED"
-                        ? "error"
-                        : "info"
-                    }
-                    size="sm"
-                  />
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => setSelectedRide(ride)}
-                  >
-                    Details
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Badge label={rideStatusLabel(ride.status)} variant={rideStatusVariant(ride.status)} size="sm" />
+                    <Button variant="secondary" size="sm" onClick={() => setSelectedRide(ride)}>
+                      Details
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -297,278 +248,135 @@ export default function AdminPanel() {
         )}
       </Card>
 
-      {/* User Details Modal */}
+      <AdminSettingsPanel />
+
       {selectedUser && (
-        <Modal
-          isOpen={!!selectedUser}
-          title={`User Details - ${selectedUser.firstName} ${selectedUser.lastName}`}
-          onClose={() => setSelectedUser(null)}
-          size="lg"
-        >
+        <Modal isOpen={Boolean(selectedUser)} title={`User Details • ${selectedUser.firstName} ${selectedUser.lastName}`} onClose={() => setSelectedUser(null)} size="lg">
           <div className="space-y-4">
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Email</p>
-                <p className="font-semibold text-gray-800">{selectedUser.email}</p>
+                <p className="text-sm text-slate-500">Email</p>
+                <p className="font-semibold text-slate-900">{selectedUser.email}</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm mb-1">Phone</p>
-                <p className="font-semibold text-gray-800">
-                  {selectedUser.phoneNumber || "N/A"}
-                </p>
+                <p className="text-sm text-slate-500">Phone</p>
+                <p className="font-semibold text-slate-900">{selectedUser.phoneNumber}</p>
               </div>
             </div>
 
-            {selectedUser.role === "DRIVER" && (
-              <div className="border-t pt-4 mt-4">
-                <h4 className="font-bold text-gray-800 mb-3">Driver Documents</h4>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                   {selectedUser.profilePhotoUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Passport Photo</p>
-                        <img src={selectedUser.profilePhotoUrl} alt="Passport" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.idFrontUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">ID Front</p>
-                        <img src={selectedUser.idFrontUrl} alt="ID Front" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.idBackUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">ID Back</p>
-                        <img src={selectedUser.idBackUrl} alt="ID Back" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.licenseFrontUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">License Front</p>
-                        <img src={selectedUser.licenseFrontUrl} alt="License Front" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.licenseBackUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">License Rear</p>
-                        <img src={selectedUser.licenseBackUrl} alt="License Rear" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge label={selectedUser.role} variant="teal" size="sm" />
+              {selectedUser.role === "DRIVER" && (
+                <Badge label={selectedUser.verified ? "Verified" : "Pending"} variant={selectedUser.verified ? "success" : "warning"} size="sm" />
+              )}
+            </div>
 
-                <h4 className="font-bold text-gray-800 mb-3 mt-6">Vehicle Details</h4>
-                <div className="grid md:grid-cols-3 gap-4 mb-4">
-                   <div>
-                      <p className="text-xs text-gray-500">Model</p>
-                      <p className="font-medium">{selectedUser.carMake} {selectedUser.carModel}</p>
-                   </div>
-                   <div>
-                      <p className="text-xs text-gray-500">Plate Number</p>
-                      <p className="font-medium">{selectedUser.plateNumber}</p>
-                   </div>
-                   <div>
-                      <p className="text-xs text-gray-500">Engine Size</p>
-                      <p className="font-medium">{selectedUser.engineSize}cc</p>
-                   </div>
+            {selectedUser.role === "DRIVER" && (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">ID Number</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.idNumber}</p>
+                  <p className="mt-3 text-sm text-slate-500">License Number</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.licenseNumber}</p>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                   {selectedUser.carFrontUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Car Front</p>
-                        <img src={selectedUser.carFrontUrl} alt="Car Front" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.carRearUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Car Rear</p>
-                        <img src={selectedUser.carRearUrl} alt="Car Rear" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.carInteriorUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Car Interior</p>
-                        <img src={selectedUser.carInteriorUrl} alt="Car Interior" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.insurancePhotoUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Insurance</p>
-                        <img src={selectedUser.insurancePhotoUrl} alt="Insurance" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
-                   {selectedUser.chassisPhotoUrl && (
-                     <div className="space-y-1">
-                        <p className="text-xs text-gray-500">Chassis Number</p>
-                        <img src={selectedUser.chassisPhotoUrl} alt="Chassis" className="w-full h-32 object-cover rounded border" />
-                     </div>
-                   )}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Vehicle</p>
+                  <p className="font-semibold text-slate-900">{selectedUser.carMake} {selectedUser.carModel}</p>
+                  <p className="mt-1 text-sm text-slate-600">{selectedUser.plateNumber} • {selectedUser.engineSize}cc • {selectedUser.vehicleType}</p>
                 </div>
               </div>
             )}
 
-            <div className="grid md:grid-cols-2 gap-4">
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Role</p>
-                <Badge label={selectedUser.role} variant="teal" size="md" />
-                {selectedUser.role === "SUPPORT_AGENT" && (
-                   <Button size="xs" variant="outline" className="mt-2" onClick={() => upgradeMutation.mutate(selectedUser.id)} loading={upgradeMutation.isPending}>Upgrade to Admin</Button>
-                )}
-              </div>
-              <div>
-                <p className="text-gray-600 text-sm mb-1">Status</p>
-                <Badge
-                  label={selectedUser.active ? "Active" : "Inactive"}
-                  variant={selectedUser.active ? "success" : "error"}
-                  size="md"
-                />
-              </div>
-            </div>
-
-            {selectedUser.role === "DRIVER" && (
-              <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                <p className="font-semibold text-blue-900 mb-3">Driver Details</p>
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-blue-700 text-sm">License Number</p>
-                    <p className="font-semibold text-blue-900">
-                      {selectedUser.licenseNumber || "N/A"}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-blue-700 text-sm">Verification</p>
-                    <Badge
-                      label={selectedUser.verified ? "Verified" : "Pending"}
-                      variant={selectedUser.verified ? "success" : "warning"}
-                      size="sm"
-                      className="mt-1"
-                    />
-                  </div>
-                </div>
-              </div>
+            {selectedUser.role === "SUPPORT_AGENT" && (
+              <Button size="sm" onClick={() => upgradeMutation.mutate(selectedUser.id)} loading={upgradeMutation.isPending}>
+                Promote to Admin
+              </Button>
             )}
           </div>
         </Modal>
       )}
 
-      {/* Ride Details Modal */}
       {selectedRide && (
-        <Modal
-          isOpen={!!selectedRide}
-          title={`Ride Details - #${selectedRide.id}`}
-          onClose={() => setSelectedRide(null)}
-          size="lg"
-        >
+        <Modal isOpen={Boolean(selectedRide)} title={`Ride #${selectedRide.id}`} onClose={() => setSelectedRide(null)}>
           <div className="space-y-4">
             <div>
-              <p className="text-gray-600 text-sm mb-1">Route</p>
-              <p className="font-semibold text-gray-800 text-lg">
-                {selectedRide.pickupAddress} → {selectedRide.dropoffAddress}
-              </p>
+              <p className="text-sm text-slate-500">Status</p>
+              <Badge label={rideStatusLabel(selectedRide.status)} variant={rideStatusVariant(selectedRide.status)} size="sm" />
             </div>
-
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Status</p>
-                <Badge
-                  label={selectedRide.status}
-                  variant={
-                    selectedRide.status === "COMPLETED"
-                      ? "success"
-                      : "info"
-                  }
-                  size="md"
-                />
+                <p className="text-sm text-slate-500">Pickup</p>
+                <p className="font-semibold text-slate-900">{selectedRide.pickupAddress}</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm mb-1">Fare</p>
-                <p className="font-semibold text-gray-800 text-lg">
-                  KES {selectedRide.finalFare?.toFixed(2) || "0.00"}
-                </p>
+                <p className="text-sm text-slate-500">Dropoff</p>
+                <p className="font-semibold text-slate-900">{selectedRide.dropoffAddress}</p>
               </div>
             </div>
-
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Coordinates</p>
-              <p className="font-mono text-sm text-gray-700 bg-gray-50 p-2 rounded">
-                Pickup: {selectedRide.pickupLat}, {selectedRide.pickupLng}
-              </p>
-              <p className="font-mono text-sm text-gray-700 bg-gray-50 p-2 rounded mt-2">
-                Dropoff: {selectedRide.dropoffLat}, {selectedRide.dropoffLng}
-              </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm text-slate-500">Fare</p>
+                <p className="font-semibold text-slate-900">{formatMoney(selectedRide.finalFare)}</p>
+              </div>
+              <div>
+                <p className="text-sm text-slate-500">Payment</p>
+                <p className="font-semibold text-slate-900">{selectedRide.paymentType} • {selectedRide.paymentStatus}</p>
+              </div>
             </div>
           </div>
         </Modal>
       )}
-      {/* Support Agent Modal */}
+
       {showSupportModal && (
         <Modal isOpen={showSupportModal} title="Create Support Agent" onClose={() => setShowSupportModal(false)}>
-          <form className="space-y-4" onSubmit={(e) => {
-            e.preventDefault();
-            createSupportMutation.mutate(supportForm);
-          }}>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="First Name" value={supportForm.firstName} onChange={e => setSupportForm({...supportForm, firstName: e.target.value})} required />
-              <Input label="Last Name" value={supportForm.lastName} onChange={e => setSupportForm({...supportForm, lastName: e.target.value})} required />
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              createSupportMutation.mutate(supportForm);
+            }}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="First Name" value={supportForm.firstName} onChange={(event) => setSupportForm((current) => ({ ...current, firstName: event.target.value }))} required />
+              <Input label="Last Name" value={supportForm.lastName} onChange={(event) => setSupportForm((current) => ({ ...current, lastName: event.target.value }))} required />
             </div>
-            <Input label="Email" type="email" value={supportForm.email} onChange={e => setSupportForm({...supportForm, email: e.target.value})} required />
-            <Input label="Phone" value={supportForm.phoneNumber} onChange={e => setSupportForm({...supportForm, phoneNumber: e.target.value})} required />
-            <Button className="w-full" loading={createSupportMutation.isPending}>Create Agent</Button>
+            <Input label="Email" type="email" value={supportForm.email} onChange={(event) => setSupportForm((current) => ({ ...current, email: event.target.value }))} required />
+            <Input label="Phone Number" value={supportForm.phoneNumber} onChange={(event) => setSupportForm((current) => ({ ...current, phoneNumber: event.target.value }))} required />
+            <Button className="w-full" loading={createSupportMutation.isPending}>Create Support Agent</Button>
           </form>
         </Modal>
       )}
 
-      {/* Admin Settings Section */}
-      <AdminSettingsPanel />
-
-      {/* Edit Driver Modal */}
       {editDriverForm && (
-        <Modal isOpen={!!editDriverForm} title="Edit Driver Details" onClose={() => setEditDriverForm(null)} size="lg">
-          <form className="space-y-4" onSubmit={(e) => {
-            e.preventDefault();
-            updateDriverMutation.mutate({ id: editDriverForm.id, payload: editDriverForm });
-          }}>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="First Name" value={editDriverForm.firstName} onChange={e => setEditDriverForm({...editDriverForm, firstName: e.target.value})} required />
-              <Input label="Last Name" value={editDriverForm.lastName} onChange={e => setEditDriverForm({...editDriverForm, lastName: e.target.value})} required />
+        <Modal isOpen={Boolean(editDriverForm)} title="Edit Driver Details" onClose={() => setEditDriverForm(null)} size="lg">
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              updateDriverMutation.mutate({ id: editDriverForm.id, payload: editDriverForm });
+            }}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="First Name" value={editDriverForm.firstName} onChange={(event) => setEditDriverForm((current) => ({ ...current, firstName: event.target.value }))} required />
+              <Input label="Last Name" value={editDriverForm.lastName} onChange={(event) => setEditDriverForm((current) => ({ ...current, lastName: event.target.value }))} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Email" type="email" value={editDriverForm.email} onChange={e => setEditDriverForm({...editDriverForm, email: e.target.value})} required />
-              <Input label="Phone" value={editDriverForm.phoneNumber} onChange={e => setEditDriverForm({...editDriverForm, phoneNumber: e.target.value})} required />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="Email" value={editDriverForm.email} onChange={(event) => setEditDriverForm((current) => ({ ...current, email: event.target.value }))} required />
+              <Input label="Phone Number" value={editDriverForm.phoneNumber} onChange={(event) => setEditDriverForm((current) => ({ ...current, phoneNumber: event.target.value }))} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="ID Number" value={editDriverForm.idNumber} onChange={e => setEditDriverForm({...editDriverForm, idNumber: e.target.value})} required />
-              <Input label="License" value={editDriverForm.licenseNumber} onChange={e => setEditDriverForm({...editDriverForm, licenseNumber: e.target.value})} required />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="ID Number" value={editDriverForm.idNumber} onChange={(event) => setEditDriverForm((current) => ({ ...current, idNumber: event.target.value }))} required />
+              <Input label="License Number" value={editDriverForm.licenseNumber} onChange={(event) => setEditDriverForm((current) => ({ ...current, licenseNumber: event.target.value }))} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Car Make" value={editDriverForm.carMake} onChange={e => setEditDriverForm({...editDriverForm, carMake: e.target.value})} required />
-              <Input label="Car Model" value={editDriverForm.carModel} onChange={e => setEditDriverForm({...editDriverForm, carModel: e.target.value})} required />
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="Vehicle Make" value={editDriverForm.carMake} onChange={(event) => setEditDriverForm((current) => ({ ...current, carMake: event.target.value }))} required />
+              <Input label="Vehicle Model" value={editDriverForm.carModel} onChange={(event) => setEditDriverForm((current) => ({ ...current, carModel: event.target.value }))} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Plate" value={editDriverForm.plateNumber} onChange={e => setEditDriverForm({...editDriverForm, plateNumber: e.target.value})} required />
-              <div className="flex flex-col">
-                <label className="text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
-                <select 
-                  className="border rounded p-2"
-                  value={editDriverForm.vehicleType} 
-                  onChange={e => setEditDriverForm({...editDriverForm, vehicleType: e.target.value})}
-                >
-                   <option value="CAR">Car</option>
-                   <option value="MOTORCYCLE">Motorcycle</option>
-                </select>
-              </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input label="Plate Number" value={editDriverForm.plateNumber} onChange={(event) => setEditDriverForm((current) => ({ ...current, plateNumber: event.target.value }))} required />
+              <Input label="Engine Size" type="number" value={editDriverForm.engineSize} onChange={(event) => setEditDriverForm((current) => ({ ...current, engineSize: Number(event.target.value) }))} required />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <Input label="Engine Size" type="number" value={editDriverForm.engineSize} onChange={e => setEditDriverForm({...editDriverForm, engineSize: e.target.value})} required />
-              <Input label="Year" type="number" value={editDriverForm.yearOfManufacture} onChange={e => setEditDriverForm({...editDriverForm, yearOfManufacture: e.target.value})} required />
-            </div>
-            <div className="space-y-2">
-               <label className="text-sm font-bold text-gray-800">Photos (URLs)</label>
-               <Input label="Profile Photo URL" value={editDriverForm.profilePhotoUrl} onChange={e => setEditDriverForm({...editDriverForm, profilePhotoUrl: e.target.value})} />
-               <div className="grid grid-cols-2 gap-2">
-                 <Input label="Car Front" value={editDriverForm.carFrontUrl} onChange={e => setEditDriverForm({...editDriverForm, carFrontUrl: e.target.value})} />
-                 <Input label="Car Rear" value={editDriverForm.carRearUrl} onChange={e => setEditDriverForm({...editDriverForm, carRearUrl: e.target.value})} />
-               </div>
-            </div>
-            <Button className="w-full" loading={updateDriverMutation.isPending}>Save Changes</Button>
+            <Button className="w-full" loading={updateDriverMutation.isPending}>Save Driver Changes</Button>
           </form>
         </Modal>
       )}

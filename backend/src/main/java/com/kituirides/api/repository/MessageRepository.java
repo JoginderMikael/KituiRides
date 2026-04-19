@@ -4,6 +4,7 @@ import com.kituirides.api.domain.entity.Conversation;
 import com.kituirides.api.domain.entity.Message;
 import java.util.List;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -22,5 +23,6 @@ public interface MessageRepository extends JpaRepository<Message, Long> {
         update Message m set m.isRead = true
         where m.conversation = :conversation
         """)
+    @Modifying
     void markAllAsRead(@Param("conversation") Conversation conversation);
 }

@@ -1,17 +1,17 @@
 package com.kituirides.api.payment;
 
+import com.kituirides.api.admin.AdminSettingsService;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.Payment;
 import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.PaymentStatus;
 import com.kituirides.api.domain.enums.PaymentType;
-import com.kituirides.api.domain.enums.RideStatus;
-import com.kituirides.api.repository.AdminConfigRepository;
+import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.repository.PaymentRepository;
-import com.kituirides.api.repository.RideRepository;
+import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
-import com.kituirides.api.websocket.RealtimePublisher;
+import com.kituirides.api.security.CurrentUserService;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -25,41 +25,54 @@ import org.springframework.transaction.annotation.Transactional;
 public class PaymentService {
 
     private final RideService rideService;
-    private final RideRepository rideRepository;
     private final PaymentRepository paymentRepository;
     private final MpesaClient mpesaClient;
     private final DriverWalletService driverWalletService;
-    private final AdminConfigRepository adminConfigRepository;
-    private final RealtimePublisher realtimePublisher;
+    private final AdminSettingsService adminSettingsService;
+    private final CurrentUserService currentUserService;
 
     @Transactional
     public PaymentResponse initiatePayment(InitiatePaymentRequest request) {
         Ride ride = rideService.getRideById(request.rideId());
-        if (ride.getStatus() != RideStatus.STARTED && ride.getStatus() != RideStatus.COMPLETED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must be started or completed before payment");
+        User actor = currentUserService.getCurrentUser();
+        boolean canPay = actor.getRole() == Role.ADMIN
+            || actor.getRole() == Role.SUPPORT_AGENT
+            || ride.getCustomer().getId().equals(actor.getId());
+        if (!canPay) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the customer can initiate this payment");
         }
-        paymentRepository.findByRide(ride).ifPresent(existing -> {
-            if (existing.getStatus() == PaymentStatus.SUCCESS) {
-                throw new ApiException(HttpStatus.CONFLICT, "Payment already successful for this ride");
-            }
-            // Allow re-initiation if previous failed or pending
-        });
+
+        RideResponse preparedRide = rideService.prepareForPayment(request.rideId(), request.manualDistanceKm());
+        ride = rideService.getRideById(preparedRide.id());
 
         Payment payment = paymentRepository.findByRide(ride).orElse(new Payment());
+        if (payment.getId() != null && payment.getStatus() == PaymentStatus.SUCCESS) {
+            throw new ApiException(HttpStatus.CONFLICT, "Payment already completed for this ride");
+        }
+
         payment.setRide(ride);
         payment.setAmount(ride.getFinalFare());
         payment.setPhoneNumber(request.phoneNumber());
-        payment.setTransactionRef("MPESA-" + ride.getId() + "-" + Instant.now().toEpochMilli());
+        payment.setTransactionRef(payment.getTransactionRef() != null
+            ? payment.getTransactionRef()
+            : "MPESA-" + ride.getId() + "-" + Instant.now().toEpochMilli());
         payment.setStatus(PaymentStatus.PENDING);
         payment.setPaymentType(PaymentType.MPESA);
 
-        boolean initiated = mpesaClient.initiateStkPush(
+        MpesaStkPushResult stkResult = mpesaClient.initiateStkPush(
             payment.getPhoneNumber(),
             payment.getAmount().toPlainString(),
             payment.getTransactionRef()
         );
-        if (!initiated) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Invalid phone number for M-Pesa");
+        payment.setProviderCheckoutRequestId(stkResult.checkoutRequestId());
+        payment.setProviderMerchantRequestId(stkResult.merchantRequestId());
+        payment.setProviderResponseCode(stkResult.responseCode());
+        payment.setProviderResponseDescription(stkResult.responseDescription());
+
+        if (!stkResult.success()) {
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepository.save(payment);
+            throw new ApiException(HttpStatus.BAD_REQUEST, stkResult.responseDescription());
         }
 
         Payment saved = paymentRepository.save(payment);
@@ -68,74 +81,131 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse handleMpesaCallback(MpesaCallbackRequest callback) {
-        Payment payment = paymentRepository.findByTransactionRef(callback.transactionRef())
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment transaction not found"));
-        
+        Payment payment = findPaymentForCallback(callback);
         boolean wasSuccess = payment.getStatus() == PaymentStatus.SUCCESS;
+
+        payment.setProviderCheckoutRequestId(callback.checkoutRequestId());
+        payment.setProviderMerchantRequestId(callback.merchantRequestId());
+        payment.setProviderReceiptNumber(callback.mpesaReceiptNumber());
+        payment.setProviderResponseCode(String.valueOf(callback.resultCode()));
+        payment.setProviderResponseDescription(callback.resultDescription());
+        payment.setCallbackPayload(callback.toString());
         payment.setStatus(callback.success() ? PaymentStatus.SUCCESS : PaymentStatus.FAILED);
+        if (callback.success()) {
+            payment.setCompletedAt(Instant.now());
+        }
         Payment saved = paymentRepository.save(payment);
 
         if (callback.success() && !wasSuccess) {
-            handleSuccessfulPayment(payment.getRide(), payment.getAmount());
+            settleSuccessfulPayment(saved);
         }
 
         return toResponse(saved);
     }
 
     @Transactional
-    public PaymentResponse approveCashPayment(Long rideId) {
+    public PaymentResponse approveCashPayment(Long rideId, BigDecimal manualDistanceKm) {
         Ride ride = rideService.getRideById(rideId);
-        // Only driver can approve cash payment
-        // (Assuming current user check is done in controller or here if we have CurrentUserService)
-        
-        if (ride.getStatus() != RideStatus.STARTED && ride.getStatus() != RideStatus.COMPLETED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must be started or completed to approve payment");
+        User actor = currentUserService.getCurrentUser();
+        boolean canApprove = actor.getRole() == Role.ADMIN
+            || actor.getRole() == Role.SUPPORT_AGENT
+            || (ride.getRider() != null && ride.getRider().getId().equals(actor.getId()));
+        if (!canApprove) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the assigned driver can approve cash payment");
         }
 
+        RideResponse preparedRide = rideService.prepareForPayment(rideId, manualDistanceKm);
+        ride = rideService.getRideById(preparedRide.id());
+
         Payment payment = paymentRepository.findByRide(ride).orElse(new Payment());
+        if (payment.getId() != null && payment.getStatus() == PaymentStatus.SUCCESS) {
+            throw new ApiException(HttpStatus.CONFLICT, "Payment already completed for this ride");
+        }
+
         payment.setRide(ride);
         payment.setAmount(ride.getFinalFare());
         payment.setPhoneNumber(ride.getCustomer().getPhoneNumber());
-        payment.setTransactionRef("CASH-" + ride.getId() + "-" + Instant.now().toEpochMilli());
+        payment.setTransactionRef(payment.getTransactionRef() != null
+            ? payment.getTransactionRef()
+            : "CASH-" + ride.getId() + "-" + Instant.now().toEpochMilli());
         payment.setStatus(PaymentStatus.SUCCESS);
         payment.setPaymentType(PaymentType.CASH);
-        
+        payment.setCompletedAt(Instant.now());
+
         Payment saved = paymentRepository.save(payment);
-        
-        handleSuccessfulPayment(ride, payment.getAmount());
-        
+        settleSuccessfulPayment(saved);
         return toResponse(saved);
     }
 
-    private void handleSuccessfulPayment(Ride ride, BigDecimal amount) {
-        ride.setPaymentApproved(true);
-        rideRepository.save(ride);
-
-        // Calculate and deduct commission
-        BigDecimal commissionRate = adminConfigRepository.findByConfigKey("COMPANY_COMMISSION_RATE")
-            .map(c -> new BigDecimal(c.getConfigValue()))
-            .orElse(BigDecimal.valueOf(0.20));
-        
-        BigDecimal commission = amount.multiply(commissionRate).setScale(2, RoundingMode.HALF_UP);
-        
-        // If MPESA, add (amount - commission) to wallet
-        // If CASH, deduct commission from wallet
-        Payment payment = paymentRepository.findByRide(ride).orElseThrow();
-        if (payment.getPaymentType() == PaymentType.MPESA) {
-            BigDecimal driverEarnings = amount.subtract(commission);
-            driverWalletService.addEarnings(ride.getRider(), driverEarnings);
-        } else if (payment.getPaymentType() == PaymentType.CASH) {
-            driverWalletService.deductCommission(ride.getRider(), commission);
+    @Transactional
+    public PaymentResponse forceApprovePayment(Long rideId) {
+        Ride ride = rideService.getRideById(rideId);
+        User actor = currentUserService.getCurrentUser();
+        if (actor.getRole() != Role.ADMIN && actor.getRole() != Role.SUPPORT_AGENT) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only support actors can force approve a payment");
         }
 
-        realtimePublisher.publishRideUpdate(ride.getId(), "PAYMENT_SUCCESSFUL", rideService.toResponse(ride));
+        Payment payment = paymentRepository.findByRide(ride).orElse(new Payment());
+        if (payment.getId() != null && payment.getStatus() == PaymentStatus.SUCCESS) {
+            return toResponse(payment);
+        }
+
+        payment.setRide(ride);
+        payment.setAmount(ride.getFinalFare());
+        payment.setPhoneNumber(ride.getCustomer().getPhoneNumber());
+        payment.setPaymentType(ride.getPaymentType());
+        payment.setTransactionRef(payment.getTransactionRef() != null
+            ? payment.getTransactionRef()
+            : "SUPPORT-" + ride.getId() + "-" + Instant.now().toEpochMilli());
+        payment.setStatus(PaymentStatus.SUCCESS);
+        payment.setProviderResponseDescription("Approved by support");
+        payment.setCompletedAt(Instant.now());
+
+        Payment saved = paymentRepository.save(payment);
+        settleSuccessfulPayment(saved);
+        return toResponse(saved);
     }
 
     public PaymentResponse getByRideId(Long rideId) {
         Ride ride = rideService.getRideById(rideId);
+        User actor = currentUserService.getCurrentUser();
+        boolean canView = actor.getRole() == Role.ADMIN
+            || actor.getRole() == Role.SUPPORT_AGENT
+            || ride.getCustomer().getId().equals(actor.getId())
+            || (ride.getRider() != null && ride.getRider().getId().equals(actor.getId()));
+        if (!canView) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Payment does not belong to the current user");
+        }
+
         return paymentRepository.findByRide(ride)
             .map(this::toResponse)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment not found"));
+    }
+
+    private Payment findPaymentForCallback(MpesaCallbackRequest callback) {
+        if (callback.checkoutRequestId() != null) {
+            return paymentRepository.findByProviderCheckoutRequestId(callback.checkoutRequestId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment transaction not found"));
+        }
+        if (callback.merchantRequestId() != null) {
+            return paymentRepository.findByProviderMerchantRequestId(callback.merchantRequestId())
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Payment transaction not found"));
+        }
+        throw new ApiException(HttpStatus.BAD_REQUEST, "Missing checkout or merchant request identifier");
+    }
+
+    private void settleSuccessfulPayment(Payment payment) {
+        Ride ride = payment.getRide();
+        BigDecimal commissionRate = new BigDecimal(adminSettingsService.getConfigValue("COMPANY_COMMISSION_RATE"));
+        BigDecimal commission = payment.getAmount().multiply(commissionRate).setScale(2, RoundingMode.HALF_UP);
+
+        if (payment.getPaymentType() == PaymentType.MPESA) {
+            driverWalletService.addEarnings(ride.getRider(), payment.getAmount().subtract(commission));
+        } else {
+            driverWalletService.deductCommission(ride.getRider(), commission);
+        }
+
+        rideService.markPaymentCompleted(ride.getId());
     }
 
     private PaymentResponse toResponse(Payment payment) {
@@ -145,8 +215,15 @@ public class PaymentService {
             payment.getAmount(),
             payment.getPhoneNumber(),
             payment.getTransactionRef(),
+            payment.getPaymentType(),
             payment.getStatus(),
-            payment.getCreatedAt()
+            payment.getProviderCheckoutRequestId(),
+            payment.getProviderMerchantRequestId(),
+            payment.getProviderReceiptNumber(),
+            payment.getProviderResponseCode(),
+            payment.getProviderResponseDescription(),
+            payment.getCreatedAt(),
+            payment.getCompletedAt()
         );
     }
 }

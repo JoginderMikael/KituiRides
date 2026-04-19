@@ -1,11 +1,38 @@
-import { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearSession, getSession, saveSession } from "../lib/auth";
+import { apiClient, unwrap } from "../lib/apiClient";
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(getSession());
   const [userProfile, setUserProfile] = useState(null);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadProfile() {
+      if (!session?.token) {
+        setUserProfile(null);
+        return;
+      }
+      try {
+        const profile = await unwrap(apiClient.get("/users/me"));
+        if (!ignore) {
+          setUserProfile(profile);
+        }
+      } catch {
+        if (!ignore) {
+          setUserProfile(null);
+        }
+      }
+    }
+
+    loadProfile();
+    return () => {
+      ignore = true;
+    };
+  }, [session]);
 
   const value = useMemo(() => ({
     session,

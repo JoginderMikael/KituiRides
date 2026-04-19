@@ -53,6 +53,7 @@ public class DriverWalletService {
         DriverWallet wallet = getOrCreateWallet(driver);
         wallet.setBalance(wallet.getBalance().add(amount));
         wallet.setTotalEarned(wallet.getTotalEarned().add(amount));
+        settleOutstandingCommission(wallet);
         wallet.setUpdatedAt(Instant.now());
         walletRepository.save(wallet);
         log.info("Added earnings {} to driver {} wallet", amount, driver.getId());
@@ -64,11 +65,15 @@ public class DriverWalletService {
     @Transactional
     public void deductCommission(User driver, BigDecimal commission) {
         DriverWallet wallet = getOrCreateWallet(driver);
-        BigDecimal newBalance = wallet.getBalance().subtract(commission);
-        if (newBalance.compareTo(BigDecimal.ZERO) < 0) {
-            log.warn("Driver {} wallet balance negative after commission deduction", driver.getId());
+        BigDecimal remainingCommission = commission;
+        if (wallet.getBalance().compareTo(BigDecimal.ZERO) > 0) {
+            BigDecimal deducted = wallet.getBalance().min(commission);
+            wallet.setBalance(wallet.getBalance().subtract(deducted));
+            remainingCommission = commission.subtract(deducted);
         }
-        wallet.setBalance(newBalance);
+        if (remainingCommission.compareTo(BigDecimal.ZERO) > 0) {
+            wallet.setOutstandingCommission(wallet.getOutstandingCommission().add(remainingCommission));
+        }
         wallet.setUpdatedAt(Instant.now());
         walletRepository.save(wallet);
         log.info("Deducted commission {} from driver {} wallet", commission, driver.getId());
@@ -80,7 +85,10 @@ public class DriverWalletService {
     @Transactional
     public void processWithdrawal(User driver, BigDecimal amount) {
         DriverWallet wallet = getOrCreateWallet(driver);
-        
+
+        if (wallet.getOutstandingCommission().compareTo(BigDecimal.ZERO) > 0) {
+            throw new IllegalArgumentException("Outstanding commission must be settled before withdrawal");
+        }
         if (wallet.getBalance().compareTo(amount) < 0) {
             throw new IllegalArgumentException("Insufficient balance for withdrawal");
         }
@@ -111,5 +119,35 @@ public class DriverWalletService {
      */
     public DriverWallet getWalletDetails(User driver) {
         return getOrCreateWallet(driver);
+    }
+
+    @Transactional
+    public void settleOutstandingCommission(User driver, BigDecimal amount) {
+        DriverWallet wallet = getOrCreateWallet(driver);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Settlement amount must be greater than zero");
+        }
+        if (wallet.getBalance().compareTo(amount) < 0) {
+            throw new IllegalArgumentException("Insufficient wallet balance to settle commission");
+        }
+        if (wallet.getOutstandingCommission().compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+
+        BigDecimal settlement = amount.min(wallet.getOutstandingCommission());
+        wallet.setBalance(wallet.getBalance().subtract(settlement));
+        wallet.setOutstandingCommission(wallet.getOutstandingCommission().subtract(settlement));
+        wallet.setUpdatedAt(Instant.now());
+        walletRepository.save(wallet);
+    }
+
+    private void settleOutstandingCommission(DriverWallet wallet) {
+        if (wallet.getOutstandingCommission().compareTo(BigDecimal.ZERO) <= 0
+            || wallet.getBalance().compareTo(BigDecimal.ZERO) <= 0) {
+            return;
+        }
+        BigDecimal settlement = wallet.getBalance().min(wallet.getOutstandingCommission());
+        wallet.setBalance(wallet.getBalance().subtract(settlement));
+        wallet.setOutstandingCommission(wallet.getOutstandingCommission().subtract(settlement));
     }
 }

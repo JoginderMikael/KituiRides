@@ -1,574 +1,657 @@
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
-import { createCustomerTicket, getCustomerRides, nearbyDrivers, requestRide } from "../features/customer/customerApi";
-import { initiateMpesaPayment } from "../features/rides/paymentApi";
-import { apiClient, unwrap } from "../lib/apiClient";
+import ChatBox from "../components/ChatBox";
+import PaymentMethodSelector from "../components/PaymentMethodSelector";
+import RideMapbox from "../components/RideMapbox";
 import {
-  Card,
+  Avatar,
   Badge,
   Button,
+  Card,
+  EmptyState,
   Input,
   LoadingSpinner,
   Modal,
-  EmptyState,
-  StatCard,
-  Avatar,
+  StatCard
 } from "../components/UIComponents";
+import { getChatConversations } from "../features/chat/chatApi";
+import {
+  createCustomerTicket,
+  disputeRide,
+  getCustomerRides,
+  nearbyDrivers,
+  requestRide
+} from "../features/customer/customerApi";
+import { initiateMpesaPayment } from "../features/rides/paymentApi";
+import { getSupportContact } from "../features/support/supportApi";
+import { useAuth } from "../hooks/useAuth";
+import { apiClient, unwrap } from "../lib/apiClient";
+import { connectRealtimeSocket } from "../lib/socket";
+import {
+  isActiveRide,
+  isCancelledRide,
+  isCompletedRide,
+  rideStatusLabel,
+  rideStatusVariant
+} from "../lib/rideStatus";
+
+const DEFAULT_FORM = {
+  pickupLat: -1.3771,
+  pickupLng: 38.0106,
+  dropoffLat: -1.3656,
+  dropoffLng: 38.0118,
+  pickupAddress: "Kitui Town CBD",
+  dropoffAddress: "Kalundu",
+  vehicleType: "CAR",
+  paymentType: "MPESA"
+};
+
+function formatMoney(value) {
+  return `KES ${Number(value || 0).toFixed(2)}`;
+}
+
+function toMpesaPhoneNumber(phoneNumber) {
+  if (!phoneNumber) {
+    return "";
+  }
+  if (phoneNumber.startsWith("254")) {
+    return phoneNumber;
+  }
+  if (phoneNumber.startsWith("0")) {
+    return `254${phoneNumber.slice(1)}`;
+  }
+  return phoneNumber;
+}
 
 export default function CustomerDashboard() {
   const queryClient = useQueryClient();
-  const [form, setForm] = useState({
-    pickupLat: -1.3771,
-    pickupLng: 38.0106,
-    dropoffLat: -1.3656,
-    dropoffLng: 38.0118,
-    pickupAddress: "Kitui Town CBD",
-    dropoffAddress: "Kalundu",
-    vehicleType: "CAR",
-    riderId: null
-  });
+  const { user, session } = useAuth();
+  const [form, setForm] = useState(DEFAULT_FORM);
+  const [mapMode, setMapMode] = useState("pickup");
   const [ticket, setTicket] = useState({ subject: "", description: "" });
   const [selectedRide, setSelectedRide] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [selectedRideForPayment, setSelectedRideForPayment] = useState(null);
-  const [phoneNumber, setPhoneNumber] = useState("254700000000");
+  const [paymentRide, setPaymentRide] = useState(null);
+  const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+
+  useEffect(() => {
+    setPhoneNumber((current) => current || toMpesaPhoneNumber(user?.phoneNumber || ""));
+  }, [user?.phoneNumber]);
+
+  const nearbyDriverParams = useMemo(
+    () => ({
+      pickupLat: Number(form.pickupLat),
+      pickupLng: Number(form.pickupLng),
+      dropoffLat: Number(form.dropoffLat),
+      dropoffLng: Number(form.dropoffLng),
+      vehicleType: form.vehicleType
+    }),
+    [form.dropoffLat, form.dropoffLng, form.pickupLat, form.pickupLng, form.vehicleType]
+  );
 
   const ridesQuery = useQuery({ queryKey: ["customer-rides"], queryFn: getCustomerRides });
-  const driversQuery = useQuery({ queryKey: ["nearby-drivers"], queryFn: nearbyDrivers });
+  const driversQuery = useQuery({
+    queryKey: ["nearby-drivers", nearbyDriverParams],
+    queryFn: () => nearbyDrivers(nearbyDriverParams)
+  });
+  const supportContactQuery = useQuery({
+    queryKey: ["support-contact"],
+    queryFn: getSupportContact
+  });
 
-  const createRideMutation = useMutation({
+  const rides = ridesQuery.data || [];
+  const activeRide = rides.find((ride) => isActiveRide(ride.status)) || null;
+  const completedRides = rides.filter((ride) => isCompletedRide(ride.status));
+  const cancelledRides = rides.filter((ride) => isCancelledRide(ride.status) || ride.status === "DRIVER_REJECTED");
+
+  const conversationsQuery = useQuery({
+    queryKey: ["chat-conversations", activeRide?.id],
+    queryFn: () => getChatConversations({ rideId: activeRide.id }),
+    enabled: Boolean(activeRide?.id)
+  });
+
+  useEffect(() => {
+    const conversations = conversationsQuery.data || [];
+    if (!conversations.length) {
+      setSelectedConversationId(null);
+      return;
+    }
+    if (!selectedConversationId || !conversations.some((conversation) => conversation.id === selectedConversationId)) {
+      setSelectedConversationId(conversations[0].id);
+    }
+  }, [conversationsQuery.data, selectedConversationId]);
+
+  useEffect(() => {
+    const disconnect = connectRealtimeSocket({
+      conversationIds: (conversationsQuery.data || []).map((conversation) => conversation.id),
+      onRideUpdate: () => {
+        queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
+        if (activeRide?.id) {
+          queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
+        }
+      },
+      onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] }),
+      onConversationUpdate: () => {
+        if (activeRide?.id) {
+          queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
+        }
+      }
+    });
+    return disconnect;
+  }, [activeRide?.id, conversationsQuery.data, nearbyDriverParams, queryClient]);
+
+  const requestRideMutation = useMutation({
     mutationFn: requestRide,
     onSuccess: () => {
+      setForm((current) => ({ ...DEFAULT_FORM, paymentType: current.paymentType, vehicleType: current.vehicleType }));
       queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
-      // Reset form
-      setForm({
-        pickupLat: -1.3771,
-        pickupLng: 38.0106,
-        dropoffLat: -1.3656,
-        dropoffLng: 38.0118,
-        pickupAddress: "Kitui Town CBD",
-        dropoffAddress: "Kalundu",
-        vehicleType: "CAR",
-        riderId: null
-      });
+      queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] });
     }
   });
 
   const cancelRideMutation = useMutation({
-    mutationFn: async (rideId) => {
-      return unwrap(apiClient.post(`/rides/${rideId}/cancel`));
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
-    }
+    mutationFn: (rideId) => unwrap(apiClient.post(`/customer/rides/${rideId}/cancel`)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
   });
 
-  const payMutation = useMutation({
+  const mpesaMutation = useMutation({
     mutationFn: initiateMpesaPayment,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
-      setShowPaymentModal(false);
+      setPaymentRide(null);
     }
+  });
+
+  const disputeMutation = useMutation({
+    mutationFn: ({ rideId, reason }) => disputeRide(rideId, { reason }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
   });
 
   const ticketMutation = useMutation({
     mutationFn: createCustomerTicket,
     onSuccess: () => {
       setTicket({ subject: "", description: "" });
-      queryClient.invalidateQueries({ queryKey: ["customer-tickets"] });
     }
   });
 
-  useEffect(() => {
-    let disconnect = () => {};
-    import("../lib/socket")
-      .then(({ connectRideSocket }) => {
-        disconnect = connectRideSocket({
-          onRideUpdate: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] }),
-          onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers"] })
-        });
-      })
-      .catch(() => {
-        // Keep dashboard usable even if websocket client fails to initialize.
-      });
-    return () => disconnect();
-  }, [queryClient]);
-
-  const activeRides = (ridesQuery.data || []).filter(r => ["REQUESTED", "MATCHED", "ACCEPTED", "STARTED"].includes(r.status));
-  const completedRides = (ridesQuery.data || []).filter(r => r.status === "COMPLETED");
-  const cancelledRides = (ridesQuery.data || []).filter(r => r.status === "CANCELLED");
+  const selectedConversation = (conversationsQuery.data || []).find((conversation) => conversation.id === selectedConversationId) || null;
+  const estimatedFare = driversQuery.data?.[0]?.estimatedPrice || 0;
+  const supportPhone = supportContactQuery.data?.phoneNumber;
+  const canRequestRide = !activeRide;
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
       <div>
-        <h1 className="text-3xl font-bold text-gray-800 mb-2">Book Your Ride</h1>
-        <p className="text-gray-600">Quick, reliable, and affordable rides in Kitui</p>
+        <h1 className="text-3xl font-bold text-slate-900">Request a Ride</h1>
+        <p className="mt-2 text-slate-600">Book a car or motorcycle, pay the right way, and stay connected through the trip.</p>
       </div>
 
-      {/* Quick Stats */}
-      <div className="grid md:grid-cols-3 gap-4">
-        <StatCard
-          label="Active Rides"
-          value={activeRides.length}
-          icon="🚗"
-        />
-        <StatCard
-          label="Completed Rides"
-          value={completedRides.length}
-          icon="✓"
-          trend={{ positive: true, text: "Total trips" }}
-        />
-        <StatCard
-          label="Nearby Drivers"
-          value={driversQuery.data?.length || 0}
-          icon="👨‍💼"
-          trend={{ positive: driversQuery.data?.length > 0 }}
-        />
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Active Ride" value={activeRide ? "1" : "0"} icon="🚗" />
+        <StatCard label="Nearby Drivers" value={driversQuery.data?.length || 0} icon="📍" />
+        <StatCard label="Completed Trips" value={completedRides.length} icon="✓" />
+        <StatCard label="Support" value={supportPhone || "Pending"} icon="☎" />
       </div>
 
-      {/* Book a Ride Section */}
-      <Card>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Request a Ride</h2>
-
-        {/* Map Placeholder */}
-        <div className="mb-6 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50 p-8 text-center">
-          <p className="text-teal-700 font-semibold">🗺️ Map Integration Coming Soon</p>
-          <p className="text-teal-600 text-sm mt-1">
-            Integrate Google Maps or Mapbox to pick locations visually
-          </p>
-        </div>
-
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            createRideMutation.mutate({
-              ...form,
-              pickupLat: Number(form.pickupLat),
-              pickupLng: Number(form.pickupLng),
-              dropoffLat: Number(form.dropoffLat),
-              dropoffLng: Number(form.dropoffLng)
-            });
-          }}
-        >
-          {/* Pickup Location */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              📍 Pickup Location
-            </label>
-            <input
-              type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-              placeholder="Enter pickup address"
-              value={form.pickupAddress}
-              onChange={(e) => setForm({ ...form, pickupAddress: e.target.value })}
-            />
-          </div>
-
-          {/* Dropoff Location */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              🏁 Dropoff Location
-            </label>
-            <input
-              type="text"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-              placeholder="Enter dropoff address"
-              value={form.dropoffAddress}
-              onChange={(e) => setForm({ ...form, dropoffAddress: e.target.value })}
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-6 xl:grid-cols-[1.3fr,0.9fr]">
+        <Card className="space-y-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">🚗 Vehicle Type</label>
-              <select
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-                value={form.vehicleType}
-                onChange={(e) => setForm({ ...form, vehicleType: e.target.value })}
-              >
-                <option value="CAR">Car</option>
-                <option value="MOTORCYCLE">Motorcycle</option>
-              </select>
+              <h2 className="text-2xl font-bold text-slate-900">Plan Your Ride</h2>
+              <p className="text-sm text-slate-500">Use the map or the fields below to set pickup and dropoff.</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">👨‍💼 Selected Driver</label>
-              <select
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-                value={form.riderId || ""}
-                onChange={(e) => setForm({ ...form, riderId: e.target.value })}
-                required
-              >
-                <option value="" disabled>Select a driver from below</option>
-                {(driversQuery.data || []).map(d => (
-                  <option key={d.riderId} value={d.riderId}>{d.driverName} ({d.carModel})</option>
-                ))}
-              </select>
+            <div className="flex gap-2">
+              <Button variant={mapMode === "pickup" ? "primary" : "secondary"} size="sm" onClick={() => setMapMode("pickup")}>
+                Set Pickup
+              </Button>
+              <Button variant={mapMode === "dropoff" ? "orange" : "secondary"} size="sm" onClick={() => setMapMode("dropoff")}>
+                Set Dropoff
+              </Button>
             </div>
           </div>
 
-          {/* Coordinates */}
-          <details className="text-sm">
-            <summary className="cursor-pointer text-gray-600 hover:text-gray-800 font-semibold">
-              📌 Advanced: Edit Coordinates
-            </summary>
-            <div className="mt-3 grid md:grid-cols-2 gap-4">
-              <div>
-                <label className="text-gray-700 text-xs font-medium">Pickup Latitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                  value={form.pickupLat}
-                  onChange={(e) => setForm({ ...form, pickupLat: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-gray-700 text-xs font-medium">Pickup Longitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                  value={form.pickupLng}
-                  onChange={(e) => setForm({ ...form, pickupLng: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-gray-700 text-xs font-medium">Dropoff Latitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                  value={form.dropoffLat}
-                  onChange={(e) => setForm({ ...form, dropoffLat: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="text-gray-700 text-xs font-medium">Dropoff Longitude</label>
-                <input
-                  type="number"
-                  step="0.0001"
-                  className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
-                  value={form.dropoffLng}
-                  onChange={(e) => setForm({ ...form, dropoffLng: e.target.value })}
-                />
-              </div>
-            </div>
-          </details>
-
-          <Button
-            className="w-full"
-            size="lg"
-            loading={createRideMutation.isPending}
-          >
-            🚗 Request Ride
-          </Button>
-        </form>
-      </Card>
-
-      {/* Nearby Drivers */}
-      <Card>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">
-          Nearby Drivers ({driversQuery.data?.length || 0})
-        </h2>
-
-        {driversQuery.isLoading ? (
-          <LoadingSpinner />
-        ) : (driversQuery.data || []).length === 0 ? (
-          <EmptyState
-            icon="👨‍💼"
-            title="No Drivers Nearby"
-            description="There are no drivers online in your area right now. Check back soon."
+          <RideMapbox
+            pickup={{ lat: Number(form.pickupLat), lng: Number(form.pickupLng) }}
+            dropoff={{ lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }}
+            nearbyDrivers={driversQuery.data || []}
+            activePoint={mapMode}
+            onPointSelect={(point, coordinates) => {
+              if (point === "pickup") {
+                setForm((current) => ({ ...current, pickupLat: coordinates.lat, pickupLng: coordinates.lng }));
+              } else {
+                setForm((current) => ({ ...current, dropoffLat: coordinates.lat, dropoffLng: coordinates.lng }));
+              }
+            }}
           />
-        ) : (
-          <div className="space-y-3">
-            {(driversQuery.data || []).map((driver, idx) => (
-              <Card key={idx} className={`border-l-4 border-l-teal-600 cursor-pointer hover:bg-teal-50 ${form.riderId == driver.riderId ? 'bg-teal-100 ring-2 ring-teal-500' : ''}`}
-                    onClick={() => setForm({ ...form, riderId: driver.riderId })}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar seed={driver.driverName} size="md" />
-                    <div>
-                      <p className="font-semibold text-gray-800">{driver.driverName}</p>
-                      <p className="text-sm text-gray-600">
-                        🚗 {driver.carModel} • {driver.plateNumber}
-                      </p>
+
+          <form
+            className="space-y-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              requestRideMutation.mutate({
+                pickupLat: Number(form.pickupLat),
+                pickupLng: Number(form.pickupLng),
+                dropoffLat: Number(form.dropoffLat),
+                dropoffLng: Number(form.dropoffLng),
+                pickupAddress: form.pickupAddress,
+                dropoffAddress: form.dropoffAddress,
+                vehicleType: form.vehicleType,
+                paymentType: form.paymentType
+              });
+            }}
+          >
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Pickup Address"
+                value={form.pickupAddress}
+                onChange={(event) => setForm((current) => ({ ...current, pickupAddress: event.target.value }))}
+                required
+              />
+              <Input
+                label="Dropoff Address"
+                value={form.dropoffAddress}
+                onChange={(event) => setForm((current) => ({ ...current, dropoffAddress: event.target.value }))}
+                required
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700">Vehicle Type</label>
+                <select
+                  className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                  value={form.vehicleType}
+                  onChange={(event) => setForm((current) => ({ ...current, vehicleType: event.target.value }))}
+                >
+                  <option value="CAR">Car</option>
+                  <option value="MOTORCYCLE">Motorcycle</option>
+                </select>
+              </div>
+              <Input
+                label="Pickup Lat"
+                type="number"
+                value={form.pickupLat}
+                onChange={(event) => setForm((current) => ({ ...current, pickupLat: event.target.value }))}
+              />
+              <Input
+                label="Pickup Lng"
+                type="number"
+                value={form.pickupLng}
+                onChange={(event) => setForm((current) => ({ ...current, pickupLng: event.target.value }))}
+              />
+              <Input
+                label="Dropoff Lat"
+                type="number"
+                value={form.dropoffLat}
+                onChange={(event) => setForm((current) => ({ ...current, dropoffLat: event.target.value }))}
+              />
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
+              <Input
+                label="Dropoff Lng"
+                type="number"
+                value={form.dropoffLng}
+                onChange={(event) => setForm((current) => ({ ...current, dropoffLng: event.target.value }))}
+              />
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-semibold text-slate-800">Estimated Fare</p>
+                <p className="mt-1 text-2xl font-bold text-orange-600">{formatMoney(estimatedFare)}</p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Based on the closest available {form.vehicleType === "CAR" ? "car" : "motorcycle"} drivers.
+                </p>
+              </div>
+            </div>
+
+            <PaymentMethodSelector
+              estimatedFare={Number(estimatedFare || 0)}
+              onSelect={(paymentType) => setForm((current) => ({ ...current, paymentType }))}
+            />
+
+            {!canRequestRide && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                You already have an active ride. Complete, resolve, or cancel it before requesting another one.
+              </div>
+            )}
+
+            <Button className="w-full" size="lg" loading={requestRideMutation.isPending} disabled={!canRequestRide}>
+              Request Ride
+            </Button>
+          </form>
+        </Card>
+
+        <div className="space-y-6">
+          <Card>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold text-slate-900">Nearby Drivers</h2>
+              <Badge label={`${driversQuery.data?.length || 0} found`} variant="info" size="sm" />
+            </div>
+
+            {driversQuery.isLoading ? (
+              <LoadingSpinner />
+            ) : (driversQuery.data || []).length === 0 ? (
+              <EmptyState icon="🧭" title="No Drivers Nearby" description="Try adjusting your pickup or wait for more drivers to come online." />
+            ) : (
+              <div className="space-y-3">
+                {(driversQuery.data || []).map((driver) => (
+                  <div key={driver.riderId} className="rounded-2xl border border-slate-200 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <Avatar name={driver.driverName} size="md" />
+                        <div>
+                          <p className="font-semibold text-slate-900">{driver.driverName}</p>
+                          <p className="text-sm text-slate-500">{driver.vehicleModel} • {driver.plateNumber}</p>
+                        </div>
+                      </div>
+                      <Badge label={`${driver.etaMinutes} min`} variant="teal" size="sm" />
+                    </div>
+                    <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
+                      <p>Distance: {driver.distanceToPickupKm} km</p>
+                      <p>Estimate: {formatMoney(driver.estimatedPrice)}</p>
                     </div>
                   </div>
-                  <Badge label="Online" variant="success" size="md" />
-                </div>
-              </Card>
-            ))}
-          </div>
-        )}
-      </Card>
+                ))}
+              </div>
+            )}
+          </Card>
 
-      {/* Active Rides */}
-      <Card>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">
-          Active Rides ({activeRides.length})
-        </h2>
-
-        {ridesQuery.isLoading ? (
-          <LoadingSpinner />
-        ) : activeRides.length === 0 ? (
-          <EmptyState
-            icon="🚗"
-            title="No Active Rides"
-            description="You don't have any active rides at the moment. Book a ride above to get started."
-          />
-        ) : (
-          <div className="space-y-3">
-            {activeRides.map((ride) => (
-              <div
-                key={ride.id}
-                className="flex items-start justify-between p-4 border-2 border-orange-200 rounded-lg bg-orange-50"
-              >
-                <div className="flex-1">
-                  <p className="font-semibold text-gray-800 mb-1">Ride #{ride.id}</p>
-                  <p className="text-gray-800 font-medium mb-1">📍 {ride.pickupAddress}</p>
-                  <p className="text-gray-800 font-medium mb-2">🏁 {ride.dropoffAddress}</p>
-                  <div className="flex gap-4 text-sm text-gray-600">
-                    <span>💰 KES {ride.finalFare?.toFixed(2) || "0.00"}</span>
+          <Card>
+            <h2 className="text-xl font-bold text-slate-900">Live Ride</h2>
+            {ridesQuery.isLoading ? (
+              <div className="mt-4"><LoadingSpinner /></div>
+            ) : !activeRide ? (
+              <EmptyState icon="🚕" title="No Active Ride" description="Your current trip status and payment actions will show here." />
+            ) : (
+              <div className="mt-4 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm text-slate-500">Ride #{activeRide.id}</p>
+                      <p className="font-semibold text-slate-900">{activeRide.pickupAddress}</p>
+                      <p className="text-sm text-slate-600">to {activeRide.dropoffAddress}</p>
+                    </div>
+                    <Badge label={rideStatusLabel(activeRide.status)} variant={rideStatusVariant(activeRide.status)} size="sm" />
                   </div>
+                  <div className="mt-3 grid grid-cols-2 gap-3 text-sm text-slate-600">
+                    <p>Payment: {activeRide.paymentType}</p>
+                    <p>Fare: {formatMoney(activeRide.finalFare)}</p>
+                    <p>Distance: {activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0} km</p>
+                    <p>Source: {activeRide.distanceSource}</p>
+                  </div>
+                  {activeRide.riderName && (
+                    <div className="mt-4 rounded-2xl bg-white p-4 shadow-sm">
+                      <p className="font-semibold text-slate-900">Driver Assigned</p>
+                      <p className="text-sm text-slate-600">{activeRide.riderName}</p>
+                      <p className="text-sm text-slate-500">{activeRide.riderPhone}</p>
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex flex-col items-end gap-2">
-                  <Badge
-                    label={ride.status}
-                    variant={
-                      ride.status === "REQUESTED" || ride.status === "MATCHED"
-                        ? "warning"
-                        : "success"
-                    }
-                    size="md"
-                  />
+                {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved && (
+                  <Button className="w-full" onClick={() => setPaymentRide(activeRide)}>
+                    Pay via M-Pesa
+                  </Button>
+                )}
+
+                {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "CASH" && (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+                    Pay cash to the driver. The trip will move forward after the driver approves the payment.
+                  </div>
+                )}
+
+                {activeRide.manualDistanceRequired && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    GPS distance was incomplete. The driver must submit manual KM or support must resolve the final distance before payment can continue.
+                  </div>
+                )}
+
+                <div className="flex flex-wrap gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      if (window.confirm("Cancel this ride?")) {
+                        cancelRideMutation.mutate(activeRide.id);
+                      }
+                    }}
+                    loading={cancelRideMutation.isPending}
+                  >
+                    Cancel Ride
+                  </Button>
                   <Button
                     variant="secondary"
-                    size="sm"
-                    onClick={() => setSelectedRide(ride)}
+                    onClick={() => {
+                      const reason = window.prompt("Describe the dispute reason");
+                      if (reason) {
+                        disputeMutation.mutate({ rideId: activeRide.id, reason });
+                      }
+                    }}
+                    loading={disputeMutation.isPending}
                   >
-                    Details
+                    Raise Dispute
                   </Button>
-                  {ride.status !== "COMPLETED" && ride.status !== "CANCELLED" && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                      onClick={() => {
-                        if (window.confirm("Are you sure you want to cancel this ride?")) {
-                          cancelRideMutation.mutate(ride.id);
-                        }
-                      }}
-                      loading={cancelRideMutation.isPending}
-                    >
-                      Cancel
-                    </Button>
+                  {supportPhone && (
+                    <a href={`tel:${supportPhone}`} className="inline-flex items-center justify-center rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white">
+                      Call Support
+                    </a>
                   )}
+                  <Button variant="secondary" onClick={() => setSelectedRide(activeRide)}>
+                    View Details
+                  </Button>
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </Card>
+            )}
+          </Card>
+        </div>
+      </div>
 
-      {/* Completed Rides */}
-      {completedRides.length > 0 && (
+      {activeRide && (
         <Card>
-          <h2 className="text-2xl font-bold text-gray-800 mb-4">
-            Completed Rides ({completedRides.length})
-          </h2>
-
-          <div className="space-y-2 max-h-48 overflow-y-auto">
-            {completedRides.map((ride) => (
-              <div
-                key={ride.id}
-                className="flex items-center justify-between p-3 bg-green-50 border border-green-200 rounded-lg"
-              >
-                <div>
-                  <p className="font-semibold text-gray-800">
-                    {ride.pickupAddress} → {ride.dropoffAddress}
-                  </p>
-                  <p className="text-sm text-gray-600">KES {ride.finalFare?.toFixed(2) || "0.00"}</p>
-                </div>
-                <div className="flex gap-2">
-                  <Badge label="✓ Completed" variant="success" size="sm" />
-                  {!ride.paid && (
-                    <Button
-                      variant="orange"
-                      size="sm"
-                      onClick={() => {
-                        setSelectedRideForPayment(ride);
-                        setShowPaymentModal(true);
-                      }}
-                    >
-                      💳 Pay
-                    </Button>
-                  )}
-                  {ride.paid && (
-                    <Badge label="💳 Paid" variant="success" size="sm" />
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-2xl font-bold text-slate-900">Trip Chat</h2>
+              <p className="text-sm text-slate-500">Driver chat opens after acceptance. Support chat appears when a ride dispute or support thread exists.</p>
+            </div>
+            {supportPhone && (
+              <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 hover:text-teal-800">
+                Call support: {supportPhone}
+              </a>
+            )}
           </div>
+
+          {conversationsQuery.isLoading ? (
+            <div className="mt-4"><LoadingSpinner /></div>
+          ) : !(conversationsQuery.data || []).length ? (
+            <EmptyState icon="💬" title="No Chat Yet" description="Chat becomes available when a driver accepts the ride or support joins the trip." />
+          ) : (
+            <div className="mt-4 grid gap-4 lg:grid-cols-[0.35fr,0.65fr]">
+              <div className="space-y-3">
+                {(conversationsQuery.data || []).map((conversation) => (
+                  <button
+                    key={conversation.id}
+                    className={`w-full rounded-2xl border px-4 py-3 text-left ${
+                      conversation.id === selectedConversationId
+                        ? "border-teal-500 bg-teal-50"
+                        : "border-slate-200 bg-white"
+                    }`}
+                    onClick={() => setSelectedConversationId(conversation.id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-semibold text-slate-900">
+                        {conversation.conversationType === "RIDE_CHAT" ? "Driver" : "Support"}
+                      </p>
+                      {conversation.unreadCount > 0 && (
+                        <Badge label={`${conversation.unreadCount}`} variant="warning" size="sm" />
+                      )}
+                    </div>
+                    <p className="mt-1 text-sm text-slate-600">{conversation.participantName}</p>
+                    <p className="text-xs text-slate-500">{conversation.participantPhone}</p>
+                  </button>
+                ))}
+              </div>
+
+              <ChatBox
+                conversationId={selectedConversation?.id}
+                title={selectedConversation?.conversationType === "RIDE_CHAT" ? "Driver Chat" : "Support Chat"}
+                participantName={selectedConversation?.participantName}
+                participantPhone={selectedConversation?.participantPhone}
+                onActivity={() => queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] })}
+              />
+            </div>
+          )}
         </Card>
       )}
 
-      {/* Support Section */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card>
+          <h2 className="text-xl font-bold text-slate-900">Completed Trips</h2>
+          {completedRides.length === 0 ? (
+            <EmptyState icon="🛣" title="No completed trips yet" description="Your completed rides will appear here." />
+          ) : (
+            <div className="mt-4 space-y-3">
+              {completedRides.map((ride) => (
+                <div key={ride.id} className="rounded-2xl border border-green-200 bg-green-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{ride.pickupAddress} to {ride.dropoffAddress}</p>
+                      <p className="text-sm text-slate-600">{formatMoney(ride.finalFare)}</p>
+                    </div>
+                    <Badge label="Completed" variant="success" size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h2 className="text-xl font-bold text-slate-900">Cancelled / Rejected</h2>
+          {cancelledRides.length === 0 ? (
+            <EmptyState icon="🧾" title="No cancelled rides" description="Cancelled or rejected requests will appear here." />
+          ) : (
+            <div className="mt-4 space-y-3">
+              {cancelledRides.map((ride) => (
+                <div key={ride.id} className="rounded-2xl border border-red-200 bg-red-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{ride.pickupAddress} to {ride.dropoffAddress}</p>
+                      <p className="text-sm text-slate-600">{rideStatusLabel(ride.status)}</p>
+                    </div>
+                    <Badge label={rideStatusLabel(ride.status)} variant="error" size="sm" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      </div>
+
       <Card>
-        <h2 className="text-2xl font-bold text-gray-800 mb-4">Need Support?</h2>
+        <h2 className="text-xl font-bold text-slate-900">Need More Help?</h2>
         <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
+          className="mt-4 space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
             ticketMutation.mutate(ticket);
           }}
         >
           <Input
             label="Subject"
-            placeholder="Briefly describe your issue"
             value={ticket.subject}
-            onChange={(e) => setTicket({ ...ticket, subject: e.target.value })}
+            onChange={(event) => setTicket((current) => ({ ...current, subject: event.target.value }))}
             required
           />
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Description <span className="text-red-500">*</span>
-            </label>
+            <label className="mb-1 block text-sm font-medium text-slate-700">Description</label>
             <textarea
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+              className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
               rows={4}
-              placeholder="Please provide details about your issue"
               value={ticket.description}
-              onChange={(e) => setTicket({ ...ticket, description: e.target.value })}
+              onChange={(event) => setTicket((current) => ({ ...current, description: event.target.value }))}
               required
             />
           </div>
-          <Button
-            className="w-full"
-            loading={ticketMutation.isPending}
-          >
-            📝 Submit Support Ticket
-          </Button>
+          <div className="flex flex-wrap gap-3">
+            <Button loading={ticketMutation.isPending}>Submit Ticket</Button>
+            {supportPhone && (
+              <a href={`tel:${supportPhone}`} className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
+                Call Support
+              </a>
+            )}
+          </div>
         </form>
       </Card>
 
-      {/* Ride Details Modal */}
       {selectedRide && (
         <Modal
-          isOpen={!!selectedRide}
-          title={`Ride #${selectedRide.id} Details`}
+          isOpen={Boolean(selectedRide)}
+          title={`Ride #${selectedRide.id}`}
           onClose={() => setSelectedRide(null)}
         >
           <div className="space-y-4">
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Pickup Location</p>
-              <p className="font-semibold text-gray-800 text-lg">📍 {selectedRide.pickupAddress}</p>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm text-slate-500">Status</p>
+              <Badge label={rideStatusLabel(selectedRide.status)} variant={rideStatusVariant(selectedRide.status)} size="sm" />
             </div>
-
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Dropoff Location</p>
-              <p className="font-semibold text-gray-800 text-lg">🏁 {selectedRide.dropoffAddress}</p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
               <div>
-                <p className="text-gray-600 text-sm mb-1">Status</p>
-                <Badge label={selectedRide.status} variant="info" size="md" />
+                <p className="text-sm text-slate-500">Pickup</p>
+                <p className="font-semibold text-slate-900">{selectedRide.pickupAddress}</p>
+                <p className="text-xs text-slate-500">{selectedRide.pickupLat}, {selectedRide.pickupLng}</p>
               </div>
               <div>
-                <p className="text-gray-600 text-sm mb-1">Fare</p>
-                <p className="font-bold text-lg text-orange-600">
-                  KES {selectedRide.finalFare?.toFixed(2) || "0.00"}
-                </p>
+                <p className="text-sm text-slate-500">Dropoff</p>
+                <p className="font-semibold text-slate-900">{selectedRide.dropoffAddress}</p>
+                <p className="text-xs text-slate-500">{selectedRide.dropoffLat}, {selectedRide.dropoffLng}</p>
               </div>
             </div>
-
-            {selectedRide.riderName && (
-              <div className="bg-teal-50 p-4 rounded-lg border border-teal-200">
-                <p className="text-teal-800 font-semibold mb-1">Driver: {selectedRide.riderName}</p>
-                <p className="text-teal-700">📞 {selectedRide.riderPhone}</p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-sm text-slate-500">Fare</p>
+                <p className="font-semibold text-slate-900">{formatMoney(selectedRide.finalFare)}</p>
               </div>
-            )}
-
-            <div>
-              <p className="text-gray-600 text-sm mb-2">Coordinates</p>
-              <div className="bg-gray-50 p-3 rounded-lg space-y-2 text-sm">
-                <p className="font-mono">
-                  <strong>Pickup:</strong> {selectedRide.pickupLat}, {selectedRide.pickupLng}
-                </p>
-                <p className="font-mono">
-                  <strong>Dropoff:</strong> {selectedRide.dropoffLat}, {selectedRide.dropoffLng}
-                </p>
+              <div>
+                <p className="text-sm text-slate-500">Payment</p>
+                <p className="font-semibold text-slate-900">{selectedRide.paymentType} • {selectedRide.paymentStatus}</p>
               </div>
             </div>
           </div>
         </Modal>
       )}
 
-      {/* Payment Modal */}
-      {selectedRideForPayment && (
+      {paymentRide && (
         <Modal
-          isOpen={showPaymentModal}
-          title="Complete Payment"
-          onClose={() => setShowPaymentModal(false)}
+          isOpen={Boolean(paymentRide)}
+          title="Pay with M-Pesa"
+          onClose={() => setPaymentRide(null)}
           footer={
-            <div className="flex gap-3 justify-end">
-              <Button
-                variant="secondary"
-                onClick={() => setShowPaymentModal(false)}
-              >
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setPaymentRide(null)}>
                 Cancel
               </Button>
               <Button
-                loading={payMutation.isPending}
+                loading={mpesaMutation.isPending}
                 onClick={() =>
-                  payMutation.mutate({
-                    rideId: selectedRideForPayment.id,
-                    phoneNumber: phoneNumber
+                  mpesaMutation.mutate({
+                    rideId: paymentRide.id,
+                    phoneNumber,
+                    manualDistanceKm: paymentRide.manualDistanceRequired ? paymentRide.chargeableDistanceKm : undefined
                   })
                 }
               >
-                Pay KES {selectedRideForPayment.finalFare?.toFixed(2) || "0.00"}
+                Pay {formatMoney(paymentRide.finalFare)}
               </Button>
             </div>
           }
         >
           <div className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <p className="text-blue-700 text-sm">
-                🔒 You will receive an M-Pesa prompt to confirm the payment
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Ride</p>
-              <p className="font-semibold text-gray-800">
-                {selectedRideForPayment.pickupAddress} → {selectedRideForPayment.dropoffAddress}
-              </p>
-            </div>
-
-            <div>
-              <p className="text-gray-600 text-sm mb-1">Amount</p>
-              <p className="text-2xl font-bold text-orange-600">
-                KES {selectedRideForPayment.finalFare?.toFixed(2) || "0.00"}
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Phone Number (254XXXXXXXXX)
-              </label>
-              <input
-                type="tel"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-600"
-                placeholder="254700000000"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-              />
-            </div>
+            <p className="text-sm text-slate-600">
+              We’ll trigger an STK Push to the number below. Trip completion stays locked until the payment callback succeeds.
+            </p>
+            <Input
+              label="M-Pesa Phone Number"
+              value={phoneNumber}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+            />
           </div>
         </Modal>
       )}

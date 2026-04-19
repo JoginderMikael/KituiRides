@@ -2,9 +2,14 @@ package com.kituirides.api.domain.enums;
 
 public enum RideStatus {
     REQUESTED,
-    MATCHED,
-    ACCEPTED,
-    STARTED,
-    COMPLETED,
-    CANCELLED
+    DRIVER_ASSIGNED,
+    DRIVER_ACCEPTED,
+    DRIVER_REJECTED,
+    DRIVER_ARRIVED,
+    TRIP_STARTED,
+    TRIP_CANCELLED,
+    PAYMENT_PENDING,
+    PAYMENT_COMPLETED,
+    TRIP_COMPLETED,
+    DISPUTED
 }

@@ -1,5 +1,6 @@
 package com.kituirides.api.ride;
 
+import com.kituirides.api.domain.enums.PaymentType;
 import com.kituirides.api.domain.enums.VehicleType;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -13,7 +14,7 @@ public record CreateRideRequest(
     @NotNull @Min(-180) @Max(180) Double dropoffLng,
     @NotBlank String pickupAddress,
     @NotBlank String dropoffAddress,
-    @NotNull Long riderId,
-    @NotNull VehicleType vehicleType
+    @NotNull VehicleType vehicleType,
+    @NotNull PaymentType paymentType
 ) {
 }

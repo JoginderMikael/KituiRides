@@ -1,14 +1,14 @@
 package com.kituirides.api.location;
 
 import com.kituirides.api.domain.entity.LocationPing;
-import com.kituirides.api.repository.LocationPingRepository;
-import com.kituirides.api.repository.RiderProfileRepository;
-import com.kituirides.api.repository.VehicleRepository;
+import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.security.CurrentUserService;
 import com.kituirides.api.websocket.RealtimePublisher;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,10 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class LocationService {
 
-    private final LocationPingRepository locationPingRepository;
+    private final com.kituirides.api.repository.LocationPingRepository locationPingRepository;
     private final CurrentUserService currentUserService;
-    private final RiderProfileRepository riderProfileRepository;
-    private final VehicleRepository vehicleRepository;
+    private final MatchingService matchingService;
     private final RealtimePublisher realtimePublisher;
 
     @Transactional
@@ -34,22 +33,26 @@ public class LocationService {
         locationPingRepository.save(ping);
     }
 
-    public List<NearbyDriverResponse> nearbyDrivers() {
-        var nearby = riderProfileRepository.findByVerifiedTrueAndAvailableTrue().stream()
-            .map(profile -> {
-                var user = profile.getUser();
-                var vehicle = vehicleRepository.findByRiderProfile(profile).orElse(null);
-                return locationPingRepository.findTopByUserOrderByTimestampDesc(user)
-                    .map(ping -> new NearbyDriverResponse(
-                        user.getId(), 
-                        ping.getLatitude(), 
-                        ping.getLongitude(),
-                        vehicle != null ? vehicle.getMake() + " " + vehicle.getModel() : "Unknown",
-                        vehicle != null ? vehicle.getPlateNumber() : "Unknown",
-                        user.getFirstName() + " " + user.getLastName()
-                    ));
-            })
-            .flatMap(Optional::stream)
+    public List<NearbyDriverResponse> nearbyDrivers(
+        double pickupLat,
+        double pickupLng,
+        double dropoffLat,
+        double dropoffLng,
+        VehicleType vehicleType
+    ) {
+        var nearby = matchingService.findEligibleDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType).stream()
+            .map(match -> new NearbyDriverResponse(
+                match.driver().getId(),
+                match.latitude(),
+                match.longitude(),
+                match.vehicle().getMake() + " " + match.vehicle().getModel(),
+                match.vehicle().getPlateNumber(),
+                match.driver().getFirstName() + " " + match.driver().getLastName(),
+                match.vehicle().getVehicleType(),
+                match.etaMinutes(),
+                BigDecimal.valueOf(match.distanceToPickupKm()).setScale(2, RoundingMode.HALF_UP),
+                match.estimatedPrice()
+            ))
             .toList();
         realtimePublisher.publishNearbyDrivers(nearby);
         return nearby;

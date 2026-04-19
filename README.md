@@ -40,7 +40,7 @@ Production-oriented MVP for a localized ride-hailing platform in Kitui Town, Ken
 
 External Integrations:
 - M-Pesa Daraja API (currently mocked adapter for MVP)
-- Google Maps / Mapbox (frontend placeholder wired for integration)
+- Mapbox GL JS (customer request map via `VITE_MAPBOX_TOKEN`)
 ```
 
 ## 2) Backend Structure
@@ -82,12 +82,12 @@ frontend/src/
 ## 4) MVP Modules Implemented
 
 - Auth module: JWT + role-based authorization
-- User module: profile view/update
-- Ride module: full ride state transitions + matching + ETA/surge
-- Payment module: M-Pesa STK push initiation and callback handling
-- WebSocket module: ride updates + nearby driver broadcasts
-- Support module: ticket creation and listing
-- Admin module: basic analytics, users and rides listing
+- User module: profile view/update + bootstrap admin onboarding
+- Ride module: strict Phase 3 state machine, nearby-driver broadcast offers, Redis-backed active-ride guards, and real ETA/surge handling
+- Payment module: M-Pesa STK push initiation/callback, cash approval flow, commission settlement, and payment-before-completion enforcement
+- WebSocket module: ride updates, nearby driver broadcasts, and ride/support chat activity over STOMP + SockJS
+- Support module: ride disputes, ride-linked support conversations, support KM override, and hotline lookup via `/api/support/contact`
+- Admin module: analytics, users/rides listing, support-agent creation, support phone configuration, and driver edit request visibility
 
 ## 5) Run Locally
 
@@ -137,6 +137,18 @@ npm install
 npm run dev
 ```
 
+### Frontend Environment
+
+Mapbox is optional for development, but the live request map only appears when the frontend receives a token.
+
+```bash
+# frontend/.env.local
+VITE_MAPBOX_TOKEN=your_mapbox_public_token
+
+# optional when the frontend is not reverse-proxied to the backend
+VITE_API_URL=http://localhost:8080/api
+```
+
 ## 6) Key API Prefixes
 
 - `/api/auth`
@@ -145,6 +157,8 @@ npm run dev
 - `/api/payments`
 - `/api/admin`
 - `/api/support`
+- `/api/support/contact`
+- `/api/chat`
 - `/api/locations`
 
 ## 7) Initial Admin User Creation
@@ -174,6 +188,7 @@ On first startup, the system also creates default admin configuration settings:
 | DRIVER_MARKUP | 1.5 | Driver markup multiplier (150%) |
 | COMPANY_COMMISSION_RATE | 0.20 | Company commission rate (20%) |
 | MOTORCYCLE_FUEL_ECONOMY | 37 km/L | Motorcycle fuel economy |
+| SUPPORT_PHONE_NUMBER | +254797753625 | Support hotline shown to customers, drivers, and support agents |
 
 These can be modified via the admin dashboard at `/api/admin/settings/`.
 
@@ -218,11 +233,11 @@ Support agents **cannot** create their own accounts. They must be created by an 
 
 ### Support Agent Workflow
 
-1. Customer/Driver creates support ticket during dispute
-2. Support agent is notified
-3. Support agent opens chat with involved parties
-4. Support agent reviews evidence and makes decision
-5. Support agent closes ticket and documents resolution
+1. Customer or driver raises a dispute or support ticket for a ride
+2. The ride moves to `DISPUTED` and ride-linked support conversations open for the affected participants
+3. Support agent reviews chat context, payment state, and distance evidence
+4. Support agent can override final KM, force payment approval when appropriate, and resolve the ride back to `TRIP_CANCELLED`, `PAYMENT_PENDING`, or `PAYMENT_COMPLETED`
+5. Driver and customer can also use the configured support hotline for click-to-call escalation
 
 ## 10) Driver Account Creation (Two-Step Process)
 
@@ -248,7 +263,12 @@ Support agents **cannot** create their own accounts. They must be created by an 
 ## 11) Notes & PostgreSQL Troubleshooting
 
 - M-Pesa integration is represented by a mock `MpesaClient` adapter in this MVP and can be swapped to real Daraja API calls without changing controller/service contracts.
-- Map block is intentionally scaffolded in customer page for quick integration of Google Maps or Mapbox SDK next.
+- The customer dashboard now uses Mapbox for pickup/dropoff selection and nearby-driver visualization when `VITE_MAPBOX_TOKEN` is set.
+- Payment must complete before a driver can finish a trip. Cash rides require driver approval; M-Pesa rides require a successful callback.
+- The strict ride lifecycle used across backend and frontend is:
+  `REQUESTED -> DRIVER_ASSIGNED -> DRIVER_ACCEPTED -> DRIVER_ARRIVED -> TRIP_STARTED -> PAYMENT_PENDING -> PAYMENT_COMPLETED -> TRIP_COMPLETED`
+- Terminal and dispute states also supported in Phase 3:
+  `TRIP_CANCELLED`, `DRIVER_REJECTED`, `DISPUTED`
 
 ### Local PostgreSQL Troubleshooting
 

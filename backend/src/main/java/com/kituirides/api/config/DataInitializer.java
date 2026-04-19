@@ -5,7 +5,6 @@ import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.repository.AdminConfigRepository;
 import com.kituirides.api.repository.UserRepository;
-import java.math.BigDecimal;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,11 +74,12 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeAdminConfigs() {
         // Define default configs
         String[][] configs = {
-            {"BASE_FARE", "100", "Base fare for trip commencement (KES)"},
+            {"BASE_FARE", "150", "Base fare for trip commencement (KES)"},
             {"FUEL_COST_PER_LITER", "200", "Current fuel cost per liter (KES)"},
             {"DRIVER_MARKUP", "1.5", "Driver markup multiplier for profit margin"},
             {"COMPANY_COMMISSION_RATE", "0.20", "Company commission rate (20% = 0.20)"},
-            {"MOTORCYCLE_FUEL_ECONOMY", "37", "Motorcycle fuel economy (km/liter)"}
+            {"MOTORCYCLE_FUEL_ECONOMY", "37", "Motorcycle fuel economy (km/liter)"},
+            {"SUPPORT_PHONE_NUMBER", "+254797753625", "Support hotline phone number"}
         };
 
         for (String[] config : configs) {

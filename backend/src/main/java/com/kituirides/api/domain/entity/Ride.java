@@ -3,6 +3,7 @@ package com.kituirides.api.domain.entity;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.domain.enums.PaymentType;
+import com.kituirides.api.domain.enums.DistanceSource;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -73,8 +74,14 @@ public class Ride {
     @Column(nullable = false)
     private Instant requestedAt = Instant.now();
 
+    private Instant driverAssignedAt;
     private Instant acceptedAt;
+    private Instant arrivedAt;
     private Instant startedAt;
+    private Instant paymentPendingAt;
+    private Instant paymentCompletedAt;
+    private Instant cancelledAt;
+    private Instant disputedAt;
     private Instant completedAt;
 
     @Enumerated(EnumType.STRING)
@@ -85,11 +92,21 @@ public class Ride {
     @Column(length = 20, nullable = false)
     private PaymentType paymentType = PaymentType.MPESA;
 
+    @Column(name = "distance_km", precision = 10, scale = 2)
+    private BigDecimal estimatedDistanceKm;
+
     @Column(precision = 10, scale = 2)
-    private BigDecimal distanceKm;
+    private BigDecimal chargeableDistanceKm;
+
+    @Enumerated(EnumType.STRING)
+    @Column(length = 30, nullable = false)
+    private DistanceSource distanceSource = DistanceSource.ESTIMATED;
 
     @Column(nullable = false)
     private Boolean paymentApproved = false;
+
+    @Column(nullable = false)
+    private Boolean manualDistanceRequired = false;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "support_ticket_id")
@@ -100,4 +117,7 @@ public class Ride {
 
     @Column
     private Instant customerCanceledAt;
+
+    @Column(columnDefinition = "TEXT")
+    private String disputeReason;
 }

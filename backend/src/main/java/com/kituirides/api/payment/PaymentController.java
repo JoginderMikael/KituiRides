@@ -20,7 +20,7 @@ public class PaymentController {
     private final PaymentService paymentService;
 
     @PostMapping("/mpesa/stk-push")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'ADMIN', 'SUPPORT_AGENT')")
     public ResponseEntity<ApiResponse<PaymentResponse>> initiate(@Valid @RequestBody InitiatePaymentRequest request) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.initiatePayment(request), "STK push initiated"));
     }
@@ -31,14 +31,20 @@ public class PaymentController {
     }
 
     @GetMapping("/ride/{rideId}")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'DRIVER', 'ADMIN')")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'DRIVER', 'ADMIN', 'SUPPORT_AGENT')")
     public ResponseEntity<ApiResponse<PaymentResponse>> getByRide(@PathVariable Long rideId) {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.getByRideId(rideId)));
     }
 
     @PostMapping("/ride/{rideId}/approve-cash")
-    @PreAuthorize("hasAnyRole('DRIVER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<PaymentResponse>> approveCash(@PathVariable Long rideId) {
-        return ResponseEntity.ok(ApiResponse.ok(paymentService.approveCashPayment(rideId), "Cash payment approved"));
+    @PreAuthorize("hasAnyRole('DRIVER', 'ADMIN', 'SUPPORT_AGENT')")
+    public ResponseEntity<ApiResponse<PaymentResponse>> approveCash(
+        @PathVariable Long rideId,
+        @RequestBody(required = false) ApproveCashPaymentRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            paymentService.approveCashPayment(rideId, request != null ? request.manualDistanceKm() : null),
+            "Cash payment approved"
+        ));
     }
 }

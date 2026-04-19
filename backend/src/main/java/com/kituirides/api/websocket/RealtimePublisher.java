@@ -23,4 +23,16 @@ public class RealtimePublisher {
     public void publishNearbyDrivers(Object payload) {
         messagingTemplate.convertAndSend("/topic/drivers/nearby", payload);
     }
+
+    public void publishDriverOffer(Long driverId, Object payload) {
+        messagingTemplate.convertAndSend("/topic/drivers/" + driverId + "/offers", payload);
+    }
+
+    public void publishConversationUpdate(Long conversationId, String type, Object payload) {
+        Map<String, Object> event = Map.of(
+            "type", type,
+            "payload", payload
+        );
+        messagingTemplate.convertAndSend("/topic/conversations/" + conversationId, event);
+    }
 }

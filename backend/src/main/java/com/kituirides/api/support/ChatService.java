@@ -1,5 +1,8 @@
 package com.kituirides.api.support;
 
+import com.kituirides.api.chat.ChatConversationResponse;
+import com.kituirides.api.chat.ChatMessageResponse;
+import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.Conversation;
 import com.kituirides.api.domain.entity.Message;
 import com.kituirides.api.domain.entity.Ride;
@@ -8,11 +11,13 @@ import com.kituirides.api.domain.enums.ConversationStatus;
 import com.kituirides.api.domain.enums.ConversationType;
 import com.kituirides.api.repository.ConversationRepository;
 import com.kituirides.api.repository.MessageRepository;
-import com.kituirides.api.repository.UserRepository;
+import com.kituirides.api.security.CurrentUserService;
+import com.kituirides.api.websocket.RealtimePublisher;
 import java.time.Instant;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,16 +28,20 @@ public class ChatService {
 
     private final ConversationRepository conversationRepository;
     private final MessageRepository messageRepository;
-    private final UserRepository userRepository;
+    private final CurrentUserService currentUserService;
+    private final RealtimePublisher realtimePublisher;
 
     /**
      * Get or create conversation between two users for a ride
      */
     @Transactional
     public Conversation getOrCreateRideConversation(Ride ride) {
-        // Check if conversation already exists
-        Conversation existing = conversationRepository.findConversationBetween(ride.getCustomer(), ride.getRider())
-                .orElse(null);
+        Conversation existing = conversationRepository.findRideConversation(
+            ride,
+            ConversationType.RIDE_CHAT,
+            ride.getCustomer(),
+            ride.getRider()
+        ).orElse(null);
 
         if (existing != null) {
             return existing;
@@ -54,19 +63,24 @@ public class ChatService {
     }
 
     /**
-     * Get or create support conversation between customer and support agent
+     * Get or create support conversation between a ride participant and support agent
      */
     @Transactional
-    public Conversation getOrCreateSupportConversation(User customer, User supportAgent) {
-        Conversation existing = conversationRepository.findConversationBetween(customer, supportAgent)
-                .orElse(null);
+    public Conversation getOrCreateSupportConversation(Ride ride, User participant, User supportAgent) {
+        Conversation existing = conversationRepository.findRideConversation(
+            ride,
+            ConversationType.SUPPORT_CHAT,
+            participant,
+            supportAgent
+        ).orElse(null);
 
-        if (existing != null && existing.getConversationType() == ConversationType.SUPPORT_CHAT) {
+        if (existing != null) {
             return existing;
         }
 
         Conversation conversation = new Conversation();
-        conversation.setParticipant1(customer);
+        conversation.setRide(ride);
+        conversation.setParticipant1(participant);
         conversation.setParticipant2(supportAgent);
         conversation.setConversationType(ConversationType.SUPPORT_CHAT);
         conversation.setSupportAgent(supportAgent);
@@ -75,21 +89,15 @@ public class ChatService {
         conversation.setUpdatedAt(Instant.now());
 
         conversation = conversationRepository.save(conversation);
-        log.info("Created support conversation {} between customer {} and agent {}", 
-                conversation.getId(), customer.getId(), supportAgent.getId());
+        log.info("Created support conversation {} for ride {} between participant {} and agent {}",
+            conversation.getId(), ride.getId(), participant.getId(), supportAgent.getId());
         return conversation;
     }
 
-    /**
-     * Send message in conversation
-     */
     @Transactional
-    public Message sendMessage(Long conversationId, Long senderId, String content) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
-
-        User sender = userRepository.findById(senderId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+    public ChatMessageResponse sendMessage(Long conversationId, String content) {
+        User sender = currentUserService.getCurrentUser();
+        Conversation conversation = getAccessibleConversation(conversationId, sender);
 
         Message message = new Message();
         message.setConversation(conversation);
@@ -99,82 +107,101 @@ public class ChatService {
         message.setCreatedAt(Instant.now());
 
         message = messageRepository.save(message);
-        
-        // Update conversation's updatedAt timestamp
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
-        
-        log.info("Message {} sent in conversation {} by user {}", message.getId(), conversationId, senderId);
-        return message;
+
+        ChatMessageResponse response = toMessageResponse(message);
+        realtimePublisher.publishConversationUpdate(conversationId, "MESSAGE_SENT", response);
+        log.info("Message {} sent in conversation {} by user {}", message.getId(), conversationId, sender.getId());
+        return response;
     }
 
-    /**
-     * Get messages for a conversation
-     */
-    public List<Message> getConversationMessages(Long conversationId) {
-        return messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId);
+    public List<ChatMessageResponse> getConversationMessages(Long conversationId) {
+        User currentUser = currentUserService.getCurrentUser();
+        getAccessibleConversation(conversationId, currentUser);
+        return messageRepository.findByConversationIdOrderByCreatedAtDesc(conversationId).stream()
+            .map(this::toMessageResponse)
+            .toList();
     }
 
-    /**
-     * Mark message as read
-     */
-    @Transactional
-    public void markMessageAsRead(Long messageId) {
-        Message message = messageRepository.findById(messageId)
-                .orElseThrow(() -> new IllegalArgumentException("Message not found"));
-        message.setIsRead(true);
-        messageRepository.save(message);
+    public List<ChatConversationResponse> getCurrentUserConversations(Long rideId) {
+        User currentUser = currentUserService.getCurrentUser();
+        return conversationRepository.findUserConversations(currentUser, ConversationStatus.ACTIVE).stream()
+            .filter(conversation -> rideId == null || (conversation.getRide() != null && rideId.equals(conversation.getRide().getId())))
+            .map(conversation -> toConversationResponse(conversation, currentUser))
+            .toList();
     }
 
-    /**
-     * Mark all messages as read in conversation
-     */
     @Transactional
     public void markConversationAsRead(Long conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+        User currentUser = currentUserService.getCurrentUser();
+        Conversation conversation = getAccessibleConversation(conversationId, currentUser);
         messageRepository.markAllAsRead(conversation);
+        realtimePublisher.publishConversationUpdate(conversationId, "CONVERSATION_READ", null);
     }
 
-    /**
-     * Get unread message count for a conversation
-     */
-    public Long getUnreadMessageCount(Long conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
-        return messageRepository.countUnreadMessages(conversation);
-    }
-
-    /**
-     * Get user's active conversations
-     */
-    public List<Conversation> getUserConversations(User user) {
-        return conversationRepository.findUserConversations(user, ConversationStatus.ACTIVE);
-    }
-
-    /**
-     * Close conversation
-     */
     @Transactional
     public void closeConversation(Long conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+        User currentUser = currentUserService.getCurrentUser();
+        Conversation conversation = getAccessibleConversation(conversationId, currentUser);
         conversation.setStatus(ConversationStatus.CLOSED);
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
         log.info("Closed conversation {}", conversationId);
     }
 
-    /**
-     * Archive conversation
-     */
     @Transactional
     public void archiveConversation(Long conversationId) {
-        Conversation conversation = conversationRepository.findById(conversationId)
-                .orElseThrow(() -> new IllegalArgumentException("Conversation not found"));
+        User currentUser = currentUserService.getCurrentUser();
+        Conversation conversation = getAccessibleConversation(conversationId, currentUser);
         conversation.setStatus(ConversationStatus.ARCHIVED);
         conversation.setUpdatedAt(Instant.now());
         conversationRepository.save(conversation);
         log.info("Archived conversation {}", conversationId);
+    }
+
+    private Conversation getAccessibleConversation(Long conversationId, User currentUser) {
+        Conversation conversation = conversationRepository.findById(conversationId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Conversation not found"));
+        boolean participant = conversation.getParticipant1().getId().equals(currentUser.getId())
+            || conversation.getParticipant2().getId().equals(currentUser.getId());
+        if (!participant) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Conversation does not belong to the current user");
+        }
+        return conversation;
+    }
+
+    private ChatConversationResponse toConversationResponse(Conversation conversation, User currentUser) {
+        User participant = conversation.getParticipant1().getId().equals(currentUser.getId())
+            ? conversation.getParticipant2()
+            : conversation.getParticipant1();
+        User supportAgent = conversation.getSupportAgent();
+        return new ChatConversationResponse(
+            conversation.getId(),
+            conversation.getRide() != null ? conversation.getRide().getId() : null,
+            conversation.getConversationType(),
+            participant.getId(),
+            participant.getFirstName() + " " + participant.getLastName(),
+            participant.getPhoneNumber(),
+            supportAgent != null ? supportAgent.getId() : null,
+            supportAgent != null ? supportAgent.getFirstName() + " " + supportAgent.getLastName() : null,
+            supportAgent != null ? supportAgent.getPhoneNumber() : null,
+            messageRepository.countUnreadMessages(conversation),
+            conversation.getUpdatedAt()
+        );
+    }
+
+    private ChatMessageResponse toMessageResponse(Message message) {
+        User sender = message.getSender();
+        return new ChatMessageResponse(
+            message.getId(),
+            message.getContent(),
+            message.getIsRead(),
+            message.getCreatedAt(),
+            sender.getId(),
+            sender.getFirstName() + " " + sender.getLastName(),
+            sender.getPhoneNumber(),
+            sender.getRole()
+        );
     }
 }

@@ -1,6 +1,7 @@
 package com.kituirides.api.payment;
 
 import com.kituirides.api.domain.enums.PaymentStatus;
+import com.kituirides.api.domain.enums.PaymentType;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -10,7 +11,14 @@ public record PaymentResponse(
     BigDecimal amount,
     String phoneNumber,
     String transactionRef,
+    PaymentType paymentType,
     PaymentStatus status,
-    Instant createdAt
+    String providerCheckoutRequestId,
+    String providerMerchantRequestId,
+    String providerReceiptNumber,
+    String providerResponseCode,
+    String providerResponseDescription,
+    Instant createdAt,
+    Instant completedAt
 ) {
 }

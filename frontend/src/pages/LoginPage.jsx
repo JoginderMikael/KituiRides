@@ -9,7 +9,7 @@ import { Button, Input, Card } from "../components/UIComponents";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login: setAuth } = useAuth();
-  const [form, setForm] = useState({ email: "customer@example.com", password: "password" });
+  const [form, setForm] = useState({ email: "admin@example.com", password: "admin@example.com" });
   const [showPassword, setShowPassword] = useState(false);
 
   const mutation = useMutation({
@@ -115,12 +115,12 @@ export default function LoginPage() {
           </Link>
         </Card>
 
-        {/* Demo Credentials */}
-        <div className="mt-6 p-4 bg-white bg-opacity-20 rounded-lg text-white text-sm backdrop-blur">
-          <p className="font-semibold mb-2">📌 Demo Credentials:</p>
-          <p>👤 Customer: customer@example.com / password</p>
-          <p>🚗 Driver: driver@example.com / password</p>
-          <p>👨‍💼 Admin: admin@example.com / password</p>
+        {/* Bootstrap Note */}
+        <div className="mt-6 rounded-lg bg-white/20 p-4 text-sm text-white backdrop-blur">
+          <p className="font-semibold mb-2">Initial Admin Bootstrap</p>
+          <p>Admin email: admin@example.com</p>
+          <p>Admin password: admin@example.com</p>
+          <p className="mt-2 text-teal-100">Register customer and driver accounts through the app, then approve drivers from the admin dashboard.</p>
         </div>
       </div>
     </div>

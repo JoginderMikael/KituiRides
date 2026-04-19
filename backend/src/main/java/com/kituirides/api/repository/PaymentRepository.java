@@ -11,6 +11,8 @@ import org.springframework.data.repository.query.Param;
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByRide(Ride ride);
     Optional<Payment> findByTransactionRef(String transactionRef);
+    Optional<Payment> findByProviderCheckoutRequestId(String providerCheckoutRequestId);
+    Optional<Payment> findByProviderMerchantRequestId(String providerMerchantRequestId);
 
     @Query("""
         select coalesce(sum(p.amount), 0)

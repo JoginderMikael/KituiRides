@@ -40,6 +40,24 @@ public class Payment {
     @Column(unique = true)
     private String transactionRef;
 
+    @Column
+    private String providerCheckoutRequestId;
+
+    @Column
+    private String providerMerchantRequestId;
+
+    @Column
+    private String providerReceiptNumber;
+
+    @Column
+    private String providerResponseCode;
+
+    @Column(columnDefinition = "TEXT")
+    private String providerResponseDescription;
+
+    @Column(columnDefinition = "TEXT")
+    private String callbackPayload;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private PaymentStatus status = PaymentStatus.PENDING;
@@ -50,4 +68,7 @@ public class Payment {
 
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
+
+    @Column
+    private Instant completedAt;
 }

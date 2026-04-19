@@ -49,21 +49,29 @@ export default function RegisterPage() {
     mutationFn: async (data) => {
       const res = await register(data);
       if (data.role === "DRIVER") {
-        await apiClient.post("/driver/vehicle", {
-          make: data.carMake,
-          model: data.carModel,
-          color: data.carColor,
-          plateNumber: data.plateNumber,
-          engineSize: parseInt(data.engineSize),
-          yearOfManufacture: parseInt(data.yearOfManufacture),
-          isOwner: data.isOwner,
-          vehicleType: data.vehicleType,
-          frontPhotoUrl: data.carFrontUrl,
-          rearPhotoUrl: data.carRearUrl,
-          interiorPhotoUrl: data.carInteriorUrl,
-          insurancePhotoUrl: data.insurancePhotoUrl,
-          chassisPhotoUrl: data.chassisPhotoUrl
-        });
+        await apiClient.post(
+          "/driver/vehicle",
+          {
+            make: data.carMake,
+            model: data.carModel,
+            color: data.carColor,
+            plateNumber: data.plateNumber,
+            engineSize: parseInt(data.engineSize, 10),
+            yearOfManufacture: parseInt(data.yearOfManufacture, 10),
+            isOwner: data.isOwner,
+            vehicleType: data.vehicleType,
+            frontPhotoUrl: data.carFrontUrl,
+            rearPhotoUrl: data.carRearUrl,
+            interiorPhotoUrl: data.carInteriorUrl,
+            insurancePhotoUrl: data.insurancePhotoUrl,
+            chassisPhotoUrl: data.chassisPhotoUrl
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${res.token}`
+            }
+          }
+        );
       }
       return res;
     },

@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useEffect, useState } from "react";
+import { useAuth } from "../hooks/useAuth";
+import { apiClient, unwrap } from "../lib/apiClient";
 
 /**
  * DocumentUploadPanel - For drivers to upload required documents
@@ -10,59 +11,51 @@ import { useAuth } from '../hooks/useAuth';
  * - Vehicle documents
  */
 const DocumentUploadPanel = () => {
-  const { user, token } = useAuth();
+  const { user, session } = useAuth();
   const [documents, setDocuments] = useState([]);
   const [verificationStatus, setVerificationStatus] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState(null);
-  const [selectedDocType, setSelectedDocType] = useState('PASSPORT_PHOTO');
-
-  const API_URL = 'http://localhost:8080/api/documents';
-  const UPLOAD_URL = 'http://localhost:8080/api/upload'; // Assuming file upload endpoint
+  const [selectedDocType, setSelectedDocType] = useState("PASSPORT_PHOTO");
 
   const documentTypes = [
-    { value: 'PASSPORT_PHOTO', label: 'Passport Photo' },
-    { value: 'ID_FRONT', label: 'National ID - Front' },
-    { value: 'ID_BACK', label: 'National ID - Back' },
-    { value: 'DRIVER_LICENSE_FRONT', label: 'Driver License - Front' },
-    { value: 'DRIVER_LICENSE_BACK', label: 'Driver License - Back' },
-    { value: 'CAR_FRONT', label: 'Vehicle - Front Photo' },
-    { value: 'CAR_BACK', label: 'Vehicle - Back Photo' },
-    { value: 'CAR_INTERIOR', label: 'Vehicle - Interior Photo' },
-    { value: 'INSURANCE_STICKER', label: 'Insurance Sticker' },
-    { value: 'CHASSIS_NUMBER', label: 'Chassis Number Plate' }
+    { value: "PASSPORT_PHOTO", label: "Passport Photo" },
+    { value: "ID_FRONT", label: "National ID - Front" },
+    { value: "ID_BACK", label: "National ID - Back" },
+    { value: "DRIVER_LICENSE_FRONT", label: "Driver License - Front" },
+    { value: "DRIVER_LICENSE_BACK", label: "Driver License - Back" },
+    { value: "CAR_FRONT", label: "Vehicle - Front Photo" },
+    { value: "CAR_BACK", label: "Vehicle - Back Photo" },
+    { value: "CAR_INTERIOR", label: "Vehicle - Interior Photo" },
+    { value: "INSURANCE_STICKER", label: "Insurance Sticker" },
+    { value: "CHASSIS_NUMBER", label: "Chassis Number Plate" }
   ];
 
   useEffect(() => {
+    if (!session?.token || !user?.id) {
+      setDocuments([]);
+      setVerificationStatus(null);
+      return;
+    }
     fetchMyDocuments();
     fetchVerificationStatus();
-  }, []);
+  }, [session?.token, user?.id]);
 
   const fetchMyDocuments = async () => {
     try {
-      const response = await fetch(`${API_URL}/my-documents`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setDocuments(data);
-      }
+      const response = await apiClient.get("/documents/my-documents");
+      setDocuments(Array.isArray(response.data) ? response.data : []);
     } catch (error) {
-      console.error('Error fetching documents:', error);
+      console.error("Error fetching documents:", error);
     }
   };
 
   const fetchVerificationStatus = async () => {
     try {
-      const response = await fetch(`${API_URL}/driver/${user.id}/verification-status`, {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setVerificationStatus(data);
-      }
+      const response = await apiClient.get(`/documents/driver/${user.id}/verification-status`);
+      setVerificationStatus(response.data);
     } catch (error) {
-      console.error('Error fetching verification status:', error);
+      console.error("Error fetching verification status:", error);
     }
   };
 
@@ -72,55 +65,36 @@ const DocumentUploadPanel = () => {
 
   const handleUpload = async () => {
     if (!selectedFile || !selectedDocType) {
-      alert('Please select a file and document type');
+      alert("Please select a file and document type");
       return;
     }
 
     setUploading(true);
 
     try {
-      // First, upload file to get URL
       const formData = new FormData();
-      formData.append('file', selectedFile);
+      formData.append("file", selectedFile);
 
-      const uploadResponse = await fetch(UPLOAD_URL, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${token}` },
-        body: formData
-      });
-
-      if (!uploadResponse.ok) throw new Error('File upload failed');
-
-      const uploadData = await uploadResponse.json();
-      const fileUrl = uploadData.fileUrl;
-      const filePath = uploadData.filePath;
-
-      // Then, register document in database
-      const docResponse = await fetch(`${API_URL}/upload`, {
-        method: 'POST',
+      const uploadData = await unwrap(apiClient.post("/upload", formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          documentType: selectedDocType,
-          filePath,
-          fileUrl
-        })
+          "Content-Type": "multipart/form-data"
+        }
+      }));
+
+      await apiClient.post("/documents/upload", {
+        documentType: selectedDocType,
+        filePath: uploadData.filePath,
+        fileUrl: uploadData.fileUrl
       });
 
-      if (docResponse.ok) {
-        alert('Document uploaded successfully!');
+      alert("Document uploaded successfully!");
         setSelectedFile(null);
-        setSelectedDocType('PASSPORT_PHOTO');
-        fetchMyDocuments();
-        fetchVerificationStatus();
-      } else {
-        alert('Failed to register document');
-      }
+      setSelectedDocType("PASSPORT_PHOTO");
+      fetchMyDocuments();
+      fetchVerificationStatus();
     } catch (error) {
-      console.error('Error uploading document:', error);
-      alert('Upload failed: ' + error.message);
+      console.error("Error uploading document:", error);
+      alert(`Upload failed: ${error.response?.data?.message || error.message}`);
     } finally {
       setUploading(false);
     }
@@ -128,11 +102,11 @@ const DocumentUploadPanel = () => {
 
   const getStatusBadge = (status) => {
     const colors = {
-      PENDING: 'bg-yellow-100 text-yellow-800',
-      APPROVED: 'bg-green-100 text-green-800',
-      REJECTED: 'bg-red-100 text-red-800'
+      PENDING: "bg-yellow-100 text-yellow-800",
+      APPROVED: "bg-green-100 text-green-800",
+      REJECTED: "bg-red-100 text-red-800"
     };
-    return colors[status] || 'bg-gray-100 text-gray-800';
+    return colors[status] || "bg-gray-100 text-gray-800";
   };
 
   return (
@@ -147,13 +121,13 @@ const DocumentUploadPanel = () => {
             <div className="flex items-center justify-between">
               <span>Personal Documents:</span>
               <span className={`px-3 py-1 rounded ${verificationStatus.hasAllPersonalDocuments ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                {verificationStatus.hasAllPersonalDocuments ? '✓ Complete' : '✗ Incomplete'}
+                {verificationStatus.hasAllPersonalDocuments ? "✓ Complete" : "✗ Incomplete"}
               </span>
             </div>
             <div className="flex items-center justify-between">
               <span>Vehicle Documents:</span>
               <span className={`px-3 py-1 rounded ${verificationStatus.hasVehicleDocuments ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                {verificationStatus.hasVehicleDocuments ? '✓ Complete' : '✗ Incomplete'}
+                {verificationStatus.hasVehicleDocuments ? "✓ Complete" : "✗ Incomplete"}
               </span>
             </div>
           </div>
@@ -192,9 +166,7 @@ const DocumentUploadPanel = () => {
               onChange={handleFileSelect}
               className="w-full"
             />
-            {selectedFile && (
-              <p className="text-sm text-gray-600 mt-2">Selected: {selectedFile.name}</p>
-            )}
+            {selectedFile && <p className="text-sm text-gray-600 mt-2">Selected: {selectedFile.name}</p>}
           </div>
 
           <button
@@ -202,7 +174,7 @@ const DocumentUploadPanel = () => {
             disabled={uploading || !selectedFile}
             className="w-full bg-blue-500 hover:bg-blue-600 disabled:bg-gray-400 text-white font-semibold py-2 px-4 rounded-lg transition"
           >
-            {uploading ? 'Uploading...' : 'Upload Document'}
+            {uploading ? "Uploading..." : "Upload Document"}
           </button>
         </div>
       </div>
@@ -230,7 +202,7 @@ const DocumentUploadPanel = () => {
                   <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getStatusBadge(doc.status)}`}>
                     {doc.status}
                   </span>
-                  {doc.status === 'REJECTED' && (
+                  {doc.status === "REJECTED" && (
                     <button
                       onClick={() => {
                         setSelectedDocType(doc.documentType);
