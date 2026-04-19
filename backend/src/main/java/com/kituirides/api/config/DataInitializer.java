@@ -22,6 +22,11 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
+    private static final String DEFAULT_SUPERADMIN_EMAIL = "admin@example.com";
+    private static final String DEFAULT_SUPERADMIN_PASSWORD = "replace-with-a-strong-temporary-password";
+    private static final String LEGACY_SUPERADMIN_PASSWORD = "admin@example.com";
+    private static final String LEGACY_SUPERADMIN_HASH = "replace-with-generated-password-hash";
+
     private final UserRepository userRepository;
     private final AdminConfigRepository adminConfigRepository;
     private final PasswordEncoder passwordEncoder;
@@ -41,10 +46,10 @@ public class DataInitializer implements CommandLineRunner {
      * Create default superadmin user if none exists
      */
     private void initializeAdminUser() {
-        // Check if any admin user exists
-        boolean adminExists = userRepository.findByEmail("admin@example.com").isPresent();
-        
-        if (adminExists) {
+        User existing = userRepository.findByEmail(DEFAULT_SUPERADMIN_EMAIL).orElse(null);
+
+        if (existing != null) {
+            repairLegacySuperadminPassword(existing);
             log.info("Superadmin user already exists");
             return;
         }
@@ -53,18 +58,39 @@ public class DataInitializer implements CommandLineRunner {
         User superadmin = new User();
         superadmin.setFirstName("Super");
         superadmin.setLastName("Admin");
-        superadmin.setEmail("admin@example.com");
+        superadmin.setEmail(DEFAULT_SUPERADMIN_EMAIL);
         superadmin.setPhoneNumber("replace-with-admin-phone");
-        superadmin.setPasswordHash(passwordEncoder.encode("admin@example.com"));
+        superadmin.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
         superadmin.setRole(Role.ADMIN);
         superadmin.setActive(true);
         superadmin.setCreatedAt(Instant.now());
 
         try {
             userRepository.save(superadmin);
-            log.info("Superadmin user created successfully: admin@example.com");
+            log.info("Superadmin user created successfully: {}", DEFAULT_SUPERADMIN_EMAIL);
         } catch (Exception e) {
             log.error("Error creating superadmin user", e);
+        }
+    }
+
+    private void repairLegacySuperadminPassword(User existing) {
+        String passwordHash = existing.getPasswordHash();
+
+        if (passwordHash == null || !passwordHash.startsWith("$2")) {
+            existing.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
+            userRepository.save(existing);
+            log.warn("Repaired invalid superadmin password hash for {}", DEFAULT_SUPERADMIN_EMAIL);
+            return;
+        }
+
+        if (passwordEncoder.matches(DEFAULT_SUPERADMIN_PASSWORD, passwordHash)) {
+            return;
+        }
+
+        if (LEGACY_SUPERADMIN_HASH.equals(passwordHash) || passwordEncoder.matches(LEGACY_SUPERADMIN_PASSWORD, passwordHash)) {
+            existing.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
+            userRepository.save(existing);
+            log.warn("Upgraded legacy superadmin password to the documented default for {}", DEFAULT_SUPERADMIN_EMAIL);
         }
     }
 

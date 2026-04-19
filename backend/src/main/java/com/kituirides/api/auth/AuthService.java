@@ -14,6 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,17 +32,20 @@ public class AuthService {
 
     @Transactional
     public AuthResponse register(RegisterRequest request) {
-        if (userRepository.existsByEmail(request.email())) {
+        String email = request.email().trim().toLowerCase();
+        String phoneNumber = request.phoneNumber().trim();
+
+        if (userRepository.existsByEmail(email)) {
             throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
         }
-        if (userRepository.existsByPhoneNumber(request.phoneNumber())) {
+        if (userRepository.existsByPhoneNumber(phoneNumber)) {
             throw new ApiException(HttpStatus.CONFLICT, "Phone number already exists");
         }
         User user = new User();
-        user.setFirstName(request.firstName());
-        user.setLastName(request.lastName());
-        user.setEmail(request.email().toLowerCase());
-        user.setPhoneNumber(request.phoneNumber());
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        user.setEmail(email);
+        user.setPhoneNumber(phoneNumber);
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setRole(request.role());
         user.setProfilePhotoUrl(request.profilePhotoUrl());
@@ -79,10 +83,17 @@ public class AuthService {
     }
 
     public AuthResponse login(LoginRequest request) {
-        authenticationManager.authenticate(
-            new UsernamePasswordAuthenticationToken(request.email().toLowerCase(), request.password())
-        );
-        User user = userRepository.findByEmail(request.email().toLowerCase())
+        String email = request.email().trim().toLowerCase();
+
+        try {
+            authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, request.password())
+            );
+        } catch (AuthenticationException ex) {
+            throw new ApiException(HttpStatus.UNAUTHORIZED, "Invalid credentials");
+        }
+
+        User user = userRepository.findByEmail(email)
             .orElseThrow(() -> new ApiException(HttpStatus.UNAUTHORIZED, "Invalid credentials"));
         return generateAuthResponse(user);
     }

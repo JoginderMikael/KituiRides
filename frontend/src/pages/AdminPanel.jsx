@@ -23,9 +23,27 @@ export default function AdminPanel() {
   const [filterRole, setFilterRole] = useState("ALL");
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRide, setSelectedRide] = useState(null);
-  const [supportForm, setSupportForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+  const emptySupportForm = {
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    password: "",
+    confirmPassword: ""
+  };
+  const [supportForm, setSupportForm] = useState(emptySupportForm);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [editDriverForm, setEditDriverForm] = useState(null);
+  const supportPasswordsMatch = supportForm.password === supportForm.confirmPassword;
+  const supportPasswordValid = supportForm.password.trim().length >= 8;
+  const supportFormComplete = [
+    supportForm.firstName,
+    supportForm.lastName,
+    supportForm.email,
+    supportForm.phoneNumber,
+    supportForm.password,
+    supportForm.confirmPassword
+  ].every((value) => value.trim());
 
   const dashboardQuery = useQuery({ queryKey: ["admin-dashboard"], queryFn: getDashboard });
   const usersQuery = useQuery({ queryKey: ["admin-users"], queryFn: getUsers });
@@ -52,7 +70,7 @@ export default function AdminPanel() {
     mutationFn: createSupportAgent,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
-      setSupportForm({ firstName: "", lastName: "", email: "", phoneNumber: "" });
+      setSupportForm(emptySupportForm);
       setShowSupportModal(false);
     }
   });
@@ -69,6 +87,10 @@ export default function AdminPanel() {
   const rides = ridesQuery.data || [];
   const driverEditRequests = (ticketsQuery.data || []).filter((ticket) => ticket.ticketType === "DRIVER_EDIT_REQUEST");
   const filteredUsers = filterRole === "ALL" ? users : users.filter((user) => user.role === filterRole);
+  const resetSupportForm = () => {
+    setSupportForm(emptySupportForm);
+    createSupportMutation.reset();
+  };
 
   return (
     <div className="space-y-6">
@@ -328,12 +350,28 @@ export default function AdminPanel() {
       )}
 
       {showSupportModal && (
-        <Modal isOpen={showSupportModal} title="Create Support Agent" onClose={() => setShowSupportModal(false)}>
+        <Modal
+          isOpen={showSupportModal}
+          title="Create Support Agent"
+          onClose={() => {
+            setShowSupportModal(false);
+            resetSupportForm();
+          }}
+        >
           <form
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              createSupportMutation.mutate(supportForm);
+              if (!supportFormComplete || !supportPasswordsMatch || !supportPasswordValid) {
+                return;
+              }
+              createSupportMutation.mutate({
+                firstName: supportForm.firstName.trim(),
+                lastName: supportForm.lastName.trim(),
+                email: supportForm.email.trim(),
+                phoneNumber: supportForm.phoneNumber.trim(),
+                password: supportForm.password
+              });
             }}
           >
             <div className="grid gap-4 md:grid-cols-2">
@@ -342,7 +380,30 @@ export default function AdminPanel() {
             </div>
             <Input label="Email" type="email" value={supportForm.email} onChange={(event) => setSupportForm((current) => ({ ...current, email: event.target.value }))} required />
             <Input label="Phone Number" value={supportForm.phoneNumber} onChange={(event) => setSupportForm((current) => ({ ...current, phoneNumber: event.target.value }))} required />
-            <Button className="w-full" loading={createSupportMutation.isPending}>Create Support Agent</Button>
+            <Input label="Password" type="password" value={supportForm.password} onChange={(event) => setSupportForm((current) => ({ ...current, password: event.target.value }))} required />
+            <Input label="Confirm Password" type="password" value={supportForm.confirmPassword} onChange={(event) => setSupportForm((current) => ({ ...current, confirmPassword: event.target.value }))} required />
+            {!supportPasswordValid && supportForm.password.length > 0 && (
+              <p className="text-sm text-red-600">Password must be at least 8 characters long.</p>
+            )}
+            {!supportPasswordsMatch && supportForm.confirmPassword.length > 0 && (
+              <p className="text-sm text-red-600">Passwords do not match.</p>
+            )}
+            {createSupportMutation.isError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {createSupportMutation.error?.response?.data?.message || "Failed to create support agent."}
+              </div>
+            )}
+            <p className="text-sm text-slate-500">
+              Set an initial password here so the support agent can log in immediately after creation.
+            </p>
+            <Button
+              type="submit"
+              className="w-full"
+              loading={createSupportMutation.isPending}
+              disabled={!supportFormComplete || !supportPasswordValid || !supportPasswordsMatch}
+            >
+              Create Support Agent
+            </Button>
           </form>
         </Modal>
       )}
@@ -376,7 +437,7 @@ export default function AdminPanel() {
               <Input label="Plate Number" value={editDriverForm.plateNumber} onChange={(event) => setEditDriverForm((current) => ({ ...current, plateNumber: event.target.value }))} required />
               <Input label="Engine Size" type="number" value={editDriverForm.engineSize} onChange={(event) => setEditDriverForm((current) => ({ ...current, engineSize: Number(event.target.value) }))} required />
             </div>
-            <Button className="w-full" loading={updateDriverMutation.isPending}>Save Driver Changes</Button>
+            <Button type="submit" className="w-full" loading={updateDriverMutation.isPending}>Save Driver Changes</Button>
           </form>
         </Modal>
       )}

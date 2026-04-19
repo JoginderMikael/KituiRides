@@ -44,6 +44,41 @@ export default function RegisterPage() {
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [passwordMatch, setPasswordMatch] = useState(true);
+  const passwordValid = form.password.length >= 8;
+  const basicAccountDetailsComplete = [
+    form.firstName,
+    form.lastName,
+    form.email,
+    form.phoneNumber,
+    form.password,
+    form.confirmPassword
+  ].every((value) => value.trim());
+  const driverIdentityComplete = [
+    form.idNumber,
+    form.licenseNumber,
+    form.profilePhotoUrl,
+    form.idFrontUrl,
+    form.idBackUrl,
+    form.licenseFrontUrl,
+    form.licenseBackUrl
+  ].every((value) => String(value || "").trim());
+  const driverVehicleDetailsComplete = [
+    form.carMake,
+    form.carModel,
+    form.plateNumber,
+    form.engineSize,
+    form.yearOfManufacture,
+    form.carFrontUrl,
+    form.carRearUrl,
+    form.carInteriorUrl,
+    form.insurancePhotoUrl,
+    form.chassisPhotoUrl
+  ].every((value) => String(value || "").trim());
+  const canAdvanceDriverStep = basicAccountDetailsComplete && passwordMatch && passwordValid && driverIdentityComplete;
+  const canSubmitRegistration = basicAccountDetailsComplete
+    && passwordMatch
+    && passwordValid
+    && (form.role !== "DRIVER" || (driverIdentityComplete && driverVehicleDetailsComplete));
 
   const mutation = useMutation({
     mutationFn: async (data) => {
@@ -115,10 +150,22 @@ export default function RegisterPage() {
             className="space-y-4"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!passwordMatch) {
+              if (!canSubmitRegistration) {
                 return;
               }
-              mutation.mutate(form);
+              mutation.mutate({
+                ...form,
+                firstName: form.firstName.trim(),
+                lastName: form.lastName.trim(),
+                email: form.email.trim(),
+                phoneNumber: form.phoneNumber.trim(),
+                idNumber: form.idNumber.trim(),
+                licenseNumber: form.licenseNumber.trim(),
+                carMake: form.carMake.trim(),
+                carModel: form.carModel.trim(),
+                carColor: form.carColor.trim(),
+                plateNumber: form.plateNumber.trim()
+              });
             }}
           >
             {step === 1 && (
@@ -183,6 +230,9 @@ export default function RegisterPage() {
                       {showPassword ? "👁️" : "👁️‍🗨️"}
                     </button>
                   </div>
+                  {!passwordValid && form.password.length > 0 && (
+                    <p className="text-red-500 text-sm mt-1">✕ Password must be at least 8 characters long</p>
+                  )}
                 </div>
 
                 {/* Confirm Password */}
@@ -388,7 +438,7 @@ export default function RegisterPage() {
             {/* Error Message */}
             {mutation.isError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                ✕ Registration failed. Please check your details and try again.
+                {mutation.error?.response?.data?.message || "Registration failed. Please check your details and try again."}
               </div>
             )}
 
@@ -398,8 +448,12 @@ export default function RegisterPage() {
                 type="button"
                 className="w-full"
                 size="lg"
-                onClick={() => setStep(2)}
-                disabled={!passwordMatch || !form.idNumber || !form.licenseNumber || !form.profilePhotoUrl || !form.idFrontUrl || !form.idBackUrl || !form.licenseFrontUrl || !form.licenseBackUrl}
+                onClick={() => {
+                  if (canAdvanceDriverStep) {
+                    setStep(2);
+                  }
+                }}
+                disabled={!canAdvanceDriverStep}
               >
                 Next Step (Vehicle Details)
               </Button>
@@ -409,10 +463,11 @@ export default function RegisterPage() {
                    <Button type="button" variant="outline" className="w-1/3" onClick={() => setStep(1)}>Back</Button>
                 )}
                 <Button
+                  type="submit"
                   className={step === 2 ? "w-2/3" : "w-full"}
                   size="lg"
                   loading={mutation.isPending}
-                  disabled={!passwordMatch || (form.role === "DRIVER" && (!form.carMake || !form.plateNumber || !form.carFrontUrl || !form.carRearUrl || !form.carInteriorUrl || !form.insurancePhotoUrl || !form.chassisPhotoUrl))}
+                  disabled={!canSubmitRegistration}
                 >
                   {form.role === "DRIVER" ? "Submit Application" : "Create Account"}
                 </Button>

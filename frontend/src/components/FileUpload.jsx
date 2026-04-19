@@ -25,7 +25,11 @@ export default function FileUpload({ label, onUpload, value, required = false })
       onUpload(data.fileUrl);
     } catch (err) {
       console.error('Upload error:', err);
-      setError('Failed to upload file');
+      if (err.response?.status === 413) {
+        setError('File is too large. Please upload a file smaller than 15 MB.');
+      } else {
+        setError(err.response?.data?.message || 'Failed to upload file');
+      }
     } finally {
       setUploading(false);
     }
@@ -43,6 +47,7 @@ export default function FileUpload({ label, onUpload, value, required = false })
           className="hidden"
           id={`file-upload-${label.replace(/\s+/g, '-').toLowerCase()}`}
           disabled={uploading}
+          accept="image/*,.pdf"
         />
         <label
           htmlFor={`file-upload-${label.replace(/\s+/g, '-').toLowerCase()}`}
@@ -60,6 +65,7 @@ export default function FileUpload({ label, onUpload, value, required = false })
         )}
       </div>
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
+      <p className="text-xs text-slate-500 mt-1">Accepted formats: images or PDF, up to 15 MB.</p>
     </div>
   );
 }

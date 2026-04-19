@@ -1,5 +1,5 @@
 import { Client } from "@stomp/stompjs";
-import SockJS from "sockjs-client";
+import SockJS from "sockjs-client/dist/sockjs.js";
 
 export function connectRealtimeSocket({
   userId,

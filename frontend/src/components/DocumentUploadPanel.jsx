@@ -94,7 +94,10 @@ const DocumentUploadPanel = () => {
       fetchVerificationStatus();
     } catch (error) {
       console.error("Error uploading document:", error);
-      alert(`Upload failed: ${error.response?.data?.message || error.message}`);
+      const message = error.response?.status === 413
+        ? "File is too large. Please upload a file smaller than 15 MB."
+        : error.response?.data?.message || error.message;
+      alert(`Upload failed: ${message}`);
     } finally {
       setUploading(false);
     }
@@ -167,6 +170,7 @@ const DocumentUploadPanel = () => {
               className="w-full"
             />
             {selectedFile && <p className="text-sm text-gray-600 mt-2">Selected: {selectedFile.name}</p>}
+            <p className="text-sm text-gray-500 mt-2">Accepted formats: images, up to 15 MB.</p>
           </div>
 
           <button

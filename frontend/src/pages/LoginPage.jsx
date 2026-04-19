@@ -9,7 +9,7 @@ import { Button, Input, Card } from "../components/UIComponents";
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login: setAuth } = useAuth();
-  const [form, setForm] = useState({ email: "admin@example.com", password: "admin@example.com" });
+  const [form, setForm] = useState({ email: "admin@example.com", password: "replace-with-a-strong-temporary-password" });
   const [showPassword, setShowPassword] = useState(false);
 
   const mutation = useMutation({
@@ -82,12 +82,13 @@ export default function LoginPage() {
             {/* Error Message */}
             {mutation.isError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                ✕ Login failed. Please check your credentials.
+                {mutation.error?.response?.data?.message || "Login failed. Please check your credentials."}
               </div>
             )}
 
             {/* Submit Button */}
             <Button
+              type="submit"
               className="w-full"
               size="lg"
               loading={mutation.isPending}
@@ -119,7 +120,7 @@ export default function LoginPage() {
         <div className="mt-6 rounded-lg bg-white/20 p-4 text-sm text-white backdrop-blur">
           <p className="font-semibold mb-2">Initial Admin Bootstrap</p>
           <p>Admin email: admin@example.com</p>
-          <p>Admin password: admin@example.com</p>
+          <p>Admin password: replace-with-a-strong-temporary-password</p>
           <p className="mt-2 text-teal-100">Register customer and driver accounts through the app, then approve drivers from the admin dashboard.</p>
         </div>
       </div>

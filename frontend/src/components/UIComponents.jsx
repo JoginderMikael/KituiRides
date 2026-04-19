@@ -190,6 +190,7 @@ export function Button({
   children,
   variant = 'primary',
   size = 'md',
+  type,
   onClick,
   disabled = false,
   loading = false,
@@ -214,6 +215,7 @@ export function Button({
 
   return (
     <button
+      type={type}
       className={`${baseClass} ${variantClass} ${sizeClass} disabled:cursor-not-allowed ${className}`}
       onClick={onClick}
       disabled={disabled || loading}
@@ -248,6 +250,7 @@ export function Input({
         onChange={onChange}
         placeholder={placeholder}
         disabled={disabled}
+        required={required}
         className={`w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600 disabled:bg-gray-100 ${
           error ? 'border-red-500' : 'border-gray-300'
         }`}

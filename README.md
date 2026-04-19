@@ -167,7 +167,7 @@ VITE_API_URL=http://localhost:8080/api
 
 ```
 Email: admin@example.com
-Password: admin@example.com
+Password: replace-with-a-strong-temporary-password
 First Name: Super
 Last Name: Admin
 Phone: replace-with-admin-phone
@@ -227,6 +227,7 @@ These can be modified via the admin dashboard at `/api/admin/settings/`.
 Support agents **cannot** create their own accounts. They must be created by an admin:
 
 1. Admin creates support agent account via admin panel
+   Admin must set an initial password during account creation
 2. Admin provides support agent with login credentials
 3. Support agent can then login and handle support tickets
 4. Admin can upgrade support agents to admin role if needed
