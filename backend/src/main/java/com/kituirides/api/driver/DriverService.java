@@ -3,6 +3,7 @@ package com.kituirides.api.driver;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.RiderProfile;
 import com.kituirides.api.domain.entity.Vehicle;
+import com.kituirides.api.domain.enums.DocumentType;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.repository.PaymentRepository;
@@ -26,6 +27,7 @@ public class DriverService {
     private final VehicleRepository vehicleRepository;
     private final RideService rideService;
     private final PaymentRepository paymentRepository;
+    private final DocumentService documentService;
 
     public DriverDashboardResponse dashboard() {
         var current = currentUserService.getCurrentUser();
@@ -90,9 +92,31 @@ public class DriverService {
         vehicle.setYearOfManufacture(request.yearOfManufacture());
         vehicle.setVehicleType(request.vehicleType());
         vehicle.setColor(request.color());
+        vehicle.setFrontPhotoUrl(request.frontPhotoUrl());
+        vehicle.setRearPhotoUrl(request.rearPhotoUrl());
+        vehicle.setInteriorPhotoUrl(request.interiorPhotoUrl());
+        vehicle.setInsurancePhotoUrl(request.insurancePhotoUrl());
+        vehicle.setChassisPhotoUrl(request.chassisPhotoUrl());
         
         vehicleRepository.save(vehicle);
         
+        // Link car documents
+        if (request.frontPhotoUrl() != null) {
+            documentService.uploadDocument(current.getId(), DocumentType.CAR_FRONT, null, request.frontPhotoUrl());
+        }
+        if (request.rearPhotoUrl() != null) {
+            documentService.uploadDocument(current.getId(), DocumentType.CAR_BACK, null, request.rearPhotoUrl());
+        }
+        if (request.interiorPhotoUrl() != null) {
+            documentService.uploadDocument(current.getId(), DocumentType.CAR_INTERIOR, null, request.interiorPhotoUrl());
+        }
+        if (request.insurancePhotoUrl() != null) {
+            documentService.uploadDocument(current.getId(), DocumentType.INSURANCE_STICKER, null, request.insurancePhotoUrl());
+        }
+        if (request.chassisPhotoUrl() != null) {
+            documentService.uploadDocument(current.getId(), DocumentType.CHASSIS_NUMBER, null, request.chassisPhotoUrl());
+        }
+
         profile.setIsOwner(request.isOwner());
         riderProfileRepository.save(profile);
     }
@@ -106,5 +130,10 @@ record UpdateVehicleDetailsRequest(
     Integer engineSize,
     Integer yearOfManufacture,
     Boolean isOwner,
-    VehicleType vehicleType
+    VehicleType vehicleType,
+    String frontPhotoUrl,
+    String rearPhotoUrl,
+    String interiorPhotoUrl,
+    String insurancePhotoUrl,
+    String chassisPhotoUrl
 ) {}

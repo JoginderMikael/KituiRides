@@ -13,6 +13,11 @@ public record RegisterRequest(
     @NotBlank String password,
     @NotNull Role role,
     String idNumber,
-    String licenseNumber
+    String licenseNumber,
+    String profilePhotoUrl,
+    String idFrontUrl,
+    String idBackUrl,
+    String licenseFrontUrl,
+    String licenseBackUrl
 ) {
 }

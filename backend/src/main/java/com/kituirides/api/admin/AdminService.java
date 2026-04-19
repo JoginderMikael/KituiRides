@@ -83,15 +83,22 @@ public class AdminService {
         profile.setIdNumber(request.idNumber());
         profile.setLicenseNumber(request.licenseNumber());
         profile.setIsOwner(request.isOwner());
+        profile.setPassportPhotoUrl(request.profilePhotoUrl());
         riderProfileRepository.save(profile);
 
         // Update vehicle if present
         vehicleRepository.findByRiderProfile(profile).ifPresent(vehicle -> {
+            vehicle.setMake(request.carMake());
             vehicle.setModel(request.carModel());
             vehicle.setPlateNumber(request.plateNumber());
             vehicle.setEngineSize(request.engineSize());
             vehicle.setYearOfManufacture(request.yearOfManufacture());
             vehicle.setVehicleType(request.vehicleType());
+            vehicle.setFrontPhotoUrl(request.carFrontUrl());
+            vehicle.setRearPhotoUrl(request.carRearUrl());
+            vehicle.setInteriorPhotoUrl(request.carInteriorUrl());
+            vehicle.setInsurancePhotoUrl(request.insurancePhotoUrl());
+            vehicle.setChassisPhotoUrl(request.chassisPhotoUrl());
             vehicleRepository.save(vehicle);
         });
 
@@ -131,9 +138,16 @@ record UpdateDriverDetailsRequest(
     String idNumber,
     String licenseNumber,
     Boolean isOwner,
+    String carMake,
     String carModel,
     String plateNumber,
     Integer engineSize,
     Integer yearOfManufacture,
-    com.kituirides.api.domain.enums.VehicleType vehicleType
+    com.kituirides.api.domain.enums.VehicleType vehicleType,
+    String profilePhotoUrl,
+    String carFrontUrl,
+    String carRearUrl,
+    String carInteriorUrl,
+    String insurancePhotoUrl,
+    String chassisPhotoUrl
 ) {}

@@ -6,6 +6,7 @@ import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient } from "../lib/apiClient";
 import { Button, Input, Card } from "../components/UIComponents";
+import FileUpload from "../components/FileUpload";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
@@ -20,6 +21,11 @@ export default function RegisterPage() {
     role: "CUSTOMER",
     idNumber: "",
     licenseNumber: "",
+    profilePhotoUrl: "",
+    idFrontUrl: "",
+    idBackUrl: "",
+    licenseFrontUrl: "",
+    licenseBackUrl: "",
     // Step 2
     carMake: "",
     carModel: "",
@@ -28,7 +34,12 @@ export default function RegisterPage() {
     engineSize: "",
     yearOfManufacture: "",
     isOwner: true,
-    vehicleType: "CAR"
+    vehicleType: "CAR",
+    carFrontUrl: "",
+    carRearUrl: "",
+    carInteriorUrl: "",
+    insurancePhotoUrl: "",
+    chassisPhotoUrl: ""
   });
   const [step, setStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
@@ -46,7 +57,12 @@ export default function RegisterPage() {
           engineSize: parseInt(data.engineSize),
           yearOfManufacture: parseInt(data.yearOfManufacture),
           isOwner: data.isOwner,
-          vehicleType: data.vehicleType
+          vehicleType: data.vehicleType,
+          frontPhotoUrl: data.carFrontUrl,
+          rearPhotoUrl: data.carRearUrl,
+          interiorPhotoUrl: data.carInteriorUrl,
+          insurancePhotoUrl: data.insurancePhotoUrl,
+          chassisPhotoUrl: data.chassisPhotoUrl
         });
       }
       return res;
@@ -198,6 +214,14 @@ export default function RegisterPage() {
                   </select>
                 </div>
 
+                {/* Profile Photo - for all */}
+                <FileUpload
+                  label="Passport Sized Photo"
+                  onUpload={(url) => setForm({ ...form, profilePhotoUrl: url })}
+                  value={form.profilePhotoUrl}
+                  required={form.role === "DRIVER"}
+                />
+
                 {form.role === "DRIVER" && (
                   <div className="space-y-4 pt-4 border-t">
                     <Input
@@ -207,6 +231,20 @@ export default function RegisterPage() {
                       onChange={(e) => setForm({ ...form, idNumber: e.target.value })}
                       required
                     />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FileUpload
+                        label="ID Front Side"
+                        onUpload={(url) => setForm({ ...form, idFrontUrl: url })}
+                        value={form.idFrontUrl}
+                        required
+                      />
+                      <FileUpload
+                        label="ID Back Side"
+                        onUpload={(url) => setForm({ ...form, idBackUrl: url })}
+                        value={form.idBackUrl}
+                        required
+                      />
+                    </div>
                     <Input
                       label="License Number"
                       placeholder="DL-12345"
@@ -214,6 +252,20 @@ export default function RegisterPage() {
                       onChange={(e) => setForm({ ...form, licenseNumber: e.target.value })}
                       required
                     />
+                    <div className="grid grid-cols-2 gap-4">
+                      <FileUpload
+                        label="License Front"
+                        onUpload={(url) => setForm({ ...form, licenseFrontUrl: url })}
+                        value={form.licenseFrontUrl}
+                        required
+                      />
+                      <FileUpload
+                        label="License Rear"
+                        onUpload={(url) => setForm({ ...form, licenseBackUrl: url })}
+                        value={form.licenseBackUrl}
+                        required
+                      />
+                    </div>
                   </div>
                 )}
               </>
@@ -276,6 +328,43 @@ export default function RegisterPage() {
                     </select>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Vehicle Photos</label>
+                  <div className="grid grid-cols-2 gap-4">
+                    <FileUpload
+                      label="Front Photo"
+                      onUpload={(url) => setForm({ ...form, carFrontUrl: url })}
+                      value={form.carFrontUrl}
+                      required
+                    />
+                    <FileUpload
+                      label="Rear Photo"
+                      onUpload={(url) => setForm({ ...form, carRearUrl: url })}
+                      value={form.carRearUrl}
+                      required
+                    />
+                    <FileUpload
+                      label="Interior Photo"
+                      onUpload={(url) => setForm({ ...form, carInteriorUrl: url })}
+                      value={form.carInteriorUrl}
+                      required
+                    />
+                    <FileUpload
+                      label="Insurance Sticker"
+                      onUpload={(url) => setForm({ ...form, insurancePhotoUrl: url })}
+                      value={form.insurancePhotoUrl}
+                      required
+                    />
+                  </div>
+                  <FileUpload
+                    label="Chassis Number Photo"
+                    onUpload={(url) => setForm({ ...form, chassisPhotoUrl: url })}
+                    value={form.chassisPhotoUrl}
+                    required
+                  />
+                </div>
+
                 <div className="flex items-center space-x-2">
                   <input
                     type="checkbox"
@@ -302,20 +391,20 @@ export default function RegisterPage() {
                 className="w-full"
                 size="lg"
                 onClick={() => setStep(2)}
-                disabled={!passwordMatch || !form.idNumber || !form.licenseNumber}
+                disabled={!passwordMatch || !form.idNumber || !form.licenseNumber || !form.profilePhotoUrl || !form.idFrontUrl || !form.idBackUrl || !form.licenseFrontUrl || !form.licenseBackUrl}
               >
                 Next Step (Vehicle Details)
               </Button>
             ) : (
-              <div className="flex space-x-2">
+              <div className="flex space-x-2 w-full">
                 {step === 2 && (
-                   <Button type="button" variant="outline" onClick={() => setStep(1)}>Back</Button>
+                   <Button type="button" variant="outline" className="w-1/3" onClick={() => setStep(1)}>Back</Button>
                 )}
                 <Button
-                  className="w-full"
+                  className={step === 2 ? "w-2/3" : "w-full"}
                   size="lg"
                   loading={mutation.isPending}
-                  disabled={!passwordMatch}
+                  disabled={!passwordMatch || (form.role === "DRIVER" && (!form.carMake || !form.plateNumber || !form.carFrontUrl || !form.carRearUrl || !form.carInteriorUrl || !form.insurancePhotoUrl || !form.chassisPhotoUrl))}
                 >
                   {form.role === "DRIVER" ? "Submit Application" : "Create Account"}
                 </Button>

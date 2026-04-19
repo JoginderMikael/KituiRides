@@ -187,11 +187,18 @@ export default function AdminPanel() {
                           idNumber: user.idNumber || "",
                           licenseNumber: user.licenseNumber || "",
                           isOwner: user.isOwner !== false,
+                          carMake: user.carMake || "",
                           carModel: user.carModel || "",
                           plateNumber: user.plateNumber || "",
                           engineSize: user.engineSize || 1500,
                           yearOfManufacture: user.yearOfManufacture || 2015,
-                          vehicleType: user.vehicleType || "CAR"
+                          vehicleType: user.vehicleType || "CAR",
+                          profilePhotoUrl: user.profilePhotoUrl || "",
+                          carFrontUrl: user.carFrontUrl || "",
+                          carRearUrl: user.carRearUrl || "",
+                          carInteriorUrl: user.carInteriorUrl || "",
+                          insurancePhotoUrl: user.insurancePhotoUrl || "",
+                          chassisPhotoUrl: user.chassisPhotoUrl || ""
                         })}
                       >
                         Edit
@@ -311,6 +318,92 @@ export default function AdminPanel() {
                 </p>
               </div>
             </div>
+
+            {selectedUser.role === "DRIVER" && (
+              <div className="border-t pt-4 mt-4">
+                <h4 className="font-bold text-gray-800 mb-3">Driver Documents</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                   {selectedUser.profilePhotoUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Passport Photo</p>
+                        <img src={selectedUser.profilePhotoUrl} alt="Passport" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.idFrontUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">ID Front</p>
+                        <img src={selectedUser.idFrontUrl} alt="ID Front" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.idBackUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">ID Back</p>
+                        <img src={selectedUser.idBackUrl} alt="ID Back" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.licenseFrontUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">License Front</p>
+                        <img src={selectedUser.licenseFrontUrl} alt="License Front" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.licenseBackUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">License Rear</p>
+                        <img src={selectedUser.licenseBackUrl} alt="License Rear" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                </div>
+
+                <h4 className="font-bold text-gray-800 mb-3 mt-6">Vehicle Details</h4>
+                <div className="grid md:grid-cols-3 gap-4 mb-4">
+                   <div>
+                      <p className="text-xs text-gray-500">Model</p>
+                      <p className="font-medium">{selectedUser.carMake} {selectedUser.carModel}</p>
+                   </div>
+                   <div>
+                      <p className="text-xs text-gray-500">Plate Number</p>
+                      <p className="font-medium">{selectedUser.plateNumber}</p>
+                   </div>
+                   <div>
+                      <p className="text-xs text-gray-500">Engine Size</p>
+                      <p className="font-medium">{selectedUser.engineSize}cc</p>
+                   </div>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                   {selectedUser.carFrontUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Car Front</p>
+                        <img src={selectedUser.carFrontUrl} alt="Car Front" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.carRearUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Car Rear</p>
+                        <img src={selectedUser.carRearUrl} alt="Car Rear" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.carInteriorUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Car Interior</p>
+                        <img src={selectedUser.carInteriorUrl} alt="Car Interior" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.insurancePhotoUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Insurance</p>
+                        <img src={selectedUser.insurancePhotoUrl} alt="Insurance" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                   {selectedUser.chassisPhotoUrl && (
+                     <div className="space-y-1">
+                        <p className="text-xs text-gray-500">Chassis Number</p>
+                        <img src={selectedUser.chassisPhotoUrl} alt="Chassis" className="w-full h-32 object-cover rounded border" />
+                     </div>
+                   )}
+                </div>
+              </div>
+            )}
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
@@ -446,12 +539,34 @@ export default function AdminPanel() {
               <Input label="License" value={editDriverForm.licenseNumber} onChange={e => setEditDriverForm({...editDriverForm, licenseNumber: e.target.value})} required />
             </div>
             <div className="grid grid-cols-2 gap-4">
+              <Input label="Car Make" value={editDriverForm.carMake} onChange={e => setEditDriverForm({...editDriverForm, carMake: e.target.value})} required />
               <Input label="Car Model" value={editDriverForm.carModel} onChange={e => setEditDriverForm({...editDriverForm, carModel: e.target.value})} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <Input label="Plate" value={editDriverForm.plateNumber} onChange={e => setEditDriverForm({...editDriverForm, plateNumber: e.target.value})} required />
+              <div className="flex flex-col">
+                <label className="text-sm font-medium text-gray-700 mb-1">Vehicle Type</label>
+                <select 
+                  className="border rounded p-2"
+                  value={editDriverForm.vehicleType} 
+                  onChange={e => setEditDriverForm({...editDriverForm, vehicleType: e.target.value})}
+                >
+                   <option value="CAR">Car</option>
+                   <option value="MOTORCYCLE">Motorcycle</option>
+                </select>
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <Input label="Engine Size" type="number" value={editDriverForm.engineSize} onChange={e => setEditDriverForm({...editDriverForm, engineSize: e.target.value})} required />
               <Input label="Year" type="number" value={editDriverForm.yearOfManufacture} onChange={e => setEditDriverForm({...editDriverForm, yearOfManufacture: e.target.value})} required />
+            </div>
+            <div className="space-y-2">
+               <label className="text-sm font-bold text-gray-800">Photos (URLs)</label>
+               <Input label="Profile Photo URL" value={editDriverForm.profilePhotoUrl} onChange={e => setEditDriverForm({...editDriverForm, profilePhotoUrl: e.target.value})} />
+               <div className="grid grid-cols-2 gap-2">
+                 <Input label="Car Front" value={editDriverForm.carFrontUrl} onChange={e => setEditDriverForm({...editDriverForm, carFrontUrl: e.target.value})} />
+                 <Input label="Car Rear" value={editDriverForm.carRearUrl} onChange={e => setEditDriverForm({...editDriverForm, carRearUrl: e.target.value})} />
+               </div>
             </div>
             <Button className="w-full" loading={updateDriverMutation.isPending}>Save Changes</Button>
           </form>
