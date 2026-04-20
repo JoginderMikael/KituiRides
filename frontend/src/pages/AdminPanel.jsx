@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FiMenu } from "react-icons/fi";
 import AdminSidebar from "../components/AdminSidebar";
+import DriversManagementWorkspace from "../components/DriversManagementWorkspace";
 import AdminSettingsPanel from "../components/AdminSettingsPanel";
 import { Avatar, Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal, StatCard } from "../components/UIComponents";
 import { ADMIN_NAVIGATION_GROUPS, ADMIN_VIEW_META } from "../lib/adminNavigation";
@@ -113,6 +114,31 @@ function getDriverMedia(user) {
       isImage: isImageFile(user?.[field.key])
     };
   });
+}
+
+function buildDriverEditForm(user) {
+  return {
+    id: user.id,
+    firstName: user.firstName,
+    lastName: user.lastName,
+    email: user.email,
+    phoneNumber: user.phoneNumber,
+    idNumber: user.idNumber || "",
+    licenseNumber: user.licenseNumber || "",
+    isOwner: user.isOwner ?? true,
+    carMake: user.carMake || "",
+    carModel: user.carModel || "",
+    plateNumber: user.plateNumber || "",
+    engineSize: user.engineSize || 1500,
+    yearOfManufacture: user.yearOfManufacture || 2015,
+    vehicleType: user.vehicleType || "CAR",
+    profilePhotoUrl: user.profilePhotoUrl || "",
+    carFrontUrl: user.carFrontUrl || "",
+    carRearUrl: user.carRearUrl || "",
+    carInteriorUrl: user.carInteriorUrl || "",
+    insurancePhotoUrl: user.insurancePhotoUrl || "",
+    chassisPhotoUrl: user.chassisPhotoUrl || ""
+  };
 }
 
 function ticketStatusVariant(status) {
@@ -231,6 +257,14 @@ export default function AdminPanel() {
     }
   });
 
+  const bulkDriverStatusMutation = useMutation({
+    mutationFn: async ({ driverIds, approved }) => Promise.all(driverIds.map((driverId) => approveDriver(driverId, approved))),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    }
+  });
+
   const upgradeMutation = useMutation({
     mutationFn: upgradeUserToAdmin,
     onSuccess: () => {
@@ -286,6 +320,7 @@ export default function AdminPanel() {
   const users = usersQuery.data || [];
   const rides = ridesQuery.data || [];
   const tickets = ticketsQuery.data || [];
+  const driverUsers = useMemo(() => users.filter((user) => user.role === "DRIVER"), [users]);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -360,6 +395,8 @@ export default function AdminPanel() {
   const selectedUserMedia = selectedUser?.role === "DRIVER" ? getDriverMedia(selectedUser) : [];
   const selectedTicketReply = selectedTicket ? (replyByTicketId[selectedTicket.id] || "") : "";
   const selectedTicketNotes = selectedTicket ? (ticketNotesById[selectedTicket.id] || "") : "";
+  const pendingApprovalDriverId = approveMutation.isPending ? approveMutation.variables?.id : null;
+  const pendingDeleteDriverId = deleteUserMutation.isPending ? deleteUserMutation.variables : null;
 
   const paymentStats = useMemo(() => {
     return {
@@ -429,6 +466,42 @@ export default function AdminPanel() {
       return;
     }
     setActiveView(item.id);
+  };
+
+  const openDriverEditForm = (user) => {
+    setEditDriverForm(buildDriverEditForm(user));
+  };
+
+  const renderDriversWorkspace = () => {
+    return (
+      <DriversManagementWorkspace
+        drivers={driverUsers}
+        rides={rides}
+        driverEditRequestsCount={driverEditRequests.length}
+        loading={usersQuery.isLoading}
+        error={usersQuery.error}
+        analyticsLoading={ridesQuery.isLoading}
+        analyticsWarning={ridesQuery.error?.response?.data?.message || (ridesQuery.error ? "Ride metrics could not be refreshed right now." : "")}
+        onRefresh={() => {
+          usersQuery.refetch();
+          ridesQuery.refetch();
+        }}
+        onAddDriver={() => {
+          if (typeof window !== "undefined") {
+            window.open("/register", "_blank", "noopener,noreferrer");
+          }
+        }}
+        onViewDetails={setSelectedUser}
+        onEditDriver={openDriverEditForm}
+        onApproveDriver={(driver, approved) => approveMutation.mutateAsync({ id: driver.id, approved })}
+        onBulkStatusChange={(payload) => bulkDriverStatusMutation.mutateAsync(payload)}
+        onDeleteDriver={(driver) => deleteUserMutation.mutateAsync(driver.id)}
+        onViewRide={setSelectedRide}
+        pendingApprovalDriverId={pendingApprovalDriverId}
+        pendingDeleteDriverId={pendingDeleteDriverId}
+        bulkActionLoading={bulkDriverStatusMutation.isPending}
+      />
+    );
   };
 
   const renderDashboardView = () => {
@@ -608,30 +681,7 @@ export default function AdminPanel() {
                         <Button
                           variant="secondary"
                           size="sm"
-                          onClick={() =>
-                            setEditDriverForm({
-                              id: user.id,
-                              firstName: user.firstName,
-                              lastName: user.lastName,
-                              email: user.email,
-                              phoneNumber: user.phoneNumber,
-                              idNumber: user.idNumber || "",
-                              licenseNumber: user.licenseNumber || "",
-                              isOwner: user.isOwner ?? true,
-                              carMake: user.carMake || "",
-                              carModel: user.carModel || "",
-                              plateNumber: user.plateNumber || "",
-                              engineSize: user.engineSize || 1500,
-                              yearOfManufacture: user.yearOfManufacture || 2015,
-                              vehicleType: user.vehicleType || "CAR",
-                              profilePhotoUrl: user.profilePhotoUrl || "",
-                              carFrontUrl: user.carFrontUrl || "",
-                              carRearUrl: user.carRearUrl || "",
-                              carInteriorUrl: user.carInteriorUrl || "",
-                              insurancePhotoUrl: user.insurancePhotoUrl || "",
-                              chassisPhotoUrl: user.chassisPhotoUrl || ""
-                            })
-                          }
+                          onClick={() => openDriverEditForm(user)}
                         >
                           Edit
                         </Button>
@@ -976,9 +1026,10 @@ export default function AdminPanel() {
       case "dashboard":
         return renderDashboardView();
       case "riders":
-      case "drivers":
       case "staff":
         return renderUserWorkspace(activeView);
+      case "drivers":
+        return renderDriversWorkspace();
       case "supportTickets":
       case "disputes":
         return renderTicketWorkspace(activeView);
