@@ -34,11 +34,14 @@ services:
       DB_PASSWORD: kituirides
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
+      FILE_UPLOAD_DIR: /app/uploads
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - backend_uploads:/app/uploads
     ports:
       - "8080:8080"
     healthcheck:
@@ -58,3 +61,4 @@ services:
 
 volumes:
   pgdata:
+  backend_uploads:

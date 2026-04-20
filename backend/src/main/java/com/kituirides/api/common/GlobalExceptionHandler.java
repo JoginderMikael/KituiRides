@@ -1,6 +1,7 @@
 package com.kituirides.api.common;
 
 import jakarta.validation.ConstraintViolationException;
+import java.nio.file.NoSuchFileException;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -8,6 +9,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -28,6 +30,12 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> handleConstraint(ConstraintViolationException ex) {
         return ResponseEntity.badRequest().body(ApiResponse.fail(ex.getMessage()));
+    }
+
+    @ExceptionHandler({NoResourceFoundException.class, NoSuchFileException.class})
+    public ResponseEntity<ApiResponse<Void>> handleMissingResource(Exception ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(ApiResponse.fail("Resource not found"));
     }
 
     @ExceptionHandler(Exception.class)

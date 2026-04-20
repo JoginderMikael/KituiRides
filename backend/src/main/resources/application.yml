@@ -24,6 +24,10 @@ spring:
       max-file-size: 15MB
       max-request-size: 20MB
 
+file:
+  upload:
+    dir: ${FILE_UPLOAD_DIR:uploads}
+
 app:
   jwt:
     secret: replace-with-at-least-32-random-characters

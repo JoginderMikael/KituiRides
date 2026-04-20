@@ -5,9 +5,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -18,7 +22,8 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/upload")
 public class FileController {
 
-    private final String uploadDir = "uploads";
+    @Value("${file.upload.dir:uploads}")
+    private String uploadDir;
 
     @PostMapping
     public ResponseEntity<ApiResponse<?>> uploadFile(@RequestParam("file") MultipartFile file) {
@@ -27,14 +32,16 @@ public class FileController {
         }
 
         try {
-            Path path = Paths.get(uploadDir);
-            if (!Files.exists(path)) {
-                Files.createDirectories(path);
-            }
+            Path path = Paths.get(uploadDir).toAbsolutePath().normalize();
+            Files.createDirectories(path);
 
-            String fileName = UUID.randomUUID() + "_" + file.getOriginalFilename();
+            String originalFilename = StringUtils.cleanPath(
+                Objects.requireNonNullElse(file.getOriginalFilename(), "upload")
+            );
+            String safeFileName = Paths.get(originalFilename).getFileName().toString().replaceAll("[\\r\\n]", "_");
+            String fileName = UUID.randomUUID() + "_" + safeFileName;
             Path filePath = path.resolve(fileName);
-            Files.copy(file.getInputStream(), filePath);
+            Files.copy(file.getInputStream(), filePath, StandardCopyOption.REPLACE_EXISTING);
 
             String fileUrl = "/uploads/" + fileName;
             return ResponseEntity.ok(ApiResponse.ok(Map.of(
