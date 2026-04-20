@@ -8,6 +8,7 @@ export default function AppShell() {
   const navigate = useNavigate();
   const { session, role, logout, user } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const isAdmin = role === "ADMIN";
 
   function onLogout() {
     logout();
@@ -17,8 +18,8 @@ export default function AppShell() {
   const userName = user ? `${user.firstName} ${user.lastName}` : session?.email || 'User';
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-teal-50 to-orange-50">
-      <header className="border-b bg-white shadow-sm">
+    <div className={isAdmin ? "min-h-screen bg-slate-100" : "min-h-screen bg-gradient-to-b from-teal-50 to-orange-50"}>
+      <header className="border-b bg-white/95 shadow-sm backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           {/* Logo */}
           <Link to={roleHomePath(role)} className="flex items-center gap-2">
@@ -88,7 +89,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-6xl px-4 py-6">
+      <main className={isAdmin ? "min-h-[calc(100vh-81px)]" : "mx-auto max-w-6xl px-4 py-6"}>
         <Outlet />
       </main>
     </div>
