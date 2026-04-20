@@ -807,6 +807,10 @@ function ChatLauncher({ lane, role, unreadCount }) {
                       <div className="flex h-40 items-center justify-center">
                         <LoadingSpinner />
                       </div>
+                    ) : threadsQuery.isError ? (
+                      <div className="rounded-[24px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+                        {threadsQuery.error?.response?.data?.message || "Unable to load threads right now."}
+                      </div>
                     ) : !visibleThreads.length ? (
                       <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
                         No threads match the current filters. Start a new ticket to open a fresh support thread.

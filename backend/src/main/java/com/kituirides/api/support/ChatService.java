@@ -197,6 +197,7 @@ public class ChatService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "This thread is not open for replies");
         }
 
+        updateHandlingSupportActor(thread, sender);
         Message message = appendMessage(thread, sender, content.trim(), false);
         notifyThreadChanged(thread, "MESSAGE_SENT");
         return toMessageResponse(message, sender);
@@ -232,6 +233,7 @@ public class ChatService {
         }
 
         Instant now = Instant.now();
+        updateHandlingSupportActor(thread, currentUser);
         thread.setStatus(ConversationStatus.CLOSED);
         thread.setClosedAt(now);
         thread.setUpdatedAt(now);
@@ -249,6 +251,7 @@ public class ChatService {
         ensureCanManageThread(thread, currentUser);
 
         Instant now = Instant.now();
+        updateHandlingSupportActor(thread, currentUser);
         thread.setStatus(ConversationStatus.RESOLVED);
         thread.setClosedAt(now);
         thread.setUpdatedAt(now);
@@ -266,6 +269,7 @@ public class ChatService {
         ensureCanManageThread(thread, currentUser);
 
         Instant now = Instant.now();
+        updateHandlingSupportActor(thread, currentUser);
         thread.setStatus(ConversationStatus.REOPENED);
         thread.setUpdatedAt(now);
         conversationRepository.save(thread);
@@ -526,7 +530,7 @@ public class ChatService {
             thread.getLastMessageAt(),
             thread.getClosedAt(),
             thread.getAutoClosedAt(),
-            toParticipantResponse(resolveCounterpart(thread, currentUser)),
+            toParticipantResponse(resolveVisibleCounterpart(thread, currentUser)),
             new ChatThreadPermissionsResponse(
                 canReply(thread, currentUser),
                 canManageThreadStatus(thread, currentUser),
@@ -596,6 +600,22 @@ public class ChatService {
             return thread.getParticipant1();
         }
         return thread.getParticipant2();
+    }
+
+    private User resolveVisibleCounterpart(Conversation thread, User currentUser) {
+        User handlingSupportActor = resolveHandlingSupportActor(thread);
+        if ((currentUser.getRole() == Role.CUSTOMER || currentUser.getRole() == Role.DRIVER)
+            && handlingSupportActor != null
+            && (thread.getConversationType() == ConversationType.SUPPORT_CUSTOMER
+                || thread.getConversationType() == ConversationType.SUPPORT_DRIVER)) {
+            return handlingSupportActor;
+        }
+        if (currentUser.getRole() == Role.ADMIN
+            && thread.getConversationType() == ConversationType.SUPPORT_ADMIN
+            && handlingSupportActor != null) {
+            return handlingSupportActor;
+        }
+        return resolveCounterpart(thread, currentUser);
     }
 
     private boolean isParticipant(Conversation thread, User user) {
@@ -696,6 +716,31 @@ public class ChatService {
         }
     }
 
+    private User resolveHandlingSupportActor(Conversation thread) {
+        if (thread.getSupportAgent() != null) {
+            return thread.getSupportAgent();
+        }
+
+        SupportTicket ticket = thread.getSupportTicket();
+        if (ticket != null
+            && ticket.getAssignedTo() != null
+            && (ticket.getAssignedTo().getRole() == Role.SUPPORT_AGENT || ticket.getAssignedTo().getRole() == Role.ADMIN)) {
+            return ticket.getAssignedTo();
+        }
+
+        if (thread.getParticipant1() != null
+            && (thread.getParticipant1().getRole() == Role.SUPPORT_AGENT || thread.getParticipant1().getRole() == Role.ADMIN)) {
+            return thread.getParticipant1();
+        }
+
+        if (thread.getParticipant2() != null
+            && (thread.getParticipant2().getRole() == Role.SUPPORT_AGENT || thread.getParticipant2().getRole() == Role.ADMIN)) {
+            return thread.getParticipant2();
+        }
+
+        return null;
+    }
+
     private User resolveSupportAgentParticipant(User first, User second) {
         if (first != null && first.getRole() == Role.SUPPORT_AGENT) {
             return first;
@@ -704,6 +749,26 @@ public class ChatService {
             return second;
         }
         return null;
+    }
+
+    private void updateHandlingSupportActor(Conversation thread, User actor) {
+        if (actor == null || actor.getRole() != Role.SUPPORT_AGENT) {
+            return;
+        }
+
+        boolean conversationChanged = thread.getSupportAgent() == null || !thread.getSupportAgent().getId().equals(actor.getId());
+        if (conversationChanged) {
+            thread.setSupportAgent(actor);
+            thread.setUpdatedAt(Instant.now());
+            conversationRepository.save(thread);
+        }
+
+        SupportTicket ticket = thread.getSupportTicket();
+        if (ticket != null && (ticket.getAssignedTo() == null || !ticket.getAssignedTo().getId().equals(actor.getId()))) {
+            ticket.setAssignedTo(actor);
+            ticket.setUpdatedAt(Instant.now());
+            supportTicketRepository.save(ticket);
+        }
     }
 
     private String normalizeSearch(String value) {

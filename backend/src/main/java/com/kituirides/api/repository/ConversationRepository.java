@@ -25,7 +25,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findUserConversations(@Param("user") User user, @Param("status") ConversationStatus status);
 
     @Query("""
-        select distinct c from Conversation c
+        select c from Conversation c
         left join fetch c.supportTicket t
         left join fetch c.participant1
         left join fetch c.participant2
@@ -45,7 +45,7 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     );
 
     @Query("""
-        select distinct c from Conversation c
+        select c from Conversation c
         left join fetch c.supportTicket t
         left join fetch c.participant1
         left join fetch c.participant2
