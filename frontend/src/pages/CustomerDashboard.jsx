@@ -14,7 +14,6 @@ import {
   StatCard
 } from "../components/UIComponents";
 import {
-  createCustomerTicket,
   disputeRide,
   getCustomerRides,
   nearbyDrivers,
@@ -66,7 +65,6 @@ export default function CustomerDashboard() {
   const { user, session } = useAuth();
   const [form, setForm] = useState(DEFAULT_FORM);
   const [mapMode, setMapMode] = useState("pickup");
-  const [ticket, setTicket] = useState({ subject: "", description: "" });
   const [selectedRide, setSelectedRide] = useState(null);
   const [paymentRide, setPaymentRide] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
@@ -136,13 +134,6 @@ export default function CustomerDashboard() {
   const disputeMutation = useMutation({
     mutationFn: ({ rideId, reason }) => disputeRide(rideId, { reason }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
-  });
-
-  const ticketMutation = useMutation({
-    mutationFn: createCustomerTicket,
-    onSuccess: () => {
-      setTicket({ subject: "", description: "" });
-    }
   });
 
   const estimatedFare = driversQuery.data?.[0]?.estimatedPrice || 0;
@@ -473,42 +464,6 @@ export default function CustomerDashboard() {
           )}
         </Card>
       </div>
-
-      <Card>
-        <h2 className="text-xl font-bold text-slate-900">Need More Help?</h2>
-        <form
-          className="mt-4 space-y-4"
-          onSubmit={(event) => {
-            event.preventDefault();
-            ticketMutation.mutate(ticket);
-          }}
-        >
-          <Input
-            label="Subject"
-            value={ticket.subject}
-            onChange={(event) => setTicket((current) => ({ ...current, subject: event.target.value }))}
-            required
-          />
-          <div>
-            <label className="mb-1 block text-sm font-medium text-slate-700">Description</label>
-            <textarea
-              className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
-              rows={4}
-              value={ticket.description}
-              onChange={(event) => setTicket((current) => ({ ...current, description: event.target.value }))}
-              required
-            />
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Button loading={ticketMutation.isPending}>Submit Ticket</Button>
-            {supportPhone && (
-              <a href={`tel:${supportPhone}`} className="inline-flex items-center justify-center rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700">
-                Call Support
-              </a>
-            )}
-          </div>
-        </form>
-      </Card>
 
       {selectedRide && (
         <Modal

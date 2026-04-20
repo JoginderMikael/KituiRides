@@ -1,14 +1,12 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal } from "../components/UIComponents";
+import { Badge, Button, Card, EmptyState, Input, LoadingSpinner } from "../components/UIComponents";
 import {
   fixRideKms,
   forceApprovePayment,
   getSupportRide,
-  replyTicket,
   resolveRide,
   supportTickets,
-  updateTicket
 } from "../features/support/supportApi";
 import { rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
 
@@ -18,26 +16,17 @@ function formatMoney(value) {
 
 export default function SupportPage() {
   const queryClient = useQueryClient();
-  const [selectedTicket, setSelectedTicket] = useState(null);
-  const [replyByTicketId, setReplyByTicketId] = useState({});
+  const [activeRideId, setActiveRideId] = useState(null);
   const [rideSearchId, setRideSearchId] = useState("");
   const [resolvedDistanceKm, setResolvedDistanceKm] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
 
   const ticketsQuery = useQuery({ queryKey: ["support-tickets"], queryFn: supportTickets });
-  const activeRideId = selectedTicket?.rideId;
 
   const rideQuery = useQuery({
     queryKey: ["support-ride", activeRideId],
     queryFn: () => getSupportRide(activeRideId),
     enabled: Boolean(activeRideId)
-  });
-
-  const rideLookupMutation = useMutation({
-    mutationFn: getSupportRide,
-    onSuccess: (ride) => {
-      setSelectedTicket((current) => (current ? { ...current, rideId: ride.id } : { id: null, rideId: ride.id, subject: `Ride #${ride.id}`, description: "Manual ride lookup" }));
-    }
   });
 
   const fixKmsMutation = useMutation({
@@ -60,19 +49,6 @@ export default function SupportPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support-ride", activeRideId] })
   });
 
-  const replyMutation = useMutation({
-    mutationFn: ({ ticketId, message }) => replyTicket(ticketId, { message }),
-    onSuccess: (_, { ticketId }) => {
-      queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
-      setReplyByTicketId((current) => ({ ...current, [ticketId]: "" }));
-    }
-  });
-
-  const statusMutation = useMutation({
-    mutationFn: ({ ticketId, status, resolutionNotes: notes }) => updateTicket(ticketId, { status, resolutionNotes: notes }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["support-tickets"] })
-  });
-
   const tickets = ticketsQuery.data || [];
   const stats = {
     total: tickets.length,
@@ -81,7 +57,9 @@ export default function SupportPage() {
     driverEditRequests: tickets.filter((ticket) => ticket.ticketType === "DRIVER_EDIT_REQUEST").length
   };
 
-  const ride = rideQuery.data || (activeRideId ? rideLookupMutation.data : null);
+  const ride = rideQuery.data || null;
+  const normalizedRideSearchId = rideSearchId.trim();
+  const canSearchRide = normalizedRideSearchId && !Number.isNaN(Number(normalizedRideSearchId));
 
   return (
     <div className="space-y-6">
@@ -109,260 +87,139 @@ export default function SupportPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[0.8fr,1.2fr]">
+      <div className="space-y-6">
         <Card>
-          <div className="mb-4 flex items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <h2 className="text-xl font-bold text-slate-900">Ticket Queue</h2>
-              <p className="text-sm text-slate-500">Disputes, payment conflicts, and admin edit requests are handled here.</p>
+              <h2 className="text-xl font-bold text-slate-900">Ride Investigation</h2>
+              <p className="text-sm text-slate-500">Search any ride directly to inspect its lifecycle, payment state, and dispute details.</p>
+            </div>
+            <div className="flex gap-3">
+              <Input
+                label="Ride ID"
+                value={rideSearchId}
+                onChange={(event) => setRideSearchId(event.target.value)}
+              />
+              <Button
+                onClick={() => setActiveRideId(Number(normalizedRideSearchId))}
+                disabled={!canSearchRide}
+              >
+                Search Ride
+              </Button>
             </div>
           </div>
 
-          {ticketsQuery.isLoading ? (
-            <LoadingSpinner />
-          ) : !tickets.length ? (
-            <EmptyState icon="📭" title="No tickets in queue" description="Support is caught up right now." />
-          ) : (
-            <div className="space-y-3">
-              {tickets.map((ticket) => (
-                <button
-                  key={ticket.id}
-                  className={`w-full rounded-2xl border px-4 py-4 text-left ${
-                    selectedTicket?.id === ticket.id ? "border-teal-500 bg-teal-50" : "border-slate-200 bg-white"
-                  }`}
-                  onClick={() => setSelectedTicket(ticket)}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-900">#{ticket.id} • {ticket.subject}</p>
-                      <p className="mt-1 text-sm text-slate-600">{ticket.description}</p>
-                    </div>
-                    <Badge label={ticket.status} variant={ticket.status === "RESOLVED" ? "success" : ticket.status === "IN_PROGRESS" ? "warning" : "info"} size="sm" />
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    <Badge label={ticket.ticketType} variant="teal" size="sm" />
-                    {ticket.rideId && <Badge label={`Ride ${ticket.rideId}`} variant="orange" size="sm" />}
-                  </div>
-                </button>
-              ))}
+          {!activeRideId ? (
+            <div className="mt-4">
+              <EmptyState icon="🔎" title="No ride selected" description="Search for a ride to inspect its lifecycle, distance, and payment state." />
             </div>
-          )}
-        </Card>
-
-        <div className="space-y-6">
-          <Card>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900">Ride Investigation</h2>
-                <p className="text-sm text-slate-500">Search any ride directly or inspect the ride linked to the selected ticket.</p>
-              </div>
-              <div className="flex gap-3">
-                <Input
-                  label="Ride ID"
-                  value={rideSearchId}
-                  onChange={(event) => setRideSearchId(event.target.value)}
-                />
-                <Button onClick={() => rideLookupMutation.mutate(Number(rideSearchId))} loading={rideLookupMutation.isPending}>
-                  Search Ride
-                </Button>
-              </div>
-            </div>
-
-            {!selectedTicket && !rideLookupMutation.data ? (
-              <div className="mt-4">
-                <EmptyState icon="🔎" title="No ride selected" description="Choose a ticket or search for a ride to inspect its lifecycle, distance, and payment state." />
-              </div>
-            ) : rideQuery.isLoading ? (
-              <div className="mt-4"><LoadingSpinner /></div>
-            ) : ride ? (
-              <div className="mt-4 space-y-4">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm text-slate-500">Ride #{ride.id}</p>
-                      <p className="font-semibold text-slate-900">{ride.pickupAddress}</p>
-                      <p className="text-sm text-slate-500">to {ride.dropoffAddress}</p>
-                    </div>
-                    <Badge label={rideStatusLabel(ride.status)} variant={rideStatusVariant(ride.status)} size="sm" />
+          ) : rideQuery.isLoading ? (
+            <div className="mt-4"><LoadingSpinner /></div>
+          ) : ride ? (
+            <div className="mt-4 space-y-4">
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm text-slate-500">Ride #{ride.id}</p>
+                    <p className="font-semibold text-slate-900">{ride.pickupAddress}</p>
+                    <p className="text-sm text-slate-500">to {ride.dropoffAddress}</p>
                   </div>
-                  <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-                    <p>Customer: {ride.customerName}</p>
-                    <p>Driver: {ride.riderName || "Unassigned"}</p>
-                    <p>Fare: {formatMoney(ride.finalFare)}</p>
-                    <p>Payment: {ride.paymentType} • {ride.paymentStatus}</p>
-                    <p>Distance: {ride.chargeableDistanceKm || ride.estimatedDistanceKm || 0} km</p>
-                    <p>Source: {ride.distanceSource}</p>
-                  </div>
+                  <Badge label={rideStatusLabel(ride.status)} variant={rideStatusVariant(ride.status)} size="sm" />
                 </div>
+                <div className="mt-3 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
+                  <p>Customer: {ride.customerName}</p>
+                  <p>Driver: {ride.riderName || "Unassigned"}</p>
+                  <p>Fare: {formatMoney(ride.finalFare)}</p>
+                  <p>Payment: {ride.paymentType} • {ride.paymentStatus}</p>
+                  <p>Distance: {ride.chargeableDistanceKm || ride.estimatedDistanceKm || 0} km</p>
+                  <p>Source: {ride.distanceSource}</p>
+                </div>
+              </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <Card className="bg-white shadow-none">
-                    <h3 className="text-lg font-semibold text-slate-900">Distance Override</h3>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Card className="bg-white shadow-none">
+                  <h3 className="text-lg font-semibold text-slate-900">Distance Override</h3>
+                  <Input
+                    label="Final Distance (KM)"
+                    type="number"
+                    value={resolvedDistanceKm}
+                    onChange={(event) => setResolvedDistanceKm(event.target.value)}
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={() => fixKmsMutation.mutate({ rideId: ride.id, kms: Number(resolvedDistanceKm) })}
+                    loading={fixKmsMutation.isPending}
+                    disabled={!resolvedDistanceKm}
+                  >
+                    Update Distance
+                  </Button>
+                </Card>
+
+                <Card className="bg-white shadow-none">
+                  <h3 className="text-lg font-semibold text-slate-900">Resolve Dispute / Payment</h3>
+                  <div className="space-y-3">
                     <Input
-                      label="Final Distance (KM)"
+                      label="Resolved Distance (optional)"
                       type="number"
                       value={resolvedDistanceKm}
                       onChange={(event) => setResolvedDistanceKm(event.target.value)}
                     />
-                    <Button
-                      variant="secondary"
-                      onClick={() => fixKmsMutation.mutate({ rideId: ride.id, kms: Number(resolvedDistanceKm) })}
-                      loading={fixKmsMutation.isPending}
-                      disabled={!resolvedDistanceKm}
-                    >
-                      Update Distance
-                    </Button>
-                  </Card>
-
-                  <Card className="bg-white shadow-none">
-                    <h3 className="text-lg font-semibold text-slate-900">Resolve Dispute / Payment</h3>
-                    <div className="space-y-3">
-                      <Input
-                        label="Resolved Distance (optional)"
-                        type="number"
-                        value={resolvedDistanceKm}
-                        onChange={(event) => setResolvedDistanceKm(event.target.value)}
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-slate-700">Resolution Notes</label>
+                      <textarea
+                        className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                        rows={3}
+                        value={resolutionNotes}
+                        onChange={(event) => setResolutionNotes(event.target.value)}
                       />
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Resolution Notes</label>
-                        <textarea
-                          className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                          rows={3}
-                          value={resolutionNotes}
-                          onChange={(event) => setResolutionNotes(event.target.value)}
-                        />
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          onClick={() =>
-                            resolveRideMutation.mutate({
-                              rideId: ride.id,
-                              payload: {
-                                resolvedDistanceKm: resolvedDistanceKm ? Number(resolvedDistanceKm) : null,
-                                resolutionNotes
-                              }
-                            })
-                          }
-                          loading={resolveRideMutation.isPending}
-                        >
-                          Resolve Ride
-                        </Button>
-                        {!ride.paymentApproved && (
-                          <Button
-                            variant="secondary"
-                            onClick={() => forceApproveMutation.mutate(ride.id)}
-                            loading={forceApproveMutation.isPending}
-                          >
-                            Force Approve Payment
-                          </Button>
-                        )}
-                      </div>
                     </div>
-                  </Card>
-                </div>
-              </div>
-            ) : (
-              <div className="mt-4">
-                <EmptyState icon="⚠" title="Ride not found" description="Check the ride ID and try again." />
-              </div>
-            )}
-          </Card>
-
-          <Card>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">Support Messaging</h2>
-                <p className="text-sm text-slate-500">
-                  Use the floating support launcher on the bottom right for customer and driver threads, and the bottom-left launcher for admin escalations.
-                </p>
-              </div>
-            </div>
-          </Card>
-        </div>
-      </div>
-
-      {selectedTicket && (
-        <Modal
-          isOpen={Boolean(selectedTicket)}
-          title={`Ticket #${selectedTicket.id}`}
-          onClose={() => setSelectedTicket(null)}
-          size="lg"
-          footer={
-            <div className="flex flex-wrap justify-end gap-3">
-              {selectedTicket.status === "OPEN" && (
-                <Button
-                  variant="secondary"
-                  onClick={() => statusMutation.mutate({ ticketId: selectedTicket.id, status: "IN_PROGRESS", resolutionNotes })}
-                  loading={statusMutation.isPending}
-                >
-                  Mark In Progress
-                </Button>
-              )}
-              <Button
-                onClick={() => statusMutation.mutate({ ticketId: selectedTicket.id, status: "RESOLVED", resolutionNotes })}
-                loading={statusMutation.isPending}
-              >
-                Mark Resolved
-              </Button>
-            </div>
-          }
-        >
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="font-semibold text-slate-900">{selectedTicket.subject}</p>
-                  <p className="text-sm text-slate-600">{selectedTicket.description}</p>
-                </div>
-                <Badge label={selectedTicket.ticketType} variant="teal" size="sm" />
-              </div>
-            </div>
-
-            {!!selectedTicket.replies?.length && (
-              <div className="space-y-3">
-                {selectedTicket.replies.map((reply) => (
-                  <div key={reply.id} className="rounded-2xl border border-slate-200 p-3 text-sm">
-                    <p className="font-semibold text-slate-900">User #{reply.authorUserId}</p>
-                    <p className="mt-1 text-slate-600">{reply.message}</p>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        onClick={() =>
+                          resolveRideMutation.mutate({
+                            rideId: ride.id,
+                            payload: {
+                              resolvedDistanceKm: resolvedDistanceKm ? Number(resolvedDistanceKm) : null,
+                              resolutionNotes
+                            }
+                          })
+                        }
+                        loading={resolveRideMutation.isPending}
+                      >
+                        Resolve Ride
+                      </Button>
+                      {!ride.paymentApproved && (
+                        <Button
+                          variant="secondary"
+                          onClick={() => forceApproveMutation.mutate(ride.id)}
+                          loading={forceApproveMutation.isPending}
+                        >
+                          Force Approve Payment
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                ))}
+                </Card>
               </div>
-            )}
+            </div>
+          ) : (
+            <div className="mt-4">
+              <EmptyState icon="⚠" title="Ride not found" description="Check the ride ID and try again." />
+            </div>
+          )}
+        </Card>
 
+        <Card>
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Reply</label>
-              <textarea
-                className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                rows={4}
-                value={replyByTicketId[selectedTicket.id] || ""}
-                onChange={(event) =>
-                  setReplyByTicketId((current) => ({
-                    ...current,
-                    [selectedTicket.id]: event.target.value
-                  }))
-                }
-              />
+              <h2 className="text-2xl font-bold text-slate-900">Support Messaging</h2>
+              <p className="text-sm text-slate-500">
+                Use the floating support launcher on the bottom right for customer and driver threads, and the bottom-left launcher for admin escalations.
+              </p>
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Resolution Notes</label>
-              <textarea
-                className="w-full rounded-lg border border-slate-300 px-4 py-2 focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                rows={3}
-                value={resolutionNotes}
-                onChange={(event) => setResolutionNotes(event.target.value)}
-              />
-            </div>
-            <Button
-              className="w-full"
-              variant="secondary"
-              onClick={() => replyMutation.mutate({ ticketId: selectedTicket.id, message: replyByTicketId[selectedTicket.id] || "" })}
-              loading={replyMutation.isPending}
-            >
-              Send Reply
-            </Button>
           </div>
-        </Modal>
-      )}
+        </Card>
+      </div>
     </div>
   );
 }

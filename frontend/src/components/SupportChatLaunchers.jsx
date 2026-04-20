@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  FiArrowUp,
   FiCheckCircle,
   FiHeadphones,
   FiMessageSquare,
@@ -474,6 +475,7 @@ function ThreadConversation({
   const statusMeta = STATUS_META[thread.status] || STATUS_META.OPEN;
   const typeMeta = THREAD_TYPE_META[thread.threadType] || THREAD_TYPE_META.SUPPORT_CUSTOMER;
   const TypeIcon = typeMeta.icon;
+  const canSend = thread.permissions?.canReply && draft.trim() && !sendPending;
 
   return (
     <div className="flex h-full min-h-[32rem] flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-[0_32px_70px_-40px_rgba(15,23,42,0.55)]">
@@ -565,12 +567,30 @@ function ThreadConversation({
               rows={2}
               value={draft}
               onChange={(event) => onDraftChange(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+                  return;
+                }
+                event.preventDefault();
+                if (canSend) {
+                  onSend();
+                }
+              }}
               placeholder="Write a clear reply..."
               className="min-h-[3.5rem] flex-1 rounded-2xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
             />
-            <Button loading={sendPending} disabled={!draft.trim()}>
-              Send
-            </Button>
+            <button
+              type="submit"
+              disabled={!canSend}
+              className="inline-flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-teal-600 text-white shadow-[0_18px_30px_-20px_rgba(13,148,136,0.9)] transition hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-200 disabled:cursor-not-allowed disabled:bg-teal-300"
+              aria-label="Send message"
+            >
+              {sendPending ? (
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/35 border-t-white" />
+              ) : (
+                <FiArrowUp className="text-lg" />
+              )}
+            </button>
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
@@ -728,22 +748,24 @@ function ChatLauncher({ lane, role, unreadCount }) {
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setIsOpen((current) => !current)}
-        className={`fixed bottom-6 ${lane.position === "left" ? "left-6" : "right-6"} z-[75] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${lane.accent} text-white shadow-[0_24px_45px_-24px_rgba(15,23,42,0.7)] transition hover:scale-[1.03] focus:outline-none focus:ring-4 focus:ring-white/60`}
-        aria-label={lane.title}
-      >
-        <Icon className="text-2xl" />
-        {unreadCount > 0 && (
-          <span className="absolute -right-1 -top-1 inline-flex min-w-7 items-center justify-center rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-900 shadow-md">
-            {unreadCount > 99 ? "99+" : unreadCount}
-          </span>
-        )}
-      </button>
+      {!isOpen && (
+        <button
+          type="button"
+          onClick={() => setIsOpen((current) => !current)}
+          className={`fixed bottom-6 ${lane.position === "left" ? "left-6" : "right-6"} z-[75] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${lane.accent} text-white shadow-[0_24px_45px_-24px_rgba(15,23,42,0.7)] transition hover:scale-[1.03] focus:outline-none focus:ring-4 focus:ring-white/60`}
+          aria-label={lane.title}
+        >
+          <Icon className="text-2xl" />
+          {unreadCount > 0 && (
+            <span className="absolute -right-1 -top-1 inline-flex min-w-7 items-center justify-center rounded-full bg-white px-2 py-1 text-xs font-bold text-slate-900 shadow-md">
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
+        </button>
+      )}
 
       {isOpen && (
-        <div className="fixed inset-0 z-[74] bg-slate-950/45 backdrop-blur-[2px]">
+        <div className="fixed inset-0 z-[80] bg-slate-950/45 backdrop-blur-[2px]">
           <div
             className={`absolute inset-y-0 ${lane.position === "left" ? "left-0 justify-start" : "right-0 justify-end"} flex w-full`}
           >
