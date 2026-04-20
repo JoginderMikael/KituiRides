@@ -1,5 +1,7 @@
 package com.kituirides.api.admin;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.AdminConfig;
 import com.kituirides.api.domain.entity.AuditLog;
@@ -42,6 +44,7 @@ public class AdminSettingsService {
     private final AuditLogRepository auditLogRepository;
     private final UserRepository userRepository;
     private final StringRedisTemplate redisTemplate;
+    private final ObjectMapper objectMapper;
 
     public List<AdminConfig> getAllConfigs() {
         return getPersistedConfigs();
@@ -394,10 +397,18 @@ public class AdminSettingsService {
         auditLog.setEntityType(entityType);
         auditLog.setEntityId(entityId);
         auditLog.setAction(action);
-        auditLog.setOldValues(oldValues);
-        auditLog.setNewValues(newValues);
+        auditLog.setOldValues(normalizeAuditPayload(oldValues));
+        auditLog.setNewValues(normalizeAuditPayload(newValues));
         auditLog.setCreatedAt(Instant.now());
         auditLogRepository.save(auditLog);
+    }
+
+    private Map<String, Object> normalizeAuditPayload(Object payload) {
+        if (payload == null) {
+            return null;
+        }
+        return objectMapper.convertValue(payload, new TypeReference<>() {
+        });
     }
 
     private record CacheDiagnostics(String status, Instant refreshedAt, int cachedSettings) {

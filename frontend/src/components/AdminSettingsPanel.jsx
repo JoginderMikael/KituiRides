@@ -63,22 +63,18 @@ const SAMPLE_SCENARIO = {
 const SECTION_META = {
   pricing: {
     title: "Price Configuration",
-    description: "Tune the live fare inputs and instantly see how they shape a sample rider quote.",
     icon: FiDollarSign
   },
   controls: {
     title: "Controls",
-    description: "Manage support contact controls, operational toggles, and system utility actions.",
     icon: FiSliders
   },
   formula: {
     title: "Price Engine Formula",
-    description: "Review the active pricing logic and adjust the markup and commission weights that drive it.",
     icon: FiPercent
   },
   preview: {
     title: "Current Surface Preview",
-    description: "See the currently live configuration and compare it to any drafts you still have locally.",
     icon: FiEye
   }
 };
@@ -331,7 +327,6 @@ function SectionTab({ sectionId, active, dirty, onClick }) {
         ) : null}
       </div>
       <h3 className="mt-4 text-lg font-bold text-slate-950">{meta.title}</h3>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{meta.description}</p>
     </button>
   );
 }
@@ -350,7 +345,7 @@ function StatusBadge({ label, status }) {
   );
 }
 
-function SummaryCard({ icon, label, value, caption }) {
+function SummaryCard({ icon, label, value }) {
   return (
     <div className="rounded-[28px] border border-white/70 bg-white/92 p-5 shadow-[0_20px_45px_-34px_rgba(15,23,42,0.45)]">
       <div className="flex items-start justify-between gap-4">
@@ -360,12 +355,11 @@ function SummaryCard({ icon, label, value, caption }) {
           <p className="mt-2 text-2xl font-bold text-slate-950">{value}</p>
         </div>
       </div>
-      <p className="mt-4 text-sm leading-6 text-slate-500">{caption}</p>
     </div>
   );
 }
 
-function PanelShell({ icon, title, description, children, actions }) {
+function PanelShell({ icon, title, children, actions }) {
   return (
     <section className="rounded-[32px] border border-white/70 bg-white/95 p-6 shadow-[0_24px_60px_-38px_rgba(15,23,42,0.45)] md:p-7">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -375,7 +369,6 @@ function PanelShell({ icon, title, description, children, actions }) {
             Section
           </div>
           <h2 className="mt-4 text-2xl font-bold text-slate-950">{title}</h2>
-          <p className="mt-2 text-sm leading-7 text-slate-600">{description}</p>
         </div>
         {actions ? <div className="lg:pl-6">{actions}</div> : null}
       </div>
@@ -780,7 +773,6 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
       <PanelShell
         icon={<FiDollarSign className="h-4 w-4" />}
         title="Price Configuration"
-        description="Update the primary pricing inputs used across the platform and preview the effect immediately before you apply changes."
       >
         <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
           <div className="space-y-5">
@@ -923,7 +915,6 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
       <PanelShell
         icon={<FiSliders className="h-4 w-4" />}
         title="Controls"
-        description="Keep support touchpoints reliable, update operational messaging, and run system utilities without leaving this workspace."
       >
         <div className="grid gap-6 xl:grid-cols-[1.1fr,0.9fr]">
           <div className="grid gap-5">
@@ -1115,7 +1106,6 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
       <PanelShell
         icon={<FiPercent className="h-4 w-4" />}
         title="Price Engine Formula"
-        description="This section explains how fare economics work and lets you adjust the markup and commission weights that shape the live output."
       >
         <div className="grid gap-6 xl:grid-cols-[1.05fr,0.95fr]">
           <div className="space-y-5">
@@ -1238,7 +1228,6 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
       <PanelShell
         icon={<FiEye className="h-4 w-4" />}
         title="Current Surface Preview"
-        description="A read-only view of what is live right now, with a side-by-side draft comparison whenever you still have unsaved edits."
       >
         <div className="grid gap-6 xl:grid-cols-2">
           <LiveValueCard title="Live Pricing Snapshot" tone="live">
@@ -1309,9 +1298,6 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
           <h1 className="mt-5 text-3xl font-bold tracking-tight text-slate-950 md:text-4xl">
             System settings for pricing, support, and ride economics
           </h1>
-          <p className="mt-4 max-w-2xl text-sm leading-7 text-slate-600 md:text-base">
-            Use the internal workspace below to move between pricing, controls, formula logic, and live surface previews without losing your drafts.
-          </p>
           <div className="mt-6 flex flex-wrap items-center gap-3">
             <StatusBadge
               label={hasAnyUnsavedChanges ? "Unsaved changes" : summary.cacheStatus === "SYNCED" ? "Cached and live" : "Needs attention"}
@@ -1329,25 +1315,21 @@ export default function AdminSettingsPanel({ activeRequestsCount = 0 }) {
             icon={<FiActivity className="h-5 w-5" />}
             label="Active Requests"
             value={String(activeRequestsCount)}
-            caption="Live demand context while reviewing fare changes."
           />
           <SummaryCard
             icon={<FiDatabase className="h-5 w-5" />}
             label="Cache Status"
             value={summary.cacheStatus}
-            caption={`${summary.cachedSettings}/${summary.persistedSettings} settings are cached in Redis.`}
           />
           <SummaryCard
             icon={<FiClock className="h-5 w-5" />}
             label="Last Saved"
             value={formatTimestamp(summary.lastUpdatedAt)}
-            caption="Saved settings are tracked with admin-facing metadata."
           />
           <SummaryCard
             icon={<FiCpu className="h-5 w-5" />}
             label="Engine Version"
             value={`v${summary.configurationVersion}`}
-            caption={`Cache refreshed ${formatTimestamp(summary.cacheRefreshedAt)}.`}
           />
         </div>
 

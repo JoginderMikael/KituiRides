@@ -13,10 +13,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter
 @Setter
@@ -43,11 +46,13 @@ public class AuditLog {
     @Column(length = 50)
     private AuditAction action;
 
-    @Column(columnDefinition = "jsonb")
-    private Object oldValues;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> oldValues;
 
-    @Column(columnDefinition = "jsonb")
-    private Object newValues;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "json")
+    private Map<String, Object> newValues;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
