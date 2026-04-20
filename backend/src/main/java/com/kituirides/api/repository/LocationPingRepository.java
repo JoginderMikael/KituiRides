@@ -10,4 +10,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface LocationPingRepository extends JpaRepository<LocationPing, Long> {
     Optional<LocationPing> findTopByUserOrderByTimestampDesc(User user);
     List<LocationPing> findByUserAndTimestampBetweenOrderByTimestampAsc(User user, Instant start, Instant end);
+    List<LocationPing> findByUser(User user);
 }

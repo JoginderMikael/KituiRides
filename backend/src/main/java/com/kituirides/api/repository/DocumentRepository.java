@@ -1,6 +1,7 @@
 package com.kituirides.api.repository;
 
 import com.kituirides.api.domain.entity.Document;
+import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.DocumentStatus;
 import com.kituirides.api.domain.enums.DocumentType;
 import java.util.List;
@@ -14,4 +15,6 @@ public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findByDriver_IdOrderByUploadDateDesc(Long driverId);
     Optional<Document> findByDriver_IdAndDocumentType(Long driverId, DocumentType documentType);
     List<Document> findByStatus(DocumentStatus status);
+    List<Document> findByDriver(User driver);
+    List<Document> findByApprovedBy(User approvedBy);
 }

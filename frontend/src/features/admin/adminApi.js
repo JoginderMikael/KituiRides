@@ -28,6 +28,10 @@ export function upgradeUserToAdmin(userId) {
   return unwrap(apiClient.patch(`/admin/users/${userId}/upgrade`));
 }
 
+export function deleteUser(userId) {
+  return unwrap(apiClient.delete(`/admin/users/${userId}`));
+}
+
 export function getAdminConfigs() {
   return unwrap(apiClient.get("/admin/settings"));
 }

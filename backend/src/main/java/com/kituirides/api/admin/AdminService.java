@@ -1,16 +1,32 @@
 package com.kituirides.api.admin;
 
 import com.kituirides.api.common.ApiException;
+import com.kituirides.api.domain.entity.Conversation;
+import com.kituirides.api.domain.entity.Document;
 import com.kituirides.api.domain.entity.RiderProfile;
+import com.kituirides.api.domain.entity.Ride;
+import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.RideStatus;
-import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.domain.enums.Role;
+import com.kituirides.api.repository.AuditLogRepository;
+import com.kituirides.api.repository.ConversationRepository;
+import com.kituirides.api.repository.DocumentRepository;
+import com.kituirides.api.repository.DriverWalletRepository;
+import com.kituirides.api.repository.LocationPingRepository;
+import com.kituirides.api.repository.MessageRepository;
+import com.kituirides.api.repository.PaymentRepository;
+import com.kituirides.api.repository.RatingRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
 import com.kituirides.api.repository.RideRepository;
+import com.kituirides.api.repository.RideOfferRepository;
+import com.kituirides.api.repository.SupportTicketReplyRepository;
+import com.kituirides.api.repository.SupportTicketRepository;
 import com.kituirides.api.repository.UserRepository;
 import com.kituirides.api.repository.VehicleRepository;
 import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
+import com.kituirides.api.security.CurrentUserService;
 import com.kituirides.api.user.UserProfileResponse;
 import com.kituirides.api.user.UserService;
 import jakarta.validation.constraints.Email;
@@ -19,7 +35,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -37,6 +57,18 @@ public class AdminService {
     private final UserService userService;
     private final RideService rideService;
     private final PasswordEncoder passwordEncoder;
+    private final DocumentRepository documentRepository;
+    private final DriverWalletRepository driverWalletRepository;
+    private final LocationPingRepository locationPingRepository;
+    private final ConversationRepository conversationRepository;
+    private final MessageRepository messageRepository;
+    private final PaymentRepository paymentRepository;
+    private final RideOfferRepository rideOfferRepository;
+    private final RatingRepository ratingRepository;
+    private final SupportTicketRepository supportTicketRepository;
+    private final SupportTicketReplyRepository supportTicketReplyRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final CurrentUserService currentUserService;
 
     public AdminDashboardResponse dashboard() {
         return new AdminDashboardResponse(
@@ -63,7 +95,7 @@ public class AdminService {
             profile.setAvailable(false);
         }
         riderProfileRepository.save(profile);
-        return approved ? "Driver approved" : "Driver rejected";
+        return approved ? "Driver approved" : "Driver unverified and locked from offering rides";
     }
 
     @Transactional
@@ -96,6 +128,7 @@ public class AdminService {
         user.setLastName(request.lastName().trim());
         user.setEmail(email);
         user.setPhoneNumber(phoneNumber);
+        user.setProfilePhotoUrl(request.profilePhotoUrl());
         userRepository.save(user);
         
         profile.setIdNumber(request.idNumber().trim());
@@ -146,6 +179,152 @@ public class AdminService {
         user.setCreatedAt(Instant.now());
         User saved = userRepository.save(user);
         return userService.toResponse(saved);
+    }
+
+    @Transactional
+    public String deleteUser(Long userId) {
+        User currentAdmin = currentUserService.getCurrentUser();
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        if (user.getId().equals(currentAdmin.getId())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot delete your own account");
+        }
+        if (user.getRole() == Role.ADMIN && userRepository.findByRole(Role.ADMIN).size() <= 1) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot delete the last admin account");
+        }
+
+        clearDocumentApprovalReferences(user);
+
+        List<Ride> rides = new ArrayList<>();
+        rides.addAll(rideRepository.findByCustomerOrderByRequestedAtDesc(user));
+        rides.addAll(rideRepository.findByRiderOrderByRequestedAtDesc(user));
+        rides = uniqueById(rides, Ride::getId);
+        Map<Long, SupportTicket> rideTickets = new LinkedHashMap<>();
+
+        for (Ride ride : rides) {
+            deleteRideDependencies(ride, rideTickets);
+        }
+
+        if (!rides.isEmpty()) {
+            rideRepository.deleteAll(rides);
+        }
+        deleteSupportTickets(rideTickets.values());
+
+        deleteCreatedTickets(user, rideTickets);
+        releaseAssignedTickets(user, rideTickets);
+        deleteRemainingConversations(user);
+        deleteUserOwnedRecords(user);
+        deleteDriverProfileData(user);
+        auditLogRepository.deleteAll(auditLogRepository.findByAdmin_IdOrderByCreatedAtDesc(userId));
+        userRepository.delete(user);
+        return "User deleted";
+    }
+
+    private void clearDocumentApprovalReferences(User user) {
+        List<Document> approvedDocuments = documentRepository.findByApprovedBy(user);
+        if (approvedDocuments.isEmpty()) {
+            return;
+        }
+        approvedDocuments.forEach(document -> document.setApprovedBy(null));
+        documentRepository.saveAll(approvedDocuments);
+    }
+
+    private void deleteRideDependencies(Ride ride, Map<Long, SupportTicket> rideTickets) {
+        deleteConversations(conversationRepository.findByRide(ride));
+        ratingRepository.deleteAll(ratingRepository.findByRide(ride));
+        rideOfferRepository.deleteAll(rideOfferRepository.findByRideOrderByOfferedAtAsc(ride));
+        paymentRepository.findByRide(ride).ifPresent(paymentRepository::delete);
+
+        if (ride.getSupportTicket() != null) {
+            rideTickets.put(ride.getSupportTicket().getId(), ride.getSupportTicket());
+        }
+        supportTicketRepository.findByRideId(ride.getId())
+            .forEach(ticket -> rideTickets.put(ticket.getId(), ticket));
+    }
+
+    private void deleteSupportTickets(Iterable<SupportTicket> tickets) {
+        List<SupportTicket> ticketList = uniqueById(tickets, SupportTicket::getId);
+        if (ticketList.isEmpty()) {
+            return;
+        }
+        supportTicketReplyRepository.deleteByTicketIn(ticketList);
+        supportTicketRepository.deleteAll(ticketList);
+    }
+
+    private void deleteCreatedTickets(User user, Map<Long, SupportTicket> skippedTickets) {
+        List<SupportTicket> createdTickets = supportTicketRepository.findByCreatedByOrderByCreatedAtDesc(user).stream()
+            .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
+            .toList();
+
+        if (createdTickets.isEmpty()) {
+            return;
+        }
+
+        for (SupportTicket ticket : createdTickets) {
+            List<Ride> linkedRides = rideRepository.findBySupportTicket(ticket);
+            if (!linkedRides.isEmpty()) {
+                linkedRides.forEach(ride -> ride.setSupportTicket(null));
+                rideRepository.saveAll(linkedRides);
+            }
+        }
+
+        deleteSupportTickets(createdTickets);
+    }
+
+    private void releaseAssignedTickets(User user, Map<Long, SupportTicket> skippedTickets) {
+        List<SupportTicket> assignedTickets = supportTicketRepository.findByAssignedTo(user).stream()
+            .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
+            .toList();
+        if (assignedTickets.isEmpty()) {
+            return;
+        }
+        assignedTickets.forEach(ticket -> ticket.setAssignedTo(null));
+        supportTicketRepository.saveAll(assignedTickets);
+    }
+
+    private void deleteRemainingConversations(User user) {
+        deleteConversations(
+            conversationRepository.findByParticipant1OrParticipant2OrSupportAgent(user, user, user)
+        );
+    }
+
+    private void deleteConversations(List<Conversation> conversations) {
+        List<Conversation> uniqueConversations = uniqueById(conversations, Conversation::getId);
+        if (uniqueConversations.isEmpty()) {
+            return;
+        }
+        messageRepository.deleteByConversationIn(uniqueConversations);
+        conversationRepository.deleteAll(uniqueConversations);
+    }
+
+    private void deleteUserOwnedRecords(User user) {
+        documentRepository.deleteAll(documentRepository.findByDriver(user));
+        supportTicketReplyRepository.deleteAll(supportTicketReplyRepository.findByAuthor(user));
+        rideOfferRepository.deleteAll(rideOfferRepository.findByDriver(user));
+        ratingRepository.deleteAll(ratingRepository.findByCustomerOrRider(user, user));
+        locationPingRepository.deleteAll(locationPingRepository.findByUser(user));
+    }
+
+    private void deleteDriverProfileData(User user) {
+        RiderProfile profile = riderProfileRepository.findByUser(user).orElse(null);
+        if (profile == null) {
+            return;
+        }
+        driverWalletRepository.findByDriver(profile).ifPresent(driverWalletRepository::delete);
+        vehicleRepository.findByRiderProfile(profile).ifPresent(vehicleRepository::delete);
+        riderProfileRepository.delete(profile);
+    }
+
+    private <T> List<T> uniqueById(Iterable<T> entities, Function<T, Long> idExtractor) {
+        Map<Long, T> unique = new LinkedHashMap<>();
+        for (T entity : entities) {
+            Long id = entity != null ? idExtractor.apply(entity) : null;
+            if (id != null) {
+                unique.put(id, entity);
+            }
+        }
+        return new ArrayList<>(unique.values());
     }
 }
 

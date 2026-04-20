@@ -1,6 +1,7 @@
 package com.kituirides.api.repository;
 
 import com.kituirides.api.domain.entity.Ride;
+import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.RideStatus;
 import java.util.Collection;
@@ -18,4 +19,5 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     Optional<Ride> findFirstByRiderAndStatusInOrderByRequestedAtDesc(User rider, Collection<RideStatus> statuses);
     long countByStatus(RideStatus status);
     long countByStatusIn(Collection<RideStatus> statuses);
+    List<Ride> findBySupportTicket(SupportTicket supportTicket);
 }

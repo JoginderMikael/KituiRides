@@ -10,5 +10,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface SupportTicketRepository extends JpaRepository<SupportTicket, Long> {
     List<SupportTicket> findByCreatedByOrderByCreatedAtDesc(User createdBy);
     List<SupportTicket> findByAssignedToOrAssignedToIsNullOrderByCreatedAtDesc(User assignedTo);
+    List<SupportTicket> findByAssignedTo(User assignedTo);
+    List<SupportTicket> findByRideId(Long rideId);
     Optional<SupportTicket> findFirstByRideIdAndTicketTypeOrderByCreatedAtDesc(Long rideId, TicketType ticketType);
 }

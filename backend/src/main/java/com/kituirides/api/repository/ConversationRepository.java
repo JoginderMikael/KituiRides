@@ -1,6 +1,7 @@
 package com.kituirides.api.repository;
 
 import com.kituirides.api.domain.entity.Conversation;
+import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationStatus;
 import com.kituirides.api.domain.enums.ConversationType;
@@ -45,4 +46,8 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
         @Param("user1") User user1,
         @Param("user2") User user2
     );
+
+    List<Conversation> findByRide(Ride ride);
+
+    List<Conversation> findByParticipant1OrParticipant2OrSupportAgent(User participant1, User participant2, User supportAgent);
 }

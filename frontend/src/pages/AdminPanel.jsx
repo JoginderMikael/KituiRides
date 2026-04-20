@@ -5,12 +5,14 @@ import { Avatar, Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal, 
 import {
   approveDriver,
   createSupportAgent,
+  deleteUser,
   getDashboard,
   getRides,
   getUsers,
   updateDriverDetails,
   upgradeUserToAdmin
 } from "../features/admin/adminApi";
+import { useAuth } from "../hooks/useAuth";
 import { supportTickets } from "../features/support/supportApi";
 import { rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
 
@@ -18,11 +20,70 @@ function formatMoney(value) {
   return `KES ${Number(value || 0).toFixed(2)}`;
 }
 
+const DRIVER_MEDIA_FIELDS = [
+  { key: "profilePhotoUrl", label: "Passport Photo" },
+  { key: "idFrontUrl", label: "National ID Front" },
+  { key: "idBackUrl", label: "National ID Back" },
+  { key: "licenseFrontUrl", label: "License Front" },
+  { key: "licenseBackUrl", label: "License Back" },
+  { key: "carFrontUrl", label: "Vehicle Front" },
+  { key: "carRearUrl", label: "Vehicle Rear" },
+  { key: "carInteriorUrl", label: "Vehicle Interior" },
+  { key: "insurancePhotoUrl", label: "Insurance Sticker" },
+  { key: "chassisPhotoUrl", label: "Chassis Number" }
+];
+
+function resolveMediaUrl(path) {
+  if (!path) return null;
+
+  const trimmedPath = String(path).trim();
+  if (!trimmedPath) return null;
+  if (/^(?:https?:|data:|blob:)/i.test(trimmedPath)) return trimmedPath;
+
+  const normalizedPath = trimmedPath.replace(/\\/g, "/");
+  const uploadsPathMatch = normalizedPath.match(/(?:^|\/)(uploads\/.+)$/i);
+  const browserPath = uploadsPathMatch
+    ? `/${uploadsPathMatch[1].replace(/^\/+/, "")}`
+    : normalizedPath.startsWith("/")
+      ? normalizedPath
+      : `/${normalizedPath}`;
+
+  if (typeof window !== "undefined") {
+    return new URL(browserPath, window.location.origin).toString();
+  }
+
+  const apiBase = import.meta.env.VITE_API_URL;
+  if (apiBase?.startsWith("http")) {
+    const backendOrigin = apiBase.replace(/\/api\/?$/, "");
+    return new URL(browserPath, backendOrigin).toString();
+  }
+
+  return browserPath;
+}
+
+function isImageFile(path) {
+  return /\.(png|jpe?g|gif|bmp|webp|svg|avif)(\?|#|$)/i.test(resolveMediaUrl(path) || "");
+}
+
+function getDriverMedia(user) {
+  return DRIVER_MEDIA_FIELDS.map((field) => {
+    const resolvedUrl = resolveMediaUrl(user?.[field.key]);
+    return {
+      ...field,
+      url: user?.[field.key] || null,
+      resolvedUrl,
+      isImage: isImageFile(user?.[field.key])
+    };
+  });
+}
+
 export default function AdminPanel() {
   const queryClient = useQueryClient();
+  const { user: currentUser } = useAuth();
   const [filterRole, setFilterRole] = useState("ALL");
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedRide, setSelectedRide] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const emptySupportForm = {
     firstName: "",
     lastName: "",
@@ -52,9 +113,13 @@ export default function AdminPanel() {
 
   const approveMutation = useMutation({
     mutationFn: ({ id, approved }) => approveDriver(id, approved),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ["admin-users"] });
       queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      if (selectedUser?.id === variables.id) {
+        setSelectedUser(null);
+        setImagePreview(null);
+      }
     }
   });
 
@@ -83,13 +148,40 @@ export default function AdminPanel() {
     }
   });
 
+  const deleteUserMutation = useMutation({
+    mutationFn: deleteUser,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-rides"] });
+      queryClient.invalidateQueries({ queryKey: ["support-tickets"] });
+      setSelectedUser(null);
+      setImagePreview(null);
+    }
+  });
+
   const users = usersQuery.data || [];
   const rides = ridesQuery.data || [];
   const driverEditRequests = (ticketsQuery.data || []).filter((ticket) => ticket.ticketType === "DRIVER_EDIT_REQUEST");
   const filteredUsers = filterRole === "ALL" ? users : users.filter((user) => user.role === filterRole);
+  const selectedUserMedia = selectedUser?.role === "DRIVER" ? getDriverMedia(selectedUser) : [];
   const resetSupportForm = () => {
     setSupportForm(emptySupportForm);
     createSupportMutation.reset();
+  };
+  const closeSelectedUser = () => {
+    setSelectedUser(null);
+    setImagePreview(null);
+    deleteUserMutation.reset();
+  };
+  const handleDeleteUser = (user) => {
+    const confirmed = window.confirm(
+      `Delete ${user.firstName} ${user.lastName}? This permanently removes the user and any related ride history from the system.`
+    );
+    if (!confirmed) {
+      return;
+    }
+    deleteUserMutation.mutate(user.id);
   };
 
   return (
@@ -151,7 +243,7 @@ export default function AdminPanel() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Badge label={user.role} variant="teal" size="sm" />
                       {user.role === "DRIVER" && (
-                        <Badge label={user.verified ? "Verified" : "Pending"} variant={user.verified ? "success" : "warning"} size="sm" />
+                        <Badge label={user.verified ? "Verified" : "Unverified"} variant={user.verified ? "success" : "warning"} size="sm" />
                       )}
                       <Button variant="secondary" size="sm" onClick={() => setSelectedUser(user)}>
                         View
@@ -206,6 +298,16 @@ export default function AdminPanel() {
                             Reject
                           </Button>
                         </>
+                      )}
+                      {user.role === "DRIVER" && user.verified && (
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => approveMutation.mutate({ id: user.id, approved: false })}
+                          loading={approveMutation.isPending}
+                        >
+                          Unverify
+                        </Button>
                       )}
                     </div>
                   </div>
@@ -273,7 +375,7 @@ export default function AdminPanel() {
       <AdminSettingsPanel />
 
       {selectedUser && (
-        <Modal isOpen={Boolean(selectedUser)} title={`User Details • ${selectedUser.firstName} ${selectedUser.lastName}`} onClose={() => setSelectedUser(null)} size="lg">
+        <Modal isOpen={Boolean(selectedUser)} title={`User Details • ${selectedUser.firstName} ${selectedUser.lastName}`} onClose={closeSelectedUser} size="2xl">
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <div>
@@ -289,30 +391,115 @@ export default function AdminPanel() {
             <div className="flex flex-wrap gap-2">
               <Badge label={selectedUser.role} variant="teal" size="sm" />
               {selectedUser.role === "DRIVER" && (
-                <Badge label={selectedUser.verified ? "Verified" : "Pending"} variant={selectedUser.verified ? "success" : "warning"} size="sm" />
+                <Badge label={selectedUser.verified ? "Verified" : "Unverified"} variant={selectedUser.verified ? "success" : "warning"} size="sm" />
               )}
             </div>
 
-            {selectedUser.role === "DRIVER" && (
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">ID Number</p>
-                  <p className="font-semibold text-slate-900">{selectedUser.idNumber}</p>
-                  <p className="mt-3 text-sm text-slate-500">License Number</p>
-                  <p className="font-semibold text-slate-900">{selectedUser.licenseNumber}</p>
-                </div>
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">Vehicle</p>
-                  <p className="font-semibold text-slate-900">{selectedUser.carMake} {selectedUser.carModel}</p>
-                  <p className="mt-1 text-sm text-slate-600">{selectedUser.plateNumber} • {selectedUser.engineSize}cc • {selectedUser.vehicleType}</p>
-                </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedUser.role === "DRIVER" && (
+                <Button
+                  size="sm"
+                  variant={selectedUser.verified ? "secondary" : "primary"}
+                  onClick={() => approveMutation.mutate({ id: selectedUser.id, approved: !selectedUser.verified })}
+                  loading={approveMutation.isPending}
+                >
+                  {selectedUser.verified ? "Unverify & Lock Driver" : "Approve Driver"}
+                </Button>
+              )}
+              {selectedUser.role === "SUPPORT_AGENT" && (
+                <Button size="sm" onClick={() => upgradeMutation.mutate(selectedUser.id)} loading={upgradeMutation.isPending}>
+                  Promote to Admin
+                </Button>
+              )}
+              <Button
+                size="sm"
+                variant="danger"
+                onClick={() => handleDeleteUser(selectedUser)}
+                loading={deleteUserMutation.isPending}
+                disabled={currentUser?.id === selectedUser.id}
+              >
+                Delete User
+              </Button>
+            </div>
+
+            {currentUser?.id === selectedUser.id && (
+              <p className="text-sm text-slate-500">Your own admin account cannot be deleted while you are signed in.</p>
+            )}
+
+            {deleteUserMutation.isError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {deleteUserMutation.error?.response?.data?.message || "Failed to delete user."}
               </div>
             )}
 
-            {selectedUser.role === "SUPPORT_AGENT" && (
-              <Button size="sm" onClick={() => upgradeMutation.mutate(selectedUser.id)} loading={upgradeMutation.isPending}>
-                Promote to Admin
-              </Button>
+            {selectedUser.role === "DRIVER" && (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">ID Number</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.idNumber}</p>
+                    <p className="mt-3 text-sm text-slate-500">License Number</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.licenseNumber}</p>
+                  </div>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                    <p className="text-sm text-slate-500">Vehicle</p>
+                    <p className="font-semibold text-slate-900">{selectedUser.carMake} {selectedUser.carModel}</p>
+                    <p className="mt-1 text-sm text-slate-600">{selectedUser.plateNumber} • {selectedUser.engineSize}cc • {selectedUser.vehicleType}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-lg font-semibold text-slate-900">Verification Images</h3>
+                    <p className="text-sm text-slate-500">Click any uploaded file to preview it on the site or download the original copy.</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                    {selectedUserMedia.map((media) => (
+                      <div key={media.key} className="rounded-2xl border border-slate-200 p-4">
+                        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+                          {media.url ? (
+                            <button
+                              type="button"
+                              className="flex aspect-[4/3] w-full items-center justify-center bg-slate-100"
+                              onClick={() => setImagePreview(media)}
+                            >
+                              {media.isImage ? (
+                                <img src={media.resolvedUrl} alt={media.label} className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="px-4 text-center text-sm font-medium text-slate-600">File uploaded. Click to preview.</div>
+                              )}
+                            </button>
+                          ) : (
+                            <div className="flex aspect-[4/3] items-center justify-center px-4 text-center text-sm text-slate-500">
+                              Not uploaded yet
+                            </div>
+                          )}
+                        </div>
+                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-slate-900">{media.label}</p>
+                            <p className="text-sm text-slate-500">{media.url ? "Available for review" : "Missing"}</p>
+                          </div>
+                          {media.url && (
+                            <div className="flex gap-2">
+                              <Button type="button" variant="secondary" size="sm" onClick={() => setImagePreview(media)}>
+                                View
+                              </Button>
+                              <a
+                                href={media.resolvedUrl}
+                                download
+                                className="inline-flex items-center justify-center rounded-lg border-2 border-teal-600 px-3 py-1 text-sm font-semibold text-teal-600 transition hover:bg-teal-50"
+                              >
+                                Download
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </Modal>
@@ -344,6 +531,37 @@ export default function AdminPanel() {
                 <p className="text-sm text-slate-500">Payment</p>
                 <p className="font-semibold text-slate-900">{selectedRide.paymentType} • {selectedRide.paymentStatus}</p>
               </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {imagePreview && (
+        <Modal isOpen={Boolean(imagePreview)} title={imagePreview.label} onClose={() => setImagePreview(null)} size="2xl">
+          <div className="space-y-4">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-slate-100">
+              {imagePreview.isImage ? (
+                <img
+                  src={imagePreview.resolvedUrl}
+                  alt={imagePreview.label}
+                  className="max-h-[70vh] w-full object-contain"
+                />
+              ) : (
+                <iframe
+                  title={imagePreview.label}
+                  src={imagePreview.resolvedUrl}
+                  className="h-[70vh] w-full"
+                />
+              )}
+            </div>
+            <div className="flex justify-end">
+              <a
+                href={imagePreview.resolvedUrl}
+                download
+                className="inline-flex items-center justify-center rounded-lg bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+              >
+                Download File
+              </a>
             </div>
           </div>
         </Modal>

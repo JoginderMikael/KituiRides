@@ -88,35 +88,62 @@ export function Skeleton({ count = 1, className = '' }) {
 
 // Modal Component
 export function Modal({ isOpen, title, children, onClose, footer, size = 'md' }) {
-  if (!isOpen) return null;
-
   const maxWidth = {
     sm: 'max-w-sm',
     md: 'max-w-md',
     lg: 'max-w-lg',
     xl: 'max-w-xl',
+    "2xl": 'max-w-5xl',
   }[size];
 
+  useEffect(() => {
+    if (!isOpen || typeof document === 'undefined') {
+      return undefined;
+    }
+
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    const openModals = Number(body.dataset.modalOpenCount || 0) + 1;
+    body.dataset.modalOpenCount = String(openModals);
+    body.style.overflow = 'hidden';
+
+    return () => {
+      const remainingModals = Math.max(0, Number(body.dataset.modalOpenCount || 1) - 1);
+
+      if (remainingModals === 0) {
+        delete body.dataset.modalOpenCount;
+        body.style.overflow = previousOverflow;
+        return;
+      }
+
+      body.dataset.modalOpenCount = String(remainingModals);
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black bg-opacity-50">
-      <div className={`${maxWidth} w-full mx-4 bg-white rounded-lg shadow-2xl`}>
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-black bg-opacity-50 px-4 py-6 sm:py-10">
+      <div className="flex min-h-full items-start justify-center">
+        <div className={`${maxWidth} flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[calc(100vh-5rem)]`}>
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
-            aria-label="Close modal"
-          >
-            ×
-          </button>
+          <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
+            <h2 className="text-xl font-semibold text-gray-800">{title}</h2>
+            <button
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl leading-none"
+              aria-label="Close modal"
+            >
+              ×
+            </button>
+          </div>
+
+          {/* Body */}
+          <div className="overflow-y-auto px-6 py-4">{children}</div>
+
+          {/* Footer */}
+          {footer && <div className="border-t border-gray-200 px-6 py-4">{footer}</div>}
         </div>
-
-        {/* Body */}
-        <div className="px-6 py-4">{children}</div>
-
-        {/* Footer */}
-        {footer && <div className="border-t border-gray-200 px-6 py-4">{footer}</div>}
       </div>
     </div>
   );
