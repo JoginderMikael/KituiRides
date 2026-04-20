@@ -1,10 +1,11 @@
 package com.kituirides.api.support;
 
 import com.kituirides.api.common.ApiException;
-import com.kituirides.api.domain.entity.Payment;
+import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.SupportTicketReply;
 import com.kituirides.api.domain.entity.User;
+import com.kituirides.api.domain.enums.ConversationType;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.domain.enums.TicketType;
 import com.kituirides.api.repository.SupportTicketReplyRepository;
@@ -35,25 +36,46 @@ public class SupportService {
 
     @Transactional
     public TicketResponse createTicket(CreateTicketRequest request) {
-        var user = currentUserService.getCurrentUser();
+        User user = currentUserService.getCurrentUser();
+        User assignedSupport = findSupportAgent();
         SupportTicket ticket = new SupportTicket();
         ticket.setCreatedBy(user);
+        ticket.setAssignedTo(assignedSupport);
         ticket.setSubject(request.subject());
         ticket.setDescription(request.description());
         ticket.setTicketType(request.ticketType() != null ? request.ticketType() : TicketType.GENERAL);
         ticket.setRideId(request.rideId());
-        return toResponse(supportTicketRepository.save(ticket));
+        ticket.setUpdatedAt(Instant.now());
+        ticket = supportTicketRepository.save(ticket);
+
+        Ride ride = request.rideId() != null ? getValidatedRideForTicket(request.rideId(), user) : null;
+        ConversationType threadType = switch (user.getRole()) {
+            case CUSTOMER -> ConversationType.SUPPORT_CUSTOMER;
+            case DRIVER -> ConversationType.SUPPORT_DRIVER;
+            case SUPPORT_AGENT, ADMIN -> ConversationType.SUPPORT_ADMIN;
+        };
+        chatService.createTicketBackedThread(
+            ticket,
+            threadType,
+            user,
+            assignedSupport,
+            ride,
+            user,
+            request.description(),
+            false
+        );
+        return toResponse(ticket);
     }
 
     public List<TicketResponse> myTickets() {
-        var user = currentUserService.getCurrentUser();
+        User user = currentUserService.getCurrentUser();
         return supportTicketRepository.findByCreatedByOrderByCreatedAtDesc(user).stream()
             .map(this::toResponse)
             .toList();
     }
 
     public List<TicketResponse> assignedOrOpenTicketsForAgent() {
-        var agent = currentUserService.getCurrentUser();
+        User agent = currentUserService.getCurrentUser();
         ensureSupportActor(agent);
         return supportTicketRepository.findByAssignedToOrAssignedToIsNullOrderByCreatedAtDesc(agent).stream()
             .map(this::toResponse)
@@ -62,7 +84,7 @@ public class SupportService {
 
     @Transactional
     public TicketResponse replyToTicket(Long ticketId, TicketReplyRequest request) {
-        var agent = currentUserService.getCurrentUser();
+        User agent = currentUserService.getCurrentUser();
         ensureSupportActor(agent);
         SupportTicket ticket = getTicket(ticketId);
         if (ticket.getAssignedTo() == null) {
@@ -73,29 +95,36 @@ public class SupportService {
         reply.setAuthor(agent);
         reply.setMessage(request.message());
         supportTicketReplyRepository.save(reply);
+        ticket.setUpdatedAt(Instant.now());
         supportTicketRepository.save(ticket);
         return toResponse(ticket);
     }
 
     @Transactional
     public TicketResponse updateTicket(Long ticketId, UpdateTicketRequest request) {
-        var agent = currentUserService.getCurrentUser();
+        User agent = currentUserService.getCurrentUser();
         ensureSupportActor(agent);
         SupportTicket ticket = getTicket(ticketId);
         if (ticket.getAssignedTo() == null) {
             ticket.setAssignedTo(agent);
         }
         ticket.setStatus(request.status());
+        ticket.setUpdatedAt(Instant.now());
+        if (request.status() == com.kituirides.api.domain.enums.TicketStatus.RESOLVED) {
+            ticket.setClosedAt(Instant.now());
+        }
         if (request.resolutionNotes() != null && !request.resolutionNotes().isBlank()) {
             ticket.setResolutionNotes(request.resolutionNotes());
         }
-        return toResponse(supportTicketRepository.save(ticket));
+        ticket = supportTicketRepository.save(ticket);
+        chatService.syncResolvedTicket(ticket);
+        return toResponse(ticket);
     }
 
     @Transactional
     public RideResponse raiseRideDispute(Long rideId, String reason) {
-        var actor = currentUserService.getCurrentUser();
-        var ride = rideService.getRideById(rideId);
+        User actor = currentUserService.getCurrentUser();
+        Ride ride = rideService.getRideById(rideId);
         boolean participant = ride.getCustomer().getId().equals(actor.getId())
             || (ride.getRider() != null && ride.getRider().getId().equals(actor.getId()))
             || actor.getRole() == Role.ADMIN
@@ -112,11 +141,34 @@ public class SupportService {
         ticket.setDescription(reason);
         ticket.setTicketType(TicketType.DISPUTE);
         ticket.setRideId(rideId);
+        ticket.setUpdatedAt(Instant.now());
         ticket = supportTicketRepository.save(ticket);
 
-        chatService.getOrCreateSupportConversation(ride, ride.getCustomer(), supportAgent);
+        chatService.createTicketBackedThread(
+            ticket,
+            ConversationType.SUPPORT_CUSTOMER,
+            ride.getCustomer(),
+            supportAgent,
+            ride,
+            ride.getCustomer().getId().equals(actor.getId()) ? actor : null,
+            ride.getCustomer().getId().equals(actor.getId())
+                ? reason
+                : "A ride dispute case was opened for this ride. Support will continue updates here.",
+            !ride.getCustomer().getId().equals(actor.getId())
+        );
         if (ride.getRider() != null) {
-            chatService.getOrCreateSupportConversation(ride, ride.getRider(), supportAgent);
+            chatService.createTicketBackedThread(
+                ticket,
+                ConversationType.SUPPORT_DRIVER,
+                ride.getRider(),
+                supportAgent,
+                ride,
+                ride.getRider().getId().equals(actor.getId()) ? actor : null,
+                ride.getRider().getId().equals(actor.getId())
+                    ? reason
+                    : "A ride dispute case was opened for this ride. Support will continue updates here.",
+                !ride.getRider().getId().equals(actor.getId())
+            );
         }
         return rideService.markDisputed(rideId, ticket, reason);
     }
@@ -134,16 +186,19 @@ public class SupportService {
 
     @Transactional
     public RideResponse resolveRide(Long rideId, ResolveRideRequest request) {
-        var agent = currentUserService.getCurrentUser();
+        User agent = currentUserService.getCurrentUser();
         ensureSupportActor(agent);
         SupportTicket ticket = supportTicketRepository.findFirstByRideIdAndTicketTypeOrderByCreatedAtDesc(rideId, TicketType.DISPUTE)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Dispute ticket not found for this ride"));
         ticket.setAssignedTo(ticket.getAssignedTo() != null ? ticket.getAssignedTo() : agent);
         ticket.setStatus(com.kituirides.api.domain.enums.TicketStatus.RESOLVED);
+        ticket.setUpdatedAt(Instant.now());
+        ticket.setClosedAt(Instant.now());
         if (request.resolutionNotes() != null && !request.resolutionNotes().isBlank()) {
             ticket.setResolutionNotes(request.resolutionNotes());
         }
-        supportTicketRepository.save(ticket);
+        ticket = supportTicketRepository.save(ticket);
+        chatService.syncResolvedTicket(ticket);
         return rideService.resolveDispute(rideId, request.resolvedDistanceKm());
     }
 
@@ -204,5 +259,16 @@ public class SupportService {
             ticket.getCreatedAt(),
             replies
         );
+    }
+
+    private Ride getValidatedRideForTicket(Long rideId, User actor) {
+        Ride ride = rideService.getRideById(rideId);
+        if (actor.getRole() == Role.CUSTOMER && !ride.getCustomer().getId().equals(actor.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Ride does not belong to the current customer");
+        }
+        if (actor.getRole() == Role.DRIVER && (ride.getRider() == null || !ride.getRider().getId().equals(actor.getId()))) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Ride does not belong to the current driver");
+        }
+        return ride;
     }
 }

@@ -7,7 +7,8 @@ export function connectRealtimeSocket({
   onRideUpdate,
   onNearbyDrivers,
   onDriverOffer,
-  onConversationUpdate
+  onConversationUpdate,
+  onChatInboxUpdate
 }) {
   const browserOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
   const base = (import.meta.env.VITE_WS_URL || browserOrigin).replace(/\/$/, "");
@@ -24,6 +25,9 @@ export function connectRealtimeSocket({
     }
     if (userId && onDriverOffer) {
       client.subscribe(`/topic/drivers/${userId}/offers`, (msg) => onDriverOffer(JSON.parse(msg.body)));
+    }
+    if (userId && onChatInboxUpdate) {
+      client.subscribe(`/topic/chat/users/${userId}`, (msg) => onChatInboxUpdate(JSON.parse(msg.body)));
     }
     conversationIds.filter(Boolean).forEach((conversationId) => {
       client.subscribe(`/topic/conversations/${conversationId}`, (msg) => {

@@ -31,7 +31,7 @@ public class Message {
     private Conversation conversation;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_id", nullable = false)
+    @JoinColumn(name = "sender_id")
     private User sender;
 
     @Column(columnDefinition = "TEXT", nullable = false)
@@ -39,6 +39,9 @@ public class Message {
 
     @Column(nullable = false)
     private Boolean isRead = false;
+
+    @Column(nullable = false)
+    private Boolean systemMessage = false;
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();

@@ -123,7 +123,7 @@ export function Modal({ isOpen, title, children, onClose, footer, size = 'md' })
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-black bg-opacity-50 px-4 py-6 sm:py-10">
+    <div className="fixed inset-0 z-[90] overflow-y-auto bg-black bg-opacity-50 px-4 py-6 sm:py-10">
       <div className="flex min-h-full items-start justify-center">
         <div className={`${maxWidth} flex max-h-[calc(100vh-3rem)] w-full flex-col overflow-hidden rounded-lg bg-white shadow-2xl sm:max-h-[calc(100vh-5rem)]`}>
         {/* Header */}

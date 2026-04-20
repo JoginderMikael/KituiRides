@@ -1,8 +1,6 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import ChatBox from "../components/ChatBox";
 import { Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal } from "../components/UIComponents";
-import { getChatConversations } from "../features/chat/chatApi";
 import {
   fixRideKms,
   forceApprovePayment,
@@ -25,7 +23,6 @@ export default function SupportPage() {
   const [rideSearchId, setRideSearchId] = useState("");
   const [resolvedDistanceKm, setResolvedDistanceKm] = useState("");
   const [resolutionNotes, setResolutionNotes] = useState("");
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
 
   const ticketsQuery = useQuery({ queryKey: ["support-tickets"], queryFn: supportTickets });
   const activeRideId = selectedTicket?.rideId;
@@ -35,23 +32,6 @@ export default function SupportPage() {
     queryFn: () => getSupportRide(activeRideId),
     enabled: Boolean(activeRideId)
   });
-
-  const conversationsQuery = useQuery({
-    queryKey: ["chat-conversations", activeRideId],
-    queryFn: () => getChatConversations({ rideId: activeRideId }),
-    enabled: Boolean(activeRideId)
-  });
-
-  useEffect(() => {
-    const conversations = conversationsQuery.data || [];
-    if (!conversations.length) {
-      setSelectedConversationId(null);
-      return;
-    }
-    if (!selectedConversationId || !conversations.some((conversation) => conversation.id === selectedConversationId)) {
-      setSelectedConversationId(conversations[0].id);
-    }
-  }, [conversationsQuery.data, selectedConversationId]);
 
   const rideLookupMutation = useMutation({
     mutationFn: getSupportRide,
@@ -101,7 +81,6 @@ export default function SupportPage() {
     driverEditRequests: tickets.filter((ticket) => ticket.ticketType === "DRIVER_EDIT_REQUEST").length
   };
 
-  const selectedConversation = (conversationsQuery.data || []).find((conversation) => conversation.id === selectedConversationId) || null;
   const ride = rideQuery.data || (activeRideId ? rideLookupMutation.data : null);
 
   return (
@@ -289,53 +268,16 @@ export default function SupportPage() {
             )}
           </Card>
 
-          {activeRideId && (
-            <Card>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Ride Chat</h2>
-                  <p className="text-sm text-slate-500">Support can speak to the customer and driver in ride-linked support threads.</p>
-                </div>
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Support Messaging</h2>
+                <p className="text-sm text-slate-500">
+                  Use the floating support launcher on the bottom right for customer and driver threads, and the bottom-left launcher for admin escalations.
+                </p>
               </div>
-
-              {conversationsQuery.isLoading ? (
-                <div className="mt-4"><LoadingSpinner /></div>
-              ) : !(conversationsQuery.data || []).length ? (
-                <EmptyState icon="💬" title="No conversations for this ride" description="Support conversations are created when the ride is disputed or support joins the ride." />
-              ) : (
-                <div className="mt-4 grid gap-4 lg:grid-cols-[0.35fr,0.65fr]">
-                  <div className="space-y-3">
-                    {(conversationsQuery.data || []).map((conversation) => (
-                      <button
-                        key={conversation.id}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left ${
-                          conversation.id === selectedConversationId
-                            ? "border-teal-500 bg-teal-50"
-                            : "border-slate-200 bg-white"
-                        }`}
-                        onClick={() => setSelectedConversationId(conversation.id)}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900">{conversation.participantName}</p>
-                          {conversation.unreadCount > 0 && (
-                            <Badge label={`${conversation.unreadCount}`} variant="warning" size="sm" />
-                          )}
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">{conversation.participantPhone}</p>
-                      </button>
-                    ))}
-                  </div>
-                  <ChatBox
-                    conversationId={selectedConversation?.id}
-                    title="Support Chat"
-                    participantName={selectedConversation?.participantName}
-                    participantPhone={selectedConversation?.participantPhone}
-                    onActivity={() => queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRideId] })}
-                  />
-                </div>
-              )}
-            </Card>
-          )}
+            </div>
+          </Card>
         </div>
       </div>
 

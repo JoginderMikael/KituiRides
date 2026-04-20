@@ -5,6 +5,8 @@ import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationStatus;
 import com.kituirides.api.domain.enums.ConversationType;
+import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -21,6 +23,39 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
         order by c.updatedAt desc
         """)
     List<Conversation> findUserConversations(@Param("user") User user, @Param("status") ConversationStatus status);
+
+    @Query("""
+        select distinct c from Conversation c
+        left join fetch c.supportTicket t
+        left join fetch c.participant1
+        left join fetch c.participant2
+        left join fetch c.supportAgent
+        where c.conversationType in :conversationTypes
+          and (
+            c.participant1 = :user
+            or c.participant2 = :user
+            or c.supportAgent = :user
+            or t.assignedTo = :user
+          )
+        order by coalesce(c.lastMessageAt, c.updatedAt, c.createdAt) desc
+        """)
+    List<Conversation> findAccessibleThreads(
+        @Param("user") User user,
+        @Param("conversationTypes") Collection<ConversationType> conversationTypes
+    );
+
+    @Query("""
+        select distinct c from Conversation c
+        left join fetch c.supportTicket t
+        left join fetch c.participant1
+        left join fetch c.participant2
+        left join fetch c.supportAgent
+        where c.conversationType in :conversationTypes
+        order by coalesce(c.lastMessageAt, c.updatedAt, c.createdAt) desc
+        """)
+    List<Conversation> findVisibleThreadsByType(
+        @Param("conversationTypes") Collection<ConversationType> conversationTypes
+    );
 
     @Query("""
         select c from Conversation c
@@ -50,4 +85,18 @@ public interface ConversationRepository extends JpaRepository<Conversation, Long
     List<Conversation> findByRide(Ride ride);
 
     List<Conversation> findByParticipant1OrParticipant2OrSupportAgent(User participant1, User participant2, User supportAgent);
+
+    List<Conversation> findBySupportTicket_Id(Long supportTicketId);
+
+    @Query("""
+        select c from Conversation c
+        where c.conversationType in :conversationTypes
+          and c.status in :statuses
+          and coalesce(c.lastMessageAt, c.updatedAt, c.createdAt) <= :cutoff
+        """)
+    List<Conversation> findThreadsEligibleForAutoClose(
+        @Param("conversationTypes") Collection<ConversationType> conversationTypes,
+        @Param("statuses") Collection<ConversationStatus> statuses,
+        @Param("cutoff") Instant cutoff
+    );
 }

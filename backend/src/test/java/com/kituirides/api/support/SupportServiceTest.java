@@ -8,6 +8,7 @@ import com.kituirides.api.admin.AdminSettingsService;
 import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.User;
+import com.kituirides.api.domain.enums.ConversationType;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.repository.SupportTicketReplyRepository;
 import com.kituirides.api.repository.SupportTicketRepository;
@@ -33,7 +34,7 @@ class SupportServiceTest {
     @Mock private AdminSettingsService adminSettingsService;
 
     @Test
-    void shouldCreateRideSpecificSupportConversationsForDisputes() {
+    void shouldCreateRideSpecificSupportThreadsForDisputes() {
         SupportService service = new SupportService(
             supportTicketRepository,
             supportTicketReplyRepository,
@@ -69,8 +70,26 @@ class SupportServiceTest {
 
         service.raiseRideDispute(88L, "Customer disputes the final KM");
 
-        verify(chatService).getOrCreateSupportConversation(ride, customer, supportAgent);
-        verify(chatService).getOrCreateSupportConversation(ride, driver, supportAgent);
+        verify(chatService).createTicketBackedThread(
+            any(SupportTicket.class),
+            org.mockito.ArgumentMatchers.eq(ConversationType.SUPPORT_CUSTOMER),
+            org.mockito.ArgumentMatchers.eq(customer),
+            org.mockito.ArgumentMatchers.eq(supportAgent),
+            org.mockito.ArgumentMatchers.eq(ride),
+            org.mockito.ArgumentMatchers.eq(customer),
+            any(String.class),
+            org.mockito.ArgumentMatchers.eq(false)
+        );
+        verify(chatService).createTicketBackedThread(
+            any(SupportTicket.class),
+            org.mockito.ArgumentMatchers.eq(ConversationType.SUPPORT_DRIVER),
+            org.mockito.ArgumentMatchers.eq(driver),
+            org.mockito.ArgumentMatchers.eq(supportAgent),
+            org.mockito.ArgumentMatchers.eq(ride),
+            org.mockito.ArgumentMatchers.isNull(),
+            any(String.class),
+            org.mockito.ArgumentMatchers.eq(true)
+        );
         verify(rideService).markDisputed(any(Long.class), any(SupportTicket.class), any(String.class));
     }
 }

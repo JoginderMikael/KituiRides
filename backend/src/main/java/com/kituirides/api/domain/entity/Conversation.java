@@ -38,6 +38,10 @@ public class Conversation {
     private Ride ride;
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "support_ticket_id")
+    private SupportTicket supportTicket;
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "participant1_id", nullable = false)
     private User participant1;
 
@@ -55,7 +59,10 @@ public class Conversation {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private ConversationStatus status = ConversationStatus.ACTIVE;
+    private ConversationStatus status = ConversationStatus.OPEN;
+
+    @Column(length = 255)
+    private String subject;
 
     @OneToMany(mappedBy = "conversation", fetch = FetchType.LAZY)
     private List<Message> messages = new ArrayList<>();
@@ -65,4 +72,13 @@ public class Conversation {
 
     @Column(nullable = false)
     private Instant updatedAt = Instant.now();
+
+    @Column
+    private Instant lastMessageAt = Instant.now();
+
+    @Column
+    private Instant closedAt;
+
+    @Column
+    private Instant autoClosedAt;
 }

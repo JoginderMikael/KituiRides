@@ -54,6 +54,12 @@ public class SupportTicket {
     @Column(nullable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(nullable = false)
+    private Instant updatedAt = Instant.now();
+
     @Column(columnDefinition = "TEXT")
     private String resolutionNotes;
+
+    @Column
+    private Instant closedAt;
 }

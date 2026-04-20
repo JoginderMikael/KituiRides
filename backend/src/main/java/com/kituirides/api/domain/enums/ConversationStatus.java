@@ -1,7 +1,8 @@
 package com.kituirides.api.domain.enums;
 
 public enum ConversationStatus {
-    ACTIVE,
+    OPEN,
     CLOSED,
-    ARCHIVED
+    RESOLVED,
+    REOPENED
 }

@@ -35,4 +35,8 @@ public class RealtimePublisher {
         );
         messagingTemplate.convertAndSend("/topic/conversations/" + conversationId, event);
     }
+
+    public void publishChatInboxUpdate(Long userId, Object payload) {
+        messagingTemplate.convertAndSend("/topic/chat/users/" + userId, payload);
+    }
 }

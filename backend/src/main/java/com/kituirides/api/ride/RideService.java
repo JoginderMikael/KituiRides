@@ -49,7 +49,6 @@ public class RideService {
     private final CurrentUserService currentUserService;
     private final MatchingService matchingService;
     private final PriceCalculationService priceCalculationService;
-    private final com.kituirides.api.support.ChatService chatService;
     private final RealtimePublisher realtimePublisher;
     private final RideStateMachine rideStateMachine;
     private final RideRedisService rideRedisService;
@@ -165,7 +164,6 @@ public class RideService {
             ride.setAcceptedAt(Instant.now());
             Ride saved = rideRepository.save(ride);
 
-            chatService.getOrCreateRideConversation(saved);
             realtimePublisher.publishRideUpdate(saved.getId(), "RIDE_ACCEPTED", toResponse(saved));
             return toResponse(saved);
         } catch (RuntimeException ex) {

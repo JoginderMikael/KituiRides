@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import ChatBox from "../components/ChatBox";
 import {
   Badge,
   Button,
@@ -11,7 +10,6 @@ import {
   Modal,
   StatCard
 } from "../components/UIComponents";
-import { getChatConversations } from "../features/chat/chatApi";
 import {
   acceptDriverRide,
   completeDriverRide,
@@ -41,7 +39,6 @@ export default function DriverDashboard() {
   const [selectedRide, setSelectedRide] = useState(null);
   const [locationInput, setLocationInput] = useState({ latitude: "-1.3760", longitude: "38.0100" });
   const [manualDistance, setManualDistance] = useState("");
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
 
   const dashboardQuery = useQuery({ queryKey: ["driver-dashboard"], queryFn: getDriverDashboard });
   const ridesQuery = useQuery({ queryKey: ["driver-rides"], queryFn: getDriverRides });
@@ -52,48 +49,22 @@ export default function DriverDashboard() {
   const activeRide = rides.find((ride) => isActiveRide(ride.status)) || dashboardQuery.data?.activeTrip || null;
   const completedRides = rides.filter((ride) => isCompletedRide(ride.status));
 
-  const conversationsQuery = useQuery({
-    queryKey: ["chat-conversations", activeRide?.id],
-    queryFn: () => getChatConversations({ rideId: activeRide.id }),
-    enabled: Boolean(activeRide?.id)
-  });
-
-  useEffect(() => {
-    const conversations = conversationsQuery.data || [];
-    if (!conversations.length) {
-      setSelectedConversationId(null);
-      return;
-    }
-    if (!selectedConversationId || !conversations.some((conversation) => conversation.id === selectedConversationId)) {
-      setSelectedConversationId(conversations[0].id);
-    }
-  }, [conversationsQuery.data, selectedConversationId]);
-
   useEffect(() => {
     const disconnect = connectRealtimeSocket({
       userId: session?.userId,
-      conversationIds: (conversationsQuery.data || []).map((conversation) => conversation.id),
       onRideUpdate: () => {
         queryClient.invalidateQueries({ queryKey: ["driver-rides"] });
         queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
       },
-      onDriverOffer: () => queryClient.invalidateQueries({ queryKey: ["driver-offers"] }),
-      onConversationUpdate: () => {
-        if (activeRide?.id) {
-          queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
-        }
-      }
+      onDriverOffer: () => queryClient.invalidateQueries({ queryKey: ["driver-offers"] })
     });
     return disconnect;
-  }, [activeRide?.id, conversationsQuery.data, queryClient, session?.userId]);
+  }, [queryClient, session?.userId]);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
     queryClient.invalidateQueries({ queryKey: ["driver-rides"] });
     queryClient.invalidateQueries({ queryKey: ["driver-offers"] });
-    if (activeRide?.id) {
-      queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
-    }
   };
 
   const statusMutation = useMutation({
@@ -120,8 +91,6 @@ export default function DriverDashboard() {
 
   const dashboard = dashboardQuery.data;
   const supportPhone = supportContactQuery.data?.phoneNumber || dashboard?.supportPhoneNumber;
-  const selectedConversation = (conversationsQuery.data || []).find((conversation) => conversation.id === selectedConversationId) || null;
-
   const currentActionCard = useMemo(() => {
     if (!activeRide) {
       return null;
@@ -426,61 +395,21 @@ export default function DriverDashboard() {
             )}
           </Card>
 
-          {activeRide && (
-            <Card>
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-2xl font-bold text-slate-900">Live Chat</h2>
-                  <p className="text-sm text-slate-500">Use ride chat with the customer or support chat during disputes.</p>
-                </div>
-                {supportPhone && (
-                  <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 hover:text-teal-800">
-                    Support hotline
-                  </a>
-                )}
+          <Card>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">Support Messaging</h2>
+                <p className="text-sm text-slate-500">
+                  Use the floating support button at the bottom right to open driver support tickets, review replies, and track thread status.
+                </p>
               </div>
-
-              {conversationsQuery.isLoading ? (
-                <div className="mt-4"><LoadingSpinner /></div>
-              ) : !(conversationsQuery.data || []).length ? (
-                <EmptyState icon="💬" title="No chat open yet" description="Ride chat becomes available once you accept a trip. Support chat appears during disputes." />
-              ) : (
-                <div className="mt-4 grid gap-4 lg:grid-cols-[0.35fr,0.65fr]">
-                  <div className="space-y-3">
-                    {(conversationsQuery.data || []).map((conversation) => (
-                      <button
-                        key={conversation.id}
-                        className={`w-full rounded-2xl border px-4 py-3 text-left ${
-                          conversation.id === selectedConversationId
-                            ? "border-teal-500 bg-teal-50"
-                            : "border-slate-200 bg-white"
-                        }`}
-                        onClick={() => setSelectedConversationId(conversation.id)}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <p className="font-semibold text-slate-900">
-                            {conversation.conversationType === "RIDE_CHAT" ? "Customer" : "Support"}
-                          </p>
-                          {conversation.unreadCount > 0 && (
-                            <Badge label={`${conversation.unreadCount}`} variant="warning" size="sm" />
-                          )}
-                        </div>
-                        <p className="mt-1 text-sm text-slate-600">{conversation.participantName}</p>
-                        <p className="text-xs text-slate-500">{conversation.participantPhone}</p>
-                      </button>
-                    ))}
-                  </div>
-                  <ChatBox
-                    conversationId={selectedConversation?.id}
-                    title={selectedConversation?.conversationType === "RIDE_CHAT" ? "Customer Chat" : "Support Chat"}
-                    participantName={selectedConversation?.participantName}
-                    participantPhone={selectedConversation?.participantPhone}
-                    onActivity={() => queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] })}
-                  />
-                </div>
+              {supportPhone && (
+                <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 hover:text-teal-800">
+                  Support hotline
+                </a>
               )}
-            </Card>
-          )}
+            </div>
+          </Card>
 
           <Card>
             <h2 className="text-xl font-bold text-slate-900">Completed Trips</h2>

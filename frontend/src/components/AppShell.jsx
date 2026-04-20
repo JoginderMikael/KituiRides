@@ -3,6 +3,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { FiChevronDown, FiLogOut, FiUser } from "react-icons/fi";
 import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
+import SupportChatLaunchers from "./SupportChatLaunchers";
 import { Avatar, Badge } from "./UIComponents";
 
 export default function AppShell() {
@@ -140,6 +141,7 @@ export default function AppShell() {
       <main className={isAdmin ? "relative z-0 min-h-[calc(100vh-81px)]" : "mx-auto max-w-6xl px-4 py-6"}>
         <Outlet />
       </main>
+      <SupportChatLaunchers />
     </div>
   );
 }

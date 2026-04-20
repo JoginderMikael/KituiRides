@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import ChatBox from "../components/ChatBox";
 import PaymentMethodSelector from "../components/PaymentMethodSelector";
 import RideMapbox from "../components/RideMapbox";
 import {
@@ -14,7 +13,6 @@ import {
   Modal,
   StatCard
 } from "../components/UIComponents";
-import { getChatConversations } from "../features/chat/chatApi";
 import {
   createCustomerTicket,
   disputeRide,
@@ -72,7 +70,6 @@ export default function CustomerDashboard() {
   const [selectedRide, setSelectedRide] = useState(null);
   const [paymentRide, setPaymentRide] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
-  const [selectedConversationId, setSelectedConversationId] = useState(null);
 
   useEffect(() => {
     setPhoneNumber((current) => current || toMpesaPhoneNumber(user?.phoneNumber || ""));
@@ -104,41 +101,15 @@ export default function CustomerDashboard() {
   const completedRides = rides.filter((ride) => isCompletedRide(ride.status));
   const cancelledRides = rides.filter((ride) => isCancelledRide(ride.status) || ride.status === "DRIVER_REJECTED");
 
-  const conversationsQuery = useQuery({
-    queryKey: ["chat-conversations", activeRide?.id],
-    queryFn: () => getChatConversations({ rideId: activeRide.id }),
-    enabled: Boolean(activeRide?.id)
-  });
-
-  useEffect(() => {
-    const conversations = conversationsQuery.data || [];
-    if (!conversations.length) {
-      setSelectedConversationId(null);
-      return;
-    }
-    if (!selectedConversationId || !conversations.some((conversation) => conversation.id === selectedConversationId)) {
-      setSelectedConversationId(conversations[0].id);
-    }
-  }, [conversationsQuery.data, selectedConversationId]);
-
   useEffect(() => {
     const disconnect = connectRealtimeSocket({
-      conversationIds: (conversationsQuery.data || []).map((conversation) => conversation.id),
       onRideUpdate: () => {
         queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
-        if (activeRide?.id) {
-          queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
-        }
       },
-      onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] }),
-      onConversationUpdate: () => {
-        if (activeRide?.id) {
-          queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] });
-        }
-      }
+      onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] })
     });
     return disconnect;
-  }, [activeRide?.id, conversationsQuery.data, nearbyDriverParams, queryClient]);
+  }, [nearbyDriverParams, queryClient]);
 
   const requestRideMutation = useMutation({
     mutationFn: requestRide,
@@ -174,7 +145,6 @@ export default function CustomerDashboard() {
     }
   });
 
-  const selectedConversation = (conversationsQuery.data || []).find((conversation) => conversation.id === selectedConversationId) || null;
   const estimatedFare = driversQuery.data?.[0]?.estimatedPrice || 0;
   const supportPhone = supportContactQuery.data?.phoneNumber;
   const canRequestRide = !activeRide;
@@ -444,62 +414,21 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
-      {activeRide && (
-        <Card>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-900">Trip Chat</h2>
-              <p className="text-sm text-slate-500">Driver chat opens after acceptance. Support chat appears when a ride dispute or support thread exists.</p>
-            </div>
-            {supportPhone && (
-              <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 hover:text-teal-800">
-                Call support: {supportPhone}
-              </a>
-            )}
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-slate-900">Support Messaging</h2>
+            <p className="text-sm text-slate-500">
+              Use the floating support button at the bottom right to open tickets, follow threads, and reply with full timestamps and status tracking.
+            </p>
           </div>
-
-          {conversationsQuery.isLoading ? (
-            <div className="mt-4"><LoadingSpinner /></div>
-          ) : !(conversationsQuery.data || []).length ? (
-            <EmptyState icon="💬" title="No Chat Yet" description="Chat becomes available when a driver accepts the ride or support joins the trip." />
-          ) : (
-            <div className="mt-4 grid gap-4 lg:grid-cols-[0.35fr,0.65fr]">
-              <div className="space-y-3">
-                {(conversationsQuery.data || []).map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    className={`w-full rounded-2xl border px-4 py-3 text-left ${
-                      conversation.id === selectedConversationId
-                        ? "border-teal-500 bg-teal-50"
-                        : "border-slate-200 bg-white"
-                    }`}
-                    onClick={() => setSelectedConversationId(conversation.id)}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <p className="font-semibold text-slate-900">
-                        {conversation.conversationType === "RIDE_CHAT" ? "Driver" : "Support"}
-                      </p>
-                      {conversation.unreadCount > 0 && (
-                        <Badge label={`${conversation.unreadCount}`} variant="warning" size="sm" />
-                      )}
-                    </div>
-                    <p className="mt-1 text-sm text-slate-600">{conversation.participantName}</p>
-                    <p className="text-xs text-slate-500">{conversation.participantPhone}</p>
-                  </button>
-                ))}
-              </div>
-
-              <ChatBox
-                conversationId={selectedConversation?.id}
-                title={selectedConversation?.conversationType === "RIDE_CHAT" ? "Driver Chat" : "Support Chat"}
-                participantName={selectedConversation?.participantName}
-                participantPhone={selectedConversation?.participantPhone}
-                onActivity={() => queryClient.invalidateQueries({ queryKey: ["chat-conversations", activeRide.id] })}
-              />
-            </div>
+          {supportPhone && (
+            <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 hover:text-teal-800">
+              Call support: {supportPhone}
+            </a>
           )}
-        </Card>
-      )}
+        </div>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
