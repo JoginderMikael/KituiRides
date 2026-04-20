@@ -155,7 +155,14 @@ public class SupportService {
     }
 
     public SupportContactResponse getSupportContact() {
-        return new SupportContactResponse(adminSettingsService.getConfigValue("SUPPORT_PHONE_NUMBER"));
+        var supportSettings = adminSettingsService.getSupportSettings();
+        return new SupportContactResponse(
+            supportSettings.supportPhoneNumber(),
+            supportSettings.supportEmailAddress(),
+            supportSettings.supportHelpLabel(),
+            supportSettings.supportEscalationContact(),
+            supportSettings.emergencyContactVisible()
+        );
     }
 
     private void ensureSupportActor(User user) {

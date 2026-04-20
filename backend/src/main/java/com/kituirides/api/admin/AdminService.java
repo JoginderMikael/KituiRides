@@ -108,6 +108,41 @@ public class AdminService {
     }
 
     @Transactional
+    public UserProfileResponse updateUserAccount(Long userId, UpdateUserAccountRequest request) {
+        User currentAdmin = currentUserService.getCurrentUser();
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+
+        String email = request.email().trim().toLowerCase();
+        String phoneNumber = request.phoneNumber().trim();
+
+        if (!user.getEmail().equalsIgnoreCase(email) && userRepository.existsByEmail(email)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Email already exists");
+        }
+        if (!user.getPhoneNumber().equals(phoneNumber) && userRepository.existsByPhoneNumber(phoneNumber)) {
+            throw new ApiException(HttpStatus.CONFLICT, "Phone number already exists");
+        }
+        if (user.getId().equals(currentAdmin.getId()) && !request.active()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot suspend your own account");
+        }
+        if (user.getRole() == Role.ADMIN && Boolean.TRUE.equals(user.getActive()) && !request.active()) {
+            long activeAdmins = userRepository.findByRole(Role.ADMIN).stream()
+                .filter(admin -> Boolean.TRUE.equals(admin.getActive()))
+                .count();
+            if (activeAdmins <= 1) {
+                throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot suspend the last active admin account");
+            }
+        }
+
+        user.setFirstName(request.firstName().trim());
+        user.setLastName(request.lastName().trim());
+        user.setEmail(email);
+        user.setPhoneNumber(phoneNumber);
+        user.setActive(request.active());
+        return userService.toResponse(userRepository.save(user));
+    }
+
+    @Transactional
     public String updateDriverDetails(Long driverUserId, UpdateDriverDetailsRequest request) {
         User user = userRepository.findById(driverUserId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));

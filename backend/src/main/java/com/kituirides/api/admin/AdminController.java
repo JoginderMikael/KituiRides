@@ -66,6 +66,13 @@ public class AdminController {
         return ResponseEntity.ok(ApiResponse.ok(null, message));
     }
 
+    @PatchMapping("/users/{id}")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> updateUserAccount(@PathVariable Long id,
+                                                                              @Valid @RequestBody UpdateUserAccountRequest request) {
+        UserProfileResponse response = adminService.updateUserAccount(id, request);
+        return ResponseEntity.ok(ApiResponse.ok(response, "User account updated"));
+    }
+
     @DeleteMapping("/users/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteUser(@PathVariable Long id) {
         String message = adminService.deleteUser(id);

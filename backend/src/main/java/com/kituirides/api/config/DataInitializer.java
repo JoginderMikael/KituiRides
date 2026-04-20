@@ -1,5 +1,6 @@
 package com.kituirides.api.config;
 
+import com.kituirides.api.admin.AdminSettingKey;
 import com.kituirides.api.domain.entity.AdminConfig;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.Role;
@@ -98,42 +99,49 @@ public class DataInitializer implements CommandLineRunner {
      * Create default admin configuration settings
      */
     private void initializeAdminConfigs() {
-        // Define default configs
-        String[][] configs = {
-            {"BASE_FARE", "150", "Base fare for trip commencement (KES)"},
-            {"FUEL_COST_PER_LITER", "200", "Current fuel cost per liter (KES)"},
-            {"DRIVER_MARKUP", "1.5", "Driver markup multiplier for profit margin"},
-            {"COMPANY_COMMISSION_RATE", "0.20", "Company commission rate (20% = 0.20)"},
-            {"MOTORCYCLE_FUEL_ECONOMY", "37", "Motorcycle fuel economy (km/liter)"},
-            {"SUPPORT_PHONE_NUMBER", "+254797753625", "Support hotline phone number"}
-        };
+        for (AdminSettingKey settingKey : AdminSettingKey.values()) {
+            AdminConfig existing = adminConfigRepository.findByConfigKey(settingKey.configKey()).orElse(null);
 
-        for (String[] config : configs) {
-            String key = config[0];
-            String value = config[1];
-            String description = config[2];
-
-            // Check if config already exists
-            boolean exists = adminConfigRepository.findByConfigKey(key).isPresent();
-            
-            if (exists) {
-                log.debug("Config {} already exists", key);
+            if (existing != null) {
+                boolean metadataUpdated = false;
+                if (!settingKey.description().equals(existing.getDescription())) {
+                    existing.setDescription(settingKey.description());
+                    metadataUpdated = true;
+                }
+                if (existing.getVersion() == null || existing.getVersion() < 1L) {
+                    existing.setVersion(1L);
+                    metadataUpdated = true;
+                }
+                if (existing.getUpdatedAt() == null) {
+                    existing.setUpdatedAt(Instant.now());
+                    metadataUpdated = true;
+                }
+                if (existing.getCreatedAt() == null) {
+                    existing.setCreatedAt(Instant.now());
+                    metadataUpdated = true;
+                }
+                if (metadataUpdated) {
+                    adminConfigRepository.save(existing);
+                    log.info("Admin config metadata synchronized: {}", settingKey.configKey());
+                } else {
+                    log.debug("Config {} already exists", settingKey.configKey());
+                }
                 continue;
             }
 
-            // Create new config
             AdminConfig adminConfig = new AdminConfig();
-            adminConfig.setConfigKey(key);
-            adminConfig.setConfigValue(value);
-            adminConfig.setDescription(description);
+            adminConfig.setConfigKey(settingKey.configKey());
+            adminConfig.setConfigValue(settingKey.defaultValue());
+            adminConfig.setDescription(settingKey.description());
+            adminConfig.setVersion(1L);
             adminConfig.setCreatedAt(Instant.now());
             adminConfig.setUpdatedAt(Instant.now());
 
             try {
                 adminConfigRepository.save(adminConfig);
-                log.info("Default config created: {} = {}", key, value);
+                log.info("Default config created: {} = {}", settingKey.configKey(), settingKey.defaultValue());
             } catch (Exception e) {
-                log.error("Error creating config {}", key, e);
+                log.error("Error creating config {}", settingKey.configKey(), e);
             }
         }
     }

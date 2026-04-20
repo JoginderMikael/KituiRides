@@ -196,7 +196,7 @@ public class PaymentService {
 
     private void settleSuccessfulPayment(Payment payment) {
         Ride ride = payment.getRide();
-        BigDecimal commissionRate = new BigDecimal(adminSettingsService.getConfigValue("COMPANY_COMMISSION_RATE"));
+        BigDecimal commissionRate = adminSettingsService.getPricingConfiguration().companyCommissionRate();
         BigDecimal commission = payment.getAmount().multiply(commissionRate).setScale(2, RoundingMode.HALF_UP);
 
         if (payment.getPaymentType() == PaymentType.MPESA) {

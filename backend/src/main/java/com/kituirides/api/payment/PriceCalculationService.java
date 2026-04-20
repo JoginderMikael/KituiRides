@@ -25,8 +25,6 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class PriceCalculationService {
 
-    private static final BigDecimal MOTORCYCLE_FUEL_ECONOMY = BigDecimal.valueOf(37);
-
     private final AdminSettingsService adminSettingsService;
 
     /**
@@ -38,11 +36,13 @@ public class PriceCalculationService {
             ? BigDecimal.ZERO
             : distanceKm.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
 
-        BigDecimal baseFare = getConfigAsDecimal("BASE_FARE");
-        BigDecimal fuelCostPerLiter = getConfigAsDecimal("FUEL_COST_PER_LITER");
-        BigDecimal driverMarkup = getConfigAsDecimal("DRIVER_MARKUP");
-        BigDecimal commissionRate = getConfigAsDecimal("COMPANY_COMMISSION_RATE");
-        BigDecimal fuelEconomy = getFuelEconomy(vehicleType, engineSize);
+        var pricingConfiguration = adminSettingsService.getPricingConfiguration();
+
+        BigDecimal baseFare = pricingConfiguration.baseFare();
+        BigDecimal fuelCostPerLiter = pricingConfiguration.fuelCostPerLiter();
+        BigDecimal driverMarkup = pricingConfiguration.driverMarkup();
+        BigDecimal commissionRate = pricingConfiguration.companyCommissionRate();
+        BigDecimal fuelEconomy = getFuelEconomy(vehicleType, engineSize, pricingConfiguration.motorcycleFuelEconomy());
 
         BigDecimal fuelCost = calculateFuelCost(sanitizedDistance, fuelEconomy, fuelCostPerLiter);
         BigDecimal markupMultiplier = BigDecimal.ONE.add(driverMarkup);
@@ -75,9 +75,9 @@ public class PriceCalculationService {
     /**
      * Get fuel economy (km/liter) based on vehicle type and engine size
      */
-    private BigDecimal getFuelEconomy(VehicleType vehicleType, Integer engineSize) {
+    private BigDecimal getFuelEconomy(VehicleType vehicleType, Integer engineSize, BigDecimal motorcycleFuelEconomy) {
         if (vehicleType == VehicleType.MOTORCYCLE) {
-            return MOTORCYCLE_FUEL_ECONOMY;
+            return motorcycleFuelEconomy;
         }
 
         if (engineSize == null || engineSize <= 1000) {
@@ -96,16 +96,5 @@ public class PriceCalculationService {
             return BigDecimal.valueOf(9);
         }
         return BigDecimal.valueOf(7);
-    }
-
-    /**
-     * Get admin config value as BigDecimal
-     */
-    private BigDecimal getConfigAsDecimal(String configKey) {
-        String value = adminSettingsService.getConfigValue(configKey);
-        if (value == null) {
-            throw new IllegalStateException("Missing admin config value for " + configKey);
-        }
-        return new BigDecimal(value);
     }
 }

@@ -32,6 +32,12 @@ public class AdminConfig {
     @Column(columnDefinition = "TEXT")
     private String description;
 
+    @Column
+    private Long updatedByUserId;
+
+    @Column(nullable = false)
+    private Long version = 1L;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 

@@ -5,6 +5,7 @@ import { FiMenu } from "react-icons/fi";
 import AdminSidebar from "../components/AdminSidebar";
 import DriversManagementWorkspace from "../components/DriversManagementWorkspace";
 import AdminSettingsPanel from "../components/AdminSettingsPanel";
+import RidersManagementWorkspace from "../components/RidersManagementWorkspace";
 import { Avatar, Badge, Button, Card, EmptyState, Input, LoadingSpinner, Modal, StatCard } from "../components/UIComponents";
 import { ADMIN_NAVIGATION_GROUPS, ADMIN_VIEW_META } from "../lib/adminNavigation";
 import {
@@ -14,6 +15,7 @@ import {
   getDashboard,
   getRides,
   getUsers,
+  updateUserAccount,
   updateDriverDetails,
   upgradeUserToAdmin
 } from "../features/admin/adminApi";
@@ -282,6 +284,14 @@ export default function AdminPanel() {
     }
   });
 
+  const updateUserAccountMutation = useMutation({
+    mutationFn: ({ id, payload }) => updateUserAccount(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin-users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-dashboard"] });
+    }
+  });
+
   const updateDriverMutation = useMutation({
     mutationFn: ({ id, payload }) => updateDriverDetails(id, payload),
     onSuccess: () => {
@@ -320,6 +330,7 @@ export default function AdminPanel() {
   const users = usersQuery.data || [];
   const rides = ridesQuery.data || [];
   const tickets = ticketsQuery.data || [];
+  const customerUsers = useMemo(() => users.filter((user) => user.role === "CUSTOMER"), [users]);
   const driverUsers = useMemo(() => users.filter((user) => user.role === "DRIVER"), [users]);
 
   useEffect(() => {
@@ -397,6 +408,7 @@ export default function AdminPanel() {
   const selectedTicketNotes = selectedTicket ? (ticketNotesById[selectedTicket.id] || "") : "";
   const pendingApprovalDriverId = approveMutation.isPending ? approveMutation.variables?.id : null;
   const pendingDeleteDriverId = deleteUserMutation.isPending ? deleteUserMutation.variables : null;
+  const pendingUpdateUserId = updateUserAccountMutation.isPending ? updateUserAccountMutation.variables?.id : null;
 
   const paymentStats = useMemo(() => {
     return {
@@ -500,6 +512,48 @@ export default function AdminPanel() {
         pendingApprovalDriverId={pendingApprovalDriverId}
         pendingDeleteDriverId={pendingDeleteDriverId}
         bulkActionLoading={bulkDriverStatusMutation.isPending}
+      />
+    );
+  };
+
+  const renderRidersWorkspace = () => {
+    const insightsWarnings = [
+      ridesQuery.error?.response?.data?.message || (ridesQuery.error ? "Ride history metrics are unavailable right now." : ""),
+      ticketsQuery.error?.response?.data?.message || (ticketsQuery.error ? "Support issue indicators are unavailable right now." : "")
+    ].filter(Boolean);
+
+    return (
+      <RidersManagementWorkspace
+        riders={customerUsers}
+        rides={rides}
+        tickets={tickets}
+        loading={usersQuery.isLoading}
+        error={usersQuery.error}
+        insightsLoading={ridesQuery.isLoading || ticketsQuery.isLoading}
+        insightsWarning={insightsWarnings.join(" ")}
+        onRefresh={() => {
+          usersQuery.refetch();
+          ridesQuery.refetch();
+          ticketsQuery.refetch();
+        }}
+        onViewDetails={setSelectedUser}
+        onViewRide={setSelectedRide}
+        onViewTicket={setSelectedTicket}
+        onUpdateRider={(rider, changes) =>
+          updateUserAccountMutation.mutateAsync({
+            id: rider.id,
+            payload: {
+              firstName: changes.firstName ?? rider.firstName,
+              lastName: changes.lastName ?? rider.lastName,
+              email: String(changes.email ?? rider.email ?? "").trim(),
+              phoneNumber: String(changes.phoneNumber ?? rider.phoneNumber ?? "").trim(),
+              active: changes.active ?? (rider.active !== false)
+            }
+          })
+        }
+        onArchiveRider={(rider) => deleteUserMutation.mutateAsync(rider.id)}
+        pendingUpdateRiderId={pendingUpdateUserId}
+        pendingDeleteRiderId={pendingDeleteDriverId}
       />
     );
   };
@@ -1026,6 +1080,7 @@ export default function AdminPanel() {
       case "dashboard":
         return renderDashboardView();
       case "riders":
+        return renderRidersWorkspace();
       case "staff":
         return renderUserWorkspace(activeView);
       case "drivers":
@@ -1042,7 +1097,7 @@ export default function AdminPanel() {
       case "reports":
         return renderReportsWorkspace();
       case "settings":
-        return <AdminSettingsPanel />;
+        return <AdminSettingsPanel activeRequestsCount={dashboardQuery.data?.activeRideRequests ?? 0} />;
       case "promotions":
         return renderWorkspacePlaceholder({
           title: "Promotions / Coupons",
@@ -1168,6 +1223,7 @@ export default function AdminPanel() {
 
             <div className="flex flex-wrap gap-2">
               <Badge label={selectedUser.role} variant="teal" size="sm" />
+              <Badge label={selectedUser.active === false ? "Suspended" : "Active"} variant={selectedUser.active === false ? "warning" : "success"} size="sm" />
               {selectedUser.role === "DRIVER" && (
                 <Badge label={selectedUser.verified ? "Verified" : "Unverified"} variant={selectedUser.verified ? "success" : "warning"} size="sm" />
               )}

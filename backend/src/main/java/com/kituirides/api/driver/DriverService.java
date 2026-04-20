@@ -75,7 +75,7 @@ public class DriverService {
             wallet.getTotalEarned(),
             activeTrip,
             rideService.myDriverOffers().size(),
-            adminSettingsService.getConfigValue("SUPPORT_PHONE_NUMBER"),
+            adminSettingsService.getSupportSettings().supportPhoneNumber(),
             vehicleSummary,
             walletSummary
         );
