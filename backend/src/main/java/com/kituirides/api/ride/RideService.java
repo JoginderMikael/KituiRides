@@ -73,7 +73,10 @@ public class RideService {
             throw new ApiException(HttpStatus.BAD_REQUEST, "No nearby eligible drivers are available right now");
         }
 
-        DriverMatchResult bestMatch = matches.get(0);
+        DriverMatchResult selectedMatch = selectRequestedDriver(matches, request.preferredDriverId());
+        List<DriverMatchResult> offeredMatches = request.preferredDriverId() == null
+            ? matches
+            : List.of(selectedMatch);
         BigDecimal estimatedDistanceKm = calculateEstimatedTripDistance(
             request.pickupLat(),
             request.pickupLng(),
@@ -89,10 +92,10 @@ public class RideService {
         ride.setDropoffLng(request.dropoffLng());
         ride.setPickupAddress(request.pickupAddress());
         ride.setDropoffAddress(request.dropoffAddress());
-        ride.setEstimatedFare(bestMatch.estimatedPrice());
-        ride.setFinalFare(bestMatch.estimatedPrice());
+        ride.setEstimatedFare(selectedMatch.estimatedPrice());
+        ride.setFinalFare(selectedMatch.estimatedPrice());
         ride.setSurgeMultiplier(matchingService.calculateSurgeMultiplier());
-        ride.setEtaMinutes(bestMatch.etaMinutes());
+        ride.setEtaMinutes(selectedMatch.etaMinutes());
         ride.setStatus(RideStatus.REQUESTED);
         ride.setVehicleType(request.vehicleType());
         ride.setPaymentType(request.paymentType());
@@ -107,7 +110,7 @@ public class RideService {
             throw new ApiException(HttpStatus.CONFLICT, "You already have an active ride");
         }
 
-        createRideOffers(saved, matches);
+        createRideOffers(saved, offeredMatches);
         transitionStatus(saved, RideStatus.DRIVER_ASSIGNED);
         saved.setDriverAssignedAt(Instant.now());
         saved = rideRepository.save(saved);
@@ -580,6 +583,19 @@ public class RideService {
             offers.add(offer);
         }
         rideOfferRepository.saveAll(offers);
+    }
+
+    private DriverMatchResult selectRequestedDriver(List<DriverMatchResult> matches, Long preferredDriverId) {
+        if (preferredDriverId == null) {
+            return matches.get(0);
+        }
+        return matches.stream()
+            .filter(match -> preferredDriverId.equals(match.driver().getId()))
+            .findFirst()
+            .orElseThrow(() -> new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "The selected driver is no longer available. Please choose another driver."
+            ));
     }
 
     private void publishPendingOffers(Ride ride) {

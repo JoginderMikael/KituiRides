@@ -78,6 +78,7 @@ export default function CustomerDashboard() {
   const [mapMode, setMapMode] = useState("pickup");
   const [selectedRide, setSelectedRide] = useState(null);
   const [paymentRide, setPaymentRide] = useState(null);
+  const [requestingDriverId, setRequestingDriverId] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
   const [locationStatus, setLocationStatus] = useState("");
   const [pickupSearchStatus, setPickupSearchStatus] = useState("");
@@ -309,6 +310,26 @@ export default function CustomerDashboard() {
     ? pickupSearchStatus || locationStatus
     : dropoffSearchStatus || locationStatus;
 
+  const requestDriver = (driverId) => {
+    setRequestingDriverId(driverId);
+    requestRideMutation.mutate(
+      {
+        pickupLat: Number(form.pickupLat),
+        pickupLng: Number(form.pickupLng),
+        dropoffLat: Number(form.dropoffLat),
+        dropoffLng: Number(form.dropoffLng),
+        pickupAddress: form.pickupAddress,
+        dropoffAddress: form.dropoffAddress,
+        vehicleType: form.vehicleType,
+        paymentType: form.paymentType,
+        preferredDriverId: driverId
+      },
+      {
+        onSettled: () => setRequestingDriverId(null)
+      }
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -354,22 +375,7 @@ export default function CustomerDashboard() {
             </div>
           )}
 
-          <form
-            className="space-y-4"
-            onSubmit={(event) => {
-              event.preventDefault();
-              requestRideMutation.mutate({
-                pickupLat: Number(form.pickupLat),
-                pickupLng: Number(form.pickupLng),
-                dropoffLat: Number(form.dropoffLat),
-                dropoffLng: Number(form.dropoffLng),
-                pickupAddress: form.pickupAddress,
-                dropoffAddress: form.dropoffAddress,
-                vehicleType: form.vehicleType,
-                paymentType: form.paymentType
-              });
-            }}
-          >
+          <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <Input
                 label="Pickup Address"
@@ -400,7 +406,7 @@ export default function CustomerDashboard() {
                 </select>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm font-semibold text-slate-800">Estimated Fare</p>
+                <p className="text-sm font-semibold text-slate-800">Best Available Fare</p>
                 <p className="mt-1 text-2xl font-bold text-orange-600">
                   {estimateQuery.isFetching
                     ? "Calculating..."
@@ -409,7 +415,7 @@ export default function CustomerDashboard() {
                       : "Unavailable"}
                 </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Estimated trip distance: {hasBackendEstimate ? formatDistance(estimatedTripDistanceKm) : "Calculating..."}. Fare is calculated by the backend pricing model.
+                  Estimated trip distance: {hasBackendEstimate ? formatDistance(estimatedTripDistanceKm) : "Calculating..."}. Driver-specific request prices are shown in the nearby driver list below.
                 </p>
                 {hasBackendEstimate && directDistanceKm > 0 && distanceBufferKm > 0 && (
                   <p className="mt-1 text-xs text-slate-400">
@@ -440,16 +446,7 @@ export default function CustomerDashboard() {
                 You already have an active ride. Complete, resolve, or cancel it before requesting another one.
               </div>
             )}
-
-            <Button
-              className="w-full"
-              size="lg"
-              loading={requestRideMutation.isPending}
-              disabled={!canRequestRide || estimateQuery.isFetching || !hasBackendEstimate}
-            >
-              Request Ride
-            </Button>
-          </form>
+          </div>
         </Card>
 
         <div className="space-y-6">
@@ -485,6 +482,14 @@ export default function CustomerDashboard() {
                       <p>Distance: {driver.distanceToPickupKm} km</p>
                       <p>Estimate: {formatMoney(driver.estimatedPrice)}</p>
                     </div>
+                    <Button
+                      className="mt-4 w-full"
+                      disabled={!canRequestRide || requestRideMutation.isPending}
+                      loading={requestRideMutation.isPending && requestingDriverId === driver.riderId}
+                      onClick={() => requestDriver(driver.riderId)}
+                    >
+                      Request Driver
+                    </Button>
                   </div>
                 ))}
               </div>

@@ -1,11 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CustomerDashboard from "./CustomerDashboard";
 
 const mockUseAuth = vi.fn();
 const mockGetCustomerRides = vi.fn();
 const mockNearbyDrivers = vi.fn();
+const mockEstimateRide = vi.fn();
 const mockCreateCustomerTicket = vi.fn();
 const mockDisputeRide = vi.fn();
 const mockRequestRide = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("../hooks/useAuth", () => ({
 vi.mock("../features/customer/customerApi", () => ({
   createCustomerTicket: (...args) => mockCreateCustomerTicket(...args),
   disputeRide: (...args) => mockDisputeRide(...args),
+  estimateRide: (...args) => mockEstimateRide(...args),
   getCustomerRides: (...args) => mockGetCustomerRides(...args),
   nearbyDrivers: (...args) => mockNearbyDrivers(...args),
   requestRide: (...args) => mockRequestRide(...args)
@@ -112,6 +114,10 @@ function buildRide(overrides = {}) {
 }
 
 describe("CustomerDashboard", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
@@ -123,17 +129,36 @@ describe("CustomerDashboard", () => {
     mockCreateCustomerTicket.mockResolvedValue({});
     mockDisputeRide.mockResolvedValue({});
     mockRequestRide.mockResolvedValue({});
+    mockEstimateRide.mockResolvedValue({
+      directDistanceKm: 3.36,
+      distanceBufferPercent: 25,
+      distanceBufferKm: 0.84,
+      estimatedDistanceKm: 4.2,
+      estimatedFare: 500,
+      pricingBasis: "Closest available driver"
+    });
     mockInitiateMpesaPayment.mockResolvedValue({});
   });
 
-  it("disables ride requests when there is already an active ride and shows strict status label", async () => {
+  it("disables request driver actions when there is already an active ride and shows strict status label", async () => {
     mockGetCustomerRides.mockResolvedValue([buildRide({ status: "DRIVER_ACCEPTED" })]);
-    mockNearbyDrivers.mockResolvedValue([]);
+    mockNearbyDrivers.mockResolvedValue([{
+      riderId: 2,
+      latitude: -1.3710,
+      longitude: 38.0199,
+      vehicleModel: "Toyota Axio",
+      plateNumber: "KDL 123A",
+      driverName: "Driver One",
+      vehicleType: "CAR",
+      etaMinutes: 5,
+      distanceToPickupKm: 1.2,
+      estimatedPrice: 500
+    }]);
 
     renderPage();
 
     const statusLabel = await screen.findByText("Driver Accepted");
-    const requestButton = screen.getByRole("button", { name: /request ride/i });
+    const requestButton = await screen.findByRole("button", { name: /request driver/i });
 
     expect(statusLabel).toBeTruthy();
     expect(requestButton.disabled).toBe(true);
@@ -170,5 +195,40 @@ describe("CustomerDashboard", () => {
 
     const payButton = await screen.findByRole("button", { name: /pay via m-pesa/i });
     expect(payButton).toBeTruthy();
+  });
+
+  it("requests the selected driver with the preferred driver id", async () => {
+    mockGetCustomerRides.mockResolvedValue([]);
+    mockNearbyDrivers.mockResolvedValue([{
+      riderId: 11,
+      latitude: -1.3710,
+      longitude: 38.0199,
+      vehicleModel: "Nissan Note",
+      plateNumber: "KDL 222B",
+      driverName: "Driver Two",
+      vehicleType: "CAR",
+      etaMinutes: 6,
+      distanceToPickupKm: 1.4,
+      estimatedPrice: 470
+    }]);
+
+    renderPage();
+
+    await screen.findByText("Driver Two");
+    const requestButton = await screen.findByRole("button", { name: /request driver/i });
+    fireEvent.click(requestButton);
+
+    await waitFor(() => expect(mockRequestRide).toHaveBeenCalledTimes(1));
+    expect(mockRequestRide.mock.calls[0][0]).toEqual({
+      pickupLat: -1.3771,
+      pickupLng: 38.0106,
+      dropoffLat: -1.3656,
+      dropoffLng: 38.0118,
+      pickupAddress: "Kitui Town CBD",
+      dropoffAddress: "Kalundu",
+      vehicleType: "CAR",
+      paymentType: "MPESA",
+      preferredDriverId: 11
+    });
   });
 });
