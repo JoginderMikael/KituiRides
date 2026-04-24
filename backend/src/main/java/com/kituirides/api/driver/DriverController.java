@@ -5,6 +5,7 @@ import com.kituirides.api.ride.RideOfferResponse;
 import com.kituirides.api.ride.RideResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
 import java.util.List;
@@ -76,6 +77,17 @@ public class DriverController {
         return ResponseEntity.ok(ApiResponse.ok(driverService.completeRide(id), "Ride completed"));
     }
 
+    @PostMapping("/rides/{id}/cancel")
+    public ResponseEntity<ApiResponse<RideResponse>> cancelRide(
+        @PathVariable Long id,
+        @Valid @RequestBody CancelRideRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            driverService.cancelRide(id, request.reason()),
+            "Ride cancelled and sent to support review"
+        ));
+    }
+
     @PostMapping("/rides/{id}/distance")
     public ResponseEntity<ApiResponse<RideResponse>> updateManualDistance(
         @PathVariable Long id,
@@ -95,6 +107,11 @@ public class DriverController {
 
     public record ManualDistanceRequest(
         @NotNull @DecimalMin("0.0") BigDecimal distanceKm
+    ) {
+    }
+
+    public record CancelRideRequest(
+        @NotBlank String reason
     ) {
     }
 }

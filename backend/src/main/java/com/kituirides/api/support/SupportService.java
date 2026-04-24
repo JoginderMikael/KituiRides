@@ -173,6 +173,38 @@ public class SupportService {
         return rideService.markDisputed(rideId, ticket, reason);
     }
 
+    @Transactional
+    public SupportTicket createDriverCancellationReview(Long rideId, String reason) {
+        User driver = currentUserService.getCurrentUser();
+        Ride ride = rideService.getRideById(rideId);
+        if (driver.getRole() != Role.DRIVER || ride.getRider() == null || !ride.getRider().getId().equals(driver.getId())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the assigned driver can request cancellation review");
+        }
+
+        User supportAgent = findSupportAgent();
+        SupportTicket ticket = new SupportTicket();
+        ticket.setCreatedBy(driver);
+        ticket.setAssignedTo(supportAgent);
+        ticket.setSubject("Driver cancellation review for ride #" + rideId);
+        ticket.setDescription(reason);
+        ticket.setTicketType(TicketType.GENERAL);
+        ticket.setRideId(rideId);
+        ticket.setUpdatedAt(Instant.now());
+        ticket = supportTicketRepository.save(ticket);
+
+        chatService.createTicketBackedThread(
+            ticket,
+            ConversationType.SUPPORT_DRIVER,
+            driver,
+            supportAgent,
+            ride,
+            driver,
+            reason,
+            false
+        );
+        return ticket;
+    }
+
     public RideResponse getRide(Long rideId) {
         ensureSupportActor(currentUserService.getCurrentUser());
         return rideService.rideById(rideId);

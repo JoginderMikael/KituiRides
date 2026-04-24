@@ -81,6 +81,11 @@ public class CustomerController {
         return ResponseEntity.ok(ApiResponse.ok(rideService.cancelRide(id), "Ride cancelled"));
     }
 
+    @PostMapping("/rides/{id}/complete")
+    public ResponseEntity<ApiResponse<RideResponse>> completeRide(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.ok(rideService.completeRide(id), "Ride completed"));
+    }
+
     @PostMapping("/rides/{id}/dispute")
     public ResponseEntity<ApiResponse<RideResponse>> disputeRide(
         @PathVariable Long id,

@@ -12,6 +12,10 @@ export function getCustomerRide(rideId) {
   return unwrap(apiClient.get(`/customer/rides/${rideId}`));
 }
 
+export function completeCustomerRide(rideId) {
+  return unwrap(apiClient.post(`/customer/rides/${rideId}/complete`));
+}
+
 export function estimateRide(params) {
   return unwrap(apiClient.get("/customer/rides/estimate", { params }));
 }

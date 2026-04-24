@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import ChatBox from "../components/ChatBox";
 import PaymentMethodSelector from "../components/PaymentMethodSelector";
 import RideMapbox from "../components/RideMapbox";
 import {
@@ -14,12 +15,14 @@ import {
   StatCard
 } from "../components/UIComponents";
 import {
+  completeCustomerRide,
   disputeRide,
   estimateRide,
   getCustomerRides,
   nearbyDrivers,
   requestRide
 } from "../features/customer/customerApi";
+import { getChatConversations } from "../features/chat/chatApi";
 import { initiateMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
@@ -158,11 +161,22 @@ export default function CustomerDashboard() {
   const activeRide = rides.find((ride) => isActiveRide(ride.status)) || null;
   const completedRides = rides.filter((ride) => isCompletedRide(ride.status));
   const cancelledRides = rides.filter((ride) => isCancelledRide(ride.status) || ride.status === "DRIVER_REJECTED");
+  const rideChatQuery = useQuery({
+    queryKey: ["ride-chat-thread", "customer", activeRide?.id],
+    queryFn: async () => {
+      const threads = await getChatConversations({ threadTypes: ["RIDE_CHAT"], rideId: activeRide.id });
+      return threads[0] || null;
+    },
+    enabled: Boolean(activeRide?.id),
+    refetchInterval: activeRide ? 5000 : false
+  });
+  const rideChatThread = rideChatQuery.data || null;
 
   useEffect(() => {
     const disconnect = connectRealtimeSocket({
       onRideUpdate: () => {
         queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
+        queryClient.invalidateQueries({ queryKey: ["ride-chat-thread", "customer"] });
       },
       onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] })
     });
@@ -181,6 +195,13 @@ export default function CustomerDashboard() {
   const cancelRideMutation = useMutation({
     mutationFn: (rideId) => unwrap(apiClient.post(`/customer/rides/${rideId}/cancel`)),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
+  });
+  const completeRideMutation = useMutation({
+    mutationFn: completeCustomerRide,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
+      queryClient.invalidateQueries({ queryKey: ["ride-chat-thread", "customer"] });
+    }
   });
 
   const mpesaMutation = useMutation({
@@ -561,7 +582,49 @@ export default function CustomerDashboard() {
                   </div>
                 )}
 
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">Ride Chat</p>
+                      <p className="text-sm text-slate-500">Talk directly with your assigned driver under this ride.</p>
+                    </div>
+                    {rideChatThread && <Badge label="Open" variant="teal" size="sm" />}
+                  </div>
+                  {rideChatQuery.isLoading ? (
+                    <div className="flex h-40 items-center justify-center">
+                      <LoadingSpinner />
+                    </div>
+                  ) : rideChatQuery.isError ? (
+                    <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      Unable to load the ride chat right now.
+                    </div>
+                  ) : rideChatThread ? (
+                    <ChatBox
+                      conversationId={rideChatThread.id}
+                      title={`Ride #${activeRide.id} chat`}
+                      participantName={activeRide.riderName || rideChatThread.participant?.fullName}
+                      participantPhone={activeRide.riderPhone || rideChatThread.participant?.phoneNumber}
+                      onActivity={() => queryClient.invalidateQueries({ queryKey: ["ride-chat-thread", "customer", activeRide.id] })}
+                    />
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                      {activeRide.riderId
+                        ? "Preparing the ride chat for this trip."
+                        : "Ride chat opens once a driver accepts your request."}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex flex-wrap gap-3">
+                  {activeRide.status === "PAYMENT_COMPLETED" && (
+                    <Button
+                      variant="success"
+                      onClick={() => completeRideMutation.mutate(activeRide.id)}
+                      loading={completeRideMutation.isPending}
+                    >
+                      Complete Trip
+                    </Button>
+                  )}
                   <Button
                     variant="outline"
                     onClick={() => {

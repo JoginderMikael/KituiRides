@@ -22,6 +22,7 @@ import com.kituirides.api.repository.RideRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
 import com.kituirides.api.repository.VehicleRepository;
 import com.kituirides.api.security.CurrentUserService;
+import com.kituirides.api.support.ChatService;
 import com.kituirides.api.websocket.RealtimePublisher;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -49,6 +50,7 @@ public class RideService {
     private final CurrentUserService currentUserService;
     private final MatchingService matchingService;
     private final PriceCalculationService priceCalculationService;
+    private final ChatService chatService;
     private final RealtimePublisher realtimePublisher;
     private final RideStateMachine rideStateMachine;
     private final RideRedisService rideRedisService;
@@ -166,6 +168,7 @@ public class RideService {
             transitionStatus(ride, RideStatus.DRIVER_ACCEPTED);
             ride.setAcceptedAt(Instant.now());
             Ride saved = rideRepository.save(ride);
+            chatService.ensureRideChatThread(saved);
 
             realtimePublisher.publishRideUpdate(saved.getId(), "RIDE_ACCEPTED", toResponse(saved));
             return toResponse(saved);
@@ -229,7 +232,7 @@ public class RideService {
 
     @Transactional
     public RideResponse completeRide(Long rideId) {
-        Ride ride = getRideForAssignedDriver(rideId);
+        Ride ride = getRideForCompletionParticipant(rideId);
         if (ride.getStatus() != RideStatus.PAYMENT_COMPLETED) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must reach PAYMENT_COMPLETED before completion");
         }
@@ -241,6 +244,40 @@ public class RideService {
         ride.setCompletedAt(Instant.now());
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_COMPLETED", toResponse(saved));
+        return toResponse(saved);
+    }
+
+    @Transactional
+    public RideResponse cancelRideAsDriver(Long rideId, SupportTicket reviewTicket, String reason) {
+        Ride ride = getRideForAssignedDriver(rideId);
+        if (ride.getStatus() != RideStatus.DRIVER_ACCEPTED
+            && ride.getStatus() != RideStatus.DRIVER_ARRIVED
+            && ride.getStatus() != RideStatus.TRIP_STARTED) {
+            throw new ApiException(
+                HttpStatus.BAD_REQUEST,
+                "Drivers can only cancel an accepted or active trip before payment begins"
+            );
+        }
+
+        Instant now = Instant.now();
+        ride.setCancelledAt(now);
+        ride.setDisputeReason(reason);
+        if (reviewTicket != null && ride.getSupportTicket() == null) {
+            ride.setSupportTicket(reviewTicket);
+        }
+
+        if (ride.getStatus() == RideStatus.DRIVER_ACCEPTED || ride.getStatus() == RideStatus.DRIVER_ARRIVED) {
+            ride.setChargeableDistanceKm(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            ride.setFinalFare(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+            ride.setManualDistanceRequired(false);
+        } else {
+            prepareDistanceForSettlement(ride, null, false);
+        }
+
+        expirePendingOffers(ride);
+        transitionStatus(ride, RideStatus.TRIP_CANCELLED);
+        Ride saved = rideRepository.save(ride);
+        realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_CANCELLED", toResponse(saved));
         return toResponse(saved);
     }
 
@@ -581,6 +618,17 @@ public class RideService {
         return ride;
     }
 
+    private Ride getRideForCompletionParticipant(Long rideId) {
+        User currentUser = currentUserService.getCurrentUser();
+        Ride ride = getRideById(rideId);
+        boolean customerCanComplete = ride.getCustomer() != null && ride.getCustomer().getId().equals(currentUser.getId());
+        boolean driverCanComplete = ride.getRider() != null && ride.getRider().getId().equals(currentUser.getId());
+        if (!customerCanComplete && !driverCanComplete) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the ride participants can complete this ride");
+        }
+        return ride;
+    }
+
     private void createRideOffers(Ride ride, List<DriverMatchResult> matches) {
         List<RideOffer> offers = new ArrayList<>();
         for (DriverMatchResult match : matches) {
@@ -614,7 +662,18 @@ public class RideService {
         rideStateMachine.assertTransition(ride.getStatus(), nextStatus);
         ride.setStatus(nextStatus);
         if (rideStateMachine.isTerminal(nextStatus)) {
+            closeRideChatForTerminalStatus(ride, nextStatus);
             releaseActiveLocks(ride);
+        }
+    }
+
+    private void closeRideChatForTerminalStatus(Ride ride, RideStatus status) {
+        if (status == RideStatus.TRIP_COMPLETED) {
+            chatService.closeRideChatThread(ride, "This ride chat was closed because the trip was completed.");
+            return;
+        }
+        if (status == RideStatus.TRIP_CANCELLED) {
+            chatService.closeRideChatThread(ride, "This ride chat was closed because the trip was cancelled.");
         }
     }
 

@@ -9,6 +9,7 @@ const mockNearbyDrivers = vi.fn();
 const mockEstimateRide = vi.fn();
 const mockCreateCustomerTicket = vi.fn();
 const mockDisputeRide = vi.fn();
+const mockCompleteCustomerRide = vi.fn();
 const mockRequestRide = vi.fn();
 const mockInitiateMpesaPayment = vi.fn();
 const mockGetSupportContact = vi.fn();
@@ -20,6 +21,7 @@ vi.mock("../hooks/useAuth", () => ({
 
 vi.mock("../features/customer/customerApi", () => ({
   createCustomerTicket: (...args) => mockCreateCustomerTicket(...args),
+  completeCustomerRide: (...args) => mockCompleteCustomerRide(...args),
   disputeRide: (...args) => mockDisputeRide(...args),
   estimateRide: (...args) => mockEstimateRide(...args),
   getCustomerRides: (...args) => mockGetCustomerRides(...args),
@@ -127,6 +129,7 @@ describe("CustomerDashboard", () => {
     mockGetSupportContact.mockResolvedValue({ phoneNumber: "+254797753625" });
     mockGetChatConversations.mockResolvedValue([]);
     mockCreateCustomerTicket.mockResolvedValue({});
+    mockCompleteCustomerRide.mockResolvedValue({});
     mockDisputeRide.mockResolvedValue({});
     mockRequestRide.mockResolvedValue({});
     mockEstimateRide.mockResolvedValue({
@@ -195,6 +198,30 @@ describe("CustomerDashboard", () => {
 
     const payButton = await screen.findByRole("button", { name: /pay via m-pesa/i });
     expect(payButton).toBeTruthy();
+  });
+
+  it("shows the ride chat and complete action after payment is completed", async () => {
+    mockGetCustomerRides.mockResolvedValue([
+      buildRide({
+        status: "PAYMENT_COMPLETED",
+        paymentApproved: true,
+        paymentType: "CASH"
+      })
+    ]);
+    mockNearbyDrivers.mockResolvedValue([]);
+    mockGetChatConversations.mockResolvedValue([
+      {
+        id: 77,
+        rideId: 1,
+        threadType: "RIDE_CHAT",
+        participant: { userId: 2, fullName: "Driver One", phoneNumber: "254700000002" }
+      }
+    ]);
+
+    renderPage();
+
+    expect(await screen.findByTestId("chat-box")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: /complete trip/i })).toBeTruthy();
   });
 
   it("requests the selected driver with the preferred driver id", async () => {

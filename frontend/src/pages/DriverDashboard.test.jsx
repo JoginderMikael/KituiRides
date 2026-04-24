@@ -16,6 +16,7 @@ vi.mock("../hooks/useAuth", () => ({
 
 vi.mock("../features/driver/driverApi", () => ({
   acceptDriverRide: vi.fn(),
+  cancelDriverRide: vi.fn(),
   completeDriverRide: vi.fn(),
   getDriverDashboard: (...args) => mockGetDriverDashboard(...args),
   getDriverOffers: (...args) => mockGetDriverOffers(...args),
@@ -173,9 +174,18 @@ describe("DriverDashboard", () => {
 
   it("shows the complete-trip action only after payment is completed", async () => {
     mockGetDriverRides.mockResolvedValue([buildRide({ status: "PAYMENT_COMPLETED", paymentApproved: true })]);
+    mockGetChatConversations.mockResolvedValue([
+      {
+        id: 88,
+        rideId: 3,
+        threadType: "RIDE_CHAT",
+        participant: { userId: 1, fullName: "Jane Customer", phoneNumber: "254700000001" }
+      }
+    ]);
 
     renderPage();
 
+    expect(await screen.findByTestId("chat-box")).toBeTruthy();
     const completeButton = await screen.findByRole("button", { name: /complete trip/i });
     expect(completeButton).toBeTruthy();
   });

@@ -5,6 +5,7 @@ import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.DriverWallet;
 import com.kituirides.api.domain.entity.LocationPing;
 import com.kituirides.api.domain.entity.RiderProfile;
+import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.Vehicle;
 import com.kituirides.api.domain.enums.DocumentType;
 import com.kituirides.api.domain.enums.RideStatus;
@@ -17,6 +18,7 @@ import com.kituirides.api.ride.RideOfferResponse;
 import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
 import com.kituirides.api.security.CurrentUserService;
+import com.kituirides.api.support.SupportService;
 import java.math.BigDecimal;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -36,6 +38,7 @@ public class DriverService {
     private final DriverWalletService driverWalletService;
     private final AdminSettingsService adminSettingsService;
     private final LocationPingRepository locationPingRepository;
+    private final SupportService supportService;
 
     public DriverDashboardResponse dashboard() {
         var current = currentUserService.getCurrentUser();
@@ -131,6 +134,12 @@ public class DriverService {
 
     public RideResponse completeRide(Long rideId) {
         return rideService.completeRide(rideId);
+    }
+
+    @Transactional
+    public RideResponse cancelRide(Long rideId, String reason) {
+        SupportTicket reviewTicket = supportService.createDriverCancellationReview(rideId, reason);
+        return rideService.cancelRideAsDriver(rideId, reviewTicket, reason);
     }
 
     public RideResponse submitManualDistance(Long rideId, BigDecimal distanceKm) {

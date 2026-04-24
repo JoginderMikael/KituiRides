@@ -36,6 +36,10 @@ export function completeDriverRide(rideId) {
   return unwrap(apiClient.post(`/driver/rides/${rideId}/complete`));
 }
 
+export function cancelDriverRide(rideId, reason) {
+  return unwrap(apiClient.post(`/driver/rides/${rideId}/cancel`, { reason }));
+}
+
 export function submitManualDistance(rideId, distanceKm) {
   return unwrap(apiClient.post(`/driver/rides/${rideId}/distance`, { distanceKm }));
 }

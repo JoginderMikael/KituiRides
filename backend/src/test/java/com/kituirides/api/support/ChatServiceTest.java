@@ -10,6 +10,7 @@ import com.kituirides.api.chat.ChatThreadResponse;
 import com.kituirides.api.chat.CreateChatThreadRequest;
 import com.kituirides.api.domain.entity.Conversation;
 import com.kituirides.api.domain.entity.Message;
+import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationType;
@@ -178,6 +179,32 @@ class ChatServiceTest {
 
         assertEquals(1, response.size());
         assertEquals("Miriam Customer", response.get(0).participant().fullName());
+    }
+
+    @Test
+    void shouldExposeRideChatToCustomerUsingRideIdFromConversation() {
+        User customer = user(16L, "Nia", "Customer", Role.CUSTOMER);
+        User driver = user(17L, "Joel", "Driver", Role.DRIVER);
+        Ride ride = new Ride();
+        ride.setId(91L);
+        ride.setCustomer(customer);
+        ride.setRider(driver);
+
+        Conversation thread = conversation(61L, customer, driver, ConversationType.RIDE_CHAT);
+        thread.setRide(ride);
+        thread.setSubject("Ride #91 chat");
+        Message lastMessage = message(71L, thread, driver, "I am near the pickup point.");
+
+        when(currentUserService.getCurrentUser()).thenReturn(customer);
+        when(conversationRepository.findAccessibleThreads(eq(customer), any())).thenReturn(List.of(thread));
+        when(messageRepository.findTopByConversationIdOrderByCreatedAtDesc(thread.getId())).thenReturn(Optional.of(lastMessage));
+        when(messageRepository.countUnreadMessages(thread, customer.getId())).thenReturn(0L);
+
+        List<ChatThreadResponse> response = chatService.getThreads(List.of(ConversationType.RIDE_CHAT), null, null, 91L);
+
+        assertEquals(1, response.size());
+        assertEquals(91L, response.get(0).rideId());
+        assertEquals("Joel Driver", response.get(0).participant().fullName());
     }
 
     @Test

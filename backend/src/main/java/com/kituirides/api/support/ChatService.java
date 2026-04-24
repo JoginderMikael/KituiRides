@@ -80,7 +80,7 @@ public class ChatService {
 
         String normalizedSearch = normalizeSearch(search);
         return listVisibleThreads(currentUser, allowedTypes).stream()
-            .filter(thread -> rideId == null || (thread.getSupportTicket() != null && Objects.equals(thread.getSupportTicket().getRideId(), rideId)))
+            .filter(thread -> rideId == null || Objects.equals(extractRideId(thread), rideId))
             .filter(thread -> status == null || thread.getStatus() == status)
             .filter(thread -> matchesSearch(thread, currentUser, normalizedSearch))
             .map(thread -> toThreadResponse(thread, currentUser))
@@ -326,6 +326,81 @@ public class ChatService {
     }
 
     @Transactional
+    public Conversation ensureRideChatThread(Ride ride) {
+        if (ride == null || ride.getId() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride chat requires a saved ride");
+        }
+        if (ride.getCustomer() == null || ride.getRider() == null) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride chat requires both customer and driver");
+        }
+
+        Instant now = Instant.now();
+        Conversation thread = conversationRepository.findRideConversation(
+                ride,
+                ConversationType.RIDE_CHAT,
+                ride.getCustomer(),
+                ride.getRider()
+            )
+            .orElseGet(() -> {
+                Conversation conversation = new Conversation();
+                conversation.setRide(ride);
+                conversation.setParticipant1(ride.getCustomer());
+                conversation.setParticipant2(ride.getRider());
+                conversation.setConversationType(ConversationType.RIDE_CHAT);
+                conversation.setStatus(ConversationStatus.OPEN);
+                conversation.setSubject("Ride #" + ride.getId() + " chat");
+                conversation.setCreatedAt(now);
+                conversation.setUpdatedAt(now);
+                conversation.setLastMessageAt(now);
+                Conversation saved = conversationRepository.save(conversation);
+                appendMessage(saved, null, "Ride chat opened. You can coordinate pickup and trip updates here.", true);
+                notifyThreadChanged(saved, "THREAD_CREATED");
+                return saved;
+            });
+
+        if (thread.getStatus() == ConversationStatus.CLOSED || thread.getStatus() == ConversationStatus.RESOLVED) {
+            thread.setStatus(ConversationStatus.REOPENED);
+            thread.setClosedAt(null);
+            thread.setAutoClosedAt(null);
+            thread.setUpdatedAt(now);
+            thread = conversationRepository.save(thread);
+            appendMessage(thread, null, "Ride chat reopened for this active ride.", true);
+            notifyThreadChanged(thread, "THREAD_REOPENED");
+        }
+
+        return thread;
+    }
+
+    @Transactional
+    public void closeRideChatThread(Ride ride, String message) {
+        if (ride == null || ride.getId() == null) {
+            return;
+        }
+
+        conversationRepository.findByRide_IdAndConversationType(ride.getId(), ConversationType.RIDE_CHAT)
+            .ifPresent(thread -> {
+                if (thread.getStatus() == ConversationStatus.CLOSED || thread.getStatus() == ConversationStatus.RESOLVED) {
+                    return;
+                }
+
+                Instant now = Instant.now();
+                thread.setStatus(ConversationStatus.CLOSED);
+                thread.setClosedAt(now);
+                thread.setUpdatedAt(now);
+                Conversation saved = conversationRepository.save(thread);
+                appendMessage(
+                    saved,
+                    null,
+                    message == null || message.isBlank()
+                        ? "This ride chat was closed."
+                        : message.trim(),
+                    true
+                );
+                notifyThreadChanged(saved, "THREAD_CLOSED");
+            });
+    }
+
+    @Transactional
     public void syncResolvedTicket(SupportTicket ticket) {
         if (ticket == null || ticket.getStatus() != TicketStatus.RESOLVED) {
             return;
@@ -464,9 +539,6 @@ public class ChatService {
     private Conversation getAccessibleThread(Long threadId, User currentUser) {
         Conversation thread = conversationRepository.findById(threadId)
             .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Thread not found"));
-        if (!SUPPORT_THREAD_TYPES.contains(thread.getConversationType())) {
-            throw new ApiException(HttpStatus.FORBIDDEN, "Only support chat threads are available in this workspace");
-        }
         if (!resolveAccessibleThreadTypes(currentUser.getRole()).contains(thread.getConversationType()) || !canAccess(thread, currentUser)) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Thread does not belong to the current user");
         }
@@ -502,6 +574,9 @@ public class ChatService {
     }
 
     private void ensureCanManageThread(Conversation thread, User currentUser) {
+        if (!SUPPORT_THREAD_TYPES.contains(thread.getConversationType())) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only support threads can be managed");
+        }
         if (currentUser.getRole() != Role.SUPPORT_AGENT && currentUser.getRole() != Role.ADMIN) {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only support staff can manage thread status");
         }
@@ -515,13 +590,13 @@ public class ChatService {
         return new ChatThreadResponse(
             thread.getId(),
             ticket != null ? ticket.getId() : null,
-            ticket != null ? ticket.getRideId() : null,
+            extractRideId(thread),
             thread.getSubject(),
             ticket != null ? ticket.getDescription() : null,
             thread.getConversationType(),
             thread.getStatus(),
-            ticket != null ? ticket.getTicketType() : TicketType.GENERAL,
-            ticket != null ? ticket.getStatus() : TicketStatus.OPEN,
+            ticket != null ? ticket.getTicketType() : null,
+            ticket != null ? ticket.getStatus() : null,
             ticket != null ? ticket.getResolutionNotes() : null,
             lastMessagePreview(thread),
             unreadCount(thread, currentUser),
@@ -636,8 +711,8 @@ public class ChatService {
 
     private Set<ConversationType> resolveAccessibleThreadTypes(Role role) {
         return switch (role) {
-            case CUSTOMER -> EnumSet.of(ConversationType.SUPPORT_CUSTOMER);
-            case DRIVER -> EnumSet.of(ConversationType.SUPPORT_DRIVER);
+            case CUSTOMER -> EnumSet.of(ConversationType.SUPPORT_CUSTOMER, ConversationType.RIDE_CHAT);
+            case DRIVER -> EnumSet.of(ConversationType.SUPPORT_DRIVER, ConversationType.RIDE_CHAT);
             case ADMIN -> EnumSet.of(ConversationType.SUPPORT_ADMIN);
             case SUPPORT_AGENT -> EnumSet.of(
                 ConversationType.SUPPORT_CUSTOMER,
@@ -794,6 +869,13 @@ public class ChatService {
 
     private boolean contains(String raw, String normalizedSearch) {
         return raw != null && raw.toLowerCase(Locale.ROOT).contains(normalizedSearch);
+    }
+
+    private Long extractRideId(Conversation thread) {
+        if (thread.getRide() != null) {
+            return thread.getRide().getId();
+        }
+        return thread.getSupportTicket() != null ? thread.getSupportTicket().getRideId() : null;
     }
 
     private List<Conversation> listVisibleThreads(User currentUser, Collection<ConversationType> allowedTypes) {

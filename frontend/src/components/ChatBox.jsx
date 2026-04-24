@@ -32,7 +32,8 @@ export default function ChatBox({
       conversationIds: [conversationId],
       onConversationUpdate: () => {
         queryClient.invalidateQueries({ queryKey: ["chat-messages", conversationId] });
-        queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+        queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+        queryClient.invalidateQueries({ queryKey: ["ride-chat-thread"] });
         onActivity?.();
       }
     });
@@ -55,15 +56,13 @@ export default function ChatBox({
     onSuccess: () => {
       setDraft("");
       queryClient.invalidateQueries({ queryKey: ["chat-messages", conversationId] });
-      queryClient.invalidateQueries({ queryKey: ["chat-conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+      queryClient.invalidateQueries({ queryKey: ["ride-chat-thread"] });
       onActivity?.();
     }
   });
 
-  const orderedMessages = useMemo(
-    () => [...(messagesQuery.data || [])].reverse(),
-    [messagesQuery.data]
-  );
+  const orderedMessages = useMemo(() => messagesQuery.data || [], [messagesQuery.data]);
 
   if (!conversationId) {
     return (
@@ -107,7 +106,21 @@ export default function ChatBox({
           </div>
         ) : (
           orderedMessages.map((message) => {
-            const mine = message.senderId === session?.userId;
+            const mine = message.sender?.userId === session?.userId;
+            const senderName = message.sender?.fullName || "System";
+            const senderPhone = message.sender?.phoneNumber;
+            if (message.systemMessage) {
+              return (
+                <div key={message.id} className="flex justify-center">
+                  <div className="max-w-[90%] rounded-2xl border border-slate-200 bg-white px-4 py-3 text-center text-sm text-slate-600 shadow-sm">
+                    <p>{message.content}</p>
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      {new Date(message.createdAt).toLocaleString()}
+                    </p>
+                  </div>
+                </div>
+              );
+            }
             return (
               <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                 <div
@@ -118,8 +131,8 @@ export default function ChatBox({
                   }`}
                 >
                   <p className={`mb-1 text-xs font-semibold ${mine ? "text-teal-100" : "text-slate-500"}`}>
-                    {message.senderName}
-                    {message.senderPhone ? ` • ${message.senderPhone}` : ""}
+                    {senderName}
+                    {senderPhone ? ` • ${senderPhone}` : ""}
                   </p>
                   <p>{message.content}</p>
                   <p className={`mt-2 text-[11px] ${mine ? "text-teal-100" : "text-slate-400"}`}>

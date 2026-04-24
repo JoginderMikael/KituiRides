@@ -23,6 +23,7 @@ import com.kituirides.api.repository.RideRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
 import com.kituirides.api.repository.VehicleRepository;
 import com.kituirides.api.security.CurrentUserService;
+import com.kituirides.api.support.ChatService;
 import com.kituirides.api.websocket.RealtimePublisher;
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -45,6 +46,7 @@ class RideServiceRequestTest {
     @Mock private CurrentUserService currentUserService;
     @Mock private MatchingService matchingService;
     @Mock private PriceCalculationService priceCalculationService;
+    @Mock private ChatService chatService;
     @Mock private RealtimePublisher realtimePublisher;
     @Mock private RideRedisService rideRedisService;
 
@@ -61,6 +63,7 @@ class RideServiceRequestTest {
             currentUserService,
             matchingService,
             priceCalculationService,
+            chatService,
             realtimePublisher,
             stateMachine,
             rideRedisService

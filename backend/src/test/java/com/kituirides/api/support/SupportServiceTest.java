@@ -1,5 +1,6 @@
 package com.kituirides.api.support;
 
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -91,5 +92,50 @@ class SupportServiceTest {
             org.mockito.ArgumentMatchers.eq(true)
         );
         verify(rideService).markDisputed(any(Long.class), any(SupportTicket.class), any(String.class));
+    }
+
+    @Test
+    void shouldCreateDriverCancellationReviewThread() {
+        SupportService service = new SupportService(
+            supportTicketRepository,
+            supportTicketReplyRepository,
+            currentUserService,
+            rideService,
+            paymentService,
+            userRepository,
+            chatService,
+            adminSettingsService
+        );
+
+        User driver = new User();
+        driver.setId(2L);
+        driver.setRole(Role.DRIVER);
+
+        User supportAgent = new User();
+        supportAgent.setId(3L);
+        supportAgent.setRole(Role.SUPPORT_AGENT);
+
+        Ride ride = new Ride();
+        ride.setId(88L);
+        ride.setRider(driver);
+
+        when(currentUserService.getCurrentUser()).thenReturn(driver);
+        when(rideService.getRideById(88L)).thenReturn(ride);
+        when(userRepository.findByRole(Role.SUPPORT_AGENT)).thenReturn(List.of(supportAgent));
+        when(supportTicketRepository.save(any(SupportTicket.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        SupportTicket ticket = service.createDriverCancellationReview(88L, "Customer did not show up at pickup.");
+
+        assertNotNull(ticket);
+        verify(chatService).createTicketBackedThread(
+            any(SupportTicket.class),
+            org.mockito.ArgumentMatchers.eq(ConversationType.SUPPORT_DRIVER),
+            org.mockito.ArgumentMatchers.eq(driver),
+            org.mockito.ArgumentMatchers.eq(supportAgent),
+            org.mockito.ArgumentMatchers.eq(ride),
+            org.mockito.ArgumentMatchers.eq(driver),
+            org.mockito.ArgumentMatchers.eq("Customer did not show up at pickup."),
+            org.mockito.ArgumentMatchers.eq(false)
+        );
     }
 }
