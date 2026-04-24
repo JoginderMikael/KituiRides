@@ -16,6 +16,10 @@ public record RideOfferResponse(
     String customerPhone,
     String pickupAddress,
     String dropoffAddress,
+    Double pickupLat,
+    Double pickupLng,
+    Double dropoffLat,
+    Double dropoffLng,
     VehicleType vehicleType,
     BigDecimal estimatedFare,
     BigDecimal estimatedDistanceKm

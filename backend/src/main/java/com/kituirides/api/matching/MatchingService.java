@@ -26,6 +26,7 @@ public class MatchingService {
     private static final double MATCH_RADIUS_KM = 5.0;
     private static final int MAX_MATCHES = 10;
     private static final Duration LOCATION_FRESHNESS = Duration.ofMinutes(2);
+    private static final double ESTIMATED_DISTANCE_EXTRA_PERCENT = 25.0;
 
     private final RiderProfileRepository riderProfileRepository;
     private final LocationPingRepository locationPingRepository;
@@ -42,7 +43,7 @@ public class MatchingService {
         VehicleType vehicleType
     ) {
         Instant freshnessCutoff = Instant.now().minus(LOCATION_FRESHNESS);
-        double estimatedDistance = haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        double estimatedDistance = estimateTripDistanceKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
         double surgeMultiplier = calculateSurgeMultiplier();
 
         return riderProfileRepository.findByVerifiedTrueAndAvailableTrue().stream()
@@ -115,5 +116,10 @@ public class MatchingService {
             * Math.pow(Math.sin(dLon / 2), 2);
         double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
         return earthRadiusKm * c;
+    }
+
+    public double estimateTripDistanceKm(double pickupLat, double pickupLng, double dropoffLat, double dropoffLng) {
+        double directDistanceKm = haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        return directDistanceKm + (directDistanceKm * ESTIMATED_DISTANCE_EXTRA_PERCENT / 100);
     }
 }

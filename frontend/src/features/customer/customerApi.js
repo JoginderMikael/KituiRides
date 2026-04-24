@@ -12,6 +12,10 @@ export function getCustomerRide(rideId) {
   return unwrap(apiClient.get(`/customer/rides/${rideId}`));
 }
 
+export function estimateRide(params) {
+  return unwrap(apiClient.get("/customer/rides/estimate", { params }));
+}
+
 export function nearbyDrivers(params) {
   return unwrap(apiClient.get("/customer/nearby-drivers", { params }));
 }

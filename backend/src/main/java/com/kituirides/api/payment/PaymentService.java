@@ -1,6 +1,8 @@
 package com.kituirides.api.payment;
 
+import com.kituirides.api.admin.AdminSettingKey;
 import com.kituirides.api.admin.AdminSettingsService;
+import com.kituirides.api.admin.PricingConfigurationSnapshot;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.Payment;
 import com.kituirides.api.domain.entity.Ride;
@@ -196,7 +198,7 @@ public class PaymentService {
 
     private void settleSuccessfulPayment(Payment payment) {
         Ride ride = payment.getRide();
-        BigDecimal commissionRate = adminSettingsService.getPricingConfiguration().companyCommissionRate();
+        BigDecimal commissionRate = companyCommissionRate();
         BigDecimal commission = payment.getAmount().multiply(commissionRate).setScale(2, RoundingMode.HALF_UP);
 
         if (payment.getPaymentType() == PaymentType.MPESA) {
@@ -206,6 +208,19 @@ public class PaymentService {
         }
 
         rideService.markPaymentCompleted(ride.getId());
+    }
+
+    private BigDecimal companyCommissionRate() {
+        PricingConfigurationSnapshot pricingConfiguration = adminSettingsService.getPricingConfiguration();
+        if (pricingConfiguration != null && pricingConfiguration.companyCommissionRate() != null) {
+            return pricingConfiguration.companyCommissionRate();
+        }
+
+        String configuredRate = adminSettingsService.getConfigValue(AdminSettingKey.COMPANY_COMMISSION_RATE.configKey());
+        if (configuredRate == null || configuredRate.isBlank()) {
+            configuredRate = AdminSettingKey.COMPANY_COMMISSION_RATE.defaultValue();
+        }
+        return new BigDecimal(configuredRate);
     }
 
     private PaymentResponse toResponse(Payment payment) {

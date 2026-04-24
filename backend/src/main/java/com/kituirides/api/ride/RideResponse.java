@@ -16,6 +16,8 @@ public record RideResponse(
     Long riderId,
     String riderName,
     String riderPhone,
+    Double riderLat,
+    Double riderLng,
     String pickupAddress,
     String dropoffAddress,
     Double pickupLat,

@@ -14,6 +14,7 @@ public interface RideRepository extends JpaRepository<Ride, Long> {
     boolean existsByCustomerAndStatusIn(User customer, Collection<RideStatus> statuses);
     List<Ride> findByCustomerAndStatusIn(User customer, Collection<RideStatus> statuses);
     List<Ride> findByRiderOrderByRequestedAtDesc(User rider);
+    List<Ride> findByRiderAndStatusIn(User rider, Collection<RideStatus> statuses);
     boolean existsByRiderAndStatusIn(User rider, Collection<RideStatus> statuses);
     Optional<Ride> findFirstByCustomerAndStatusInOrderByRequestedAtDesc(User customer, Collection<RideStatus> statuses);
     Optional<Ride> findFirstByRiderAndStatusInOrderByRequestedAtDesc(User rider, Collection<RideStatus> statuses);

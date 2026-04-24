@@ -3,12 +3,15 @@ package com.kituirides.api.location;
 import com.kituirides.api.domain.entity.LocationPing;
 import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.matching.MatchingService;
+import com.kituirides.api.repository.RideRepository;
+import com.kituirides.api.ride.RideStateMachine;
 import com.kituirides.api.security.CurrentUserService;
 import com.kituirides.api.websocket.RealtimePublisher;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +24,8 @@ public class LocationService {
     private final CurrentUserService currentUserService;
     private final MatchingService matchingService;
     private final RealtimePublisher realtimePublisher;
+    private final RideRepository rideRepository;
+    private final RideStateMachine rideStateMachine;
 
     @Transactional
     public void updateMyLocation(LocationUpdateRequest request) {
@@ -31,6 +36,23 @@ public class LocationService {
         ping.setLongitude(request.longitude());
         ping.setTimestamp(Instant.now());
         locationPingRepository.save(ping);
+        realtimePublisher.publishNearbyDrivers(Map.of(
+            "type", "DRIVER_LOCATION_UPDATED",
+            "riderId", user.getId(),
+            "latitude", request.latitude(),
+            "longitude", request.longitude()
+        ));
+        rideRepository.findByRiderAndStatusIn(user, rideStateMachine.activeDriverStatuses())
+            .forEach(ride -> realtimePublisher.publishRideUpdate(
+                ride.getId(),
+                "DRIVER_LOCATION_UPDATED",
+                Map.of(
+                    "rideId", ride.getId(),
+                    "riderId", user.getId(),
+                    "latitude", request.latitude(),
+                    "longitude", request.longitude()
+                )
+            ));
     }
 
     public List<NearbyDriverResponse> nearbyDrivers(

@@ -10,6 +10,7 @@ import {
   Modal,
   StatCard
 } from "../components/UIComponents";
+import RideMapbox from "../components/RideMapbox";
 import {
   acceptDriverRide,
   completeDriverRide,
@@ -33,11 +34,16 @@ function formatMoney(value) {
   return `KES ${Number(value || 0).toFixed(2)}`;
 }
 
+function formatDistance(value) {
+  return `${Number(value || 0).toFixed(2)} km`;
+}
+
 export default function DriverDashboard() {
   const queryClient = useQueryClient();
   const { session } = useAuth();
   const [selectedRide, setSelectedRide] = useState(null);
   const [locationInput, setLocationInput] = useState({ latitude: "-1.3760", longitude: "38.0100" });
+  const [locationStatus, setLocationStatus] = useState("");
   const [manualDistance, setManualDistance] = useState("");
 
   const dashboardQuery = useQuery({ queryKey: ["driver-dashboard"], queryFn: getDriverDashboard });
@@ -60,6 +66,29 @@ export default function DriverDashboard() {
     });
     return disconnect;
   }, [queryClient, session?.userId]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Browser location is unavailable. Enter your coordinates manually.");
+      return;
+    }
+
+    setLocationStatus("Finding your current driver location...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextLocation = {
+          latitude: position.coords.latitude.toFixed(6),
+          longitude: position.coords.longitude.toFixed(6)
+        };
+        setLocationInput(nextLocation);
+        setLocationStatus("Current location ready. Update it before going online or accepting offers.");
+      },
+      () => {
+        setLocationStatus("Location permission was not granted. Enter your coordinates manually.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, []);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
@@ -262,7 +291,7 @@ export default function DriverDashboard() {
             ) : (
               <div className="space-y-3">
                 {(offersQuery.data || []).map((offer) => (
-                  <div key={offer.offerId} className="rounded-2xl border border-slate-200 p-4">
+                  <div key={offer.id} className="rounded-2xl border border-slate-200 p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="font-semibold text-slate-900">Ride #{offer.rideId}</p>
@@ -275,7 +304,28 @@ export default function DriverDashboard() {
                       <span>{offer.customerName}</span>
                       <span>{offer.customerPhone}</span>
                       <span>{offer.vehicleType}</span>
+                      <span>{formatDistance(offer.estimatedDistanceKm)} trip</span>
                     </div>
+                    {offer.pickupLat != null && offer.pickupLng != null && (
+                      <div className="mt-4">
+                        <RideMapbox
+                          pickup={{ lat: offer.pickupLat, lng: offer.pickupLng }}
+                          dropoff={{ lat: offer.dropoffLat, lng: offer.dropoffLng }}
+                          customerLocation={{
+                            lat: offer.pickupLat,
+                            lng: offer.pickupLng,
+                            label: offer.customerName
+                          }}
+                          driverLocation={{
+                            lat: Number(locationInput.latitude),
+                            lng: Number(locationInput.longitude),
+                            label: "You"
+                          }}
+                          heightClassName="h-56"
+                          helperText="Customer pickup and your latest entered location are shown on the map."
+                        />
+                      </div>
+                    )}
                     <div className="mt-4 flex gap-3">
                       <Button size="sm" onClick={() => acceptMutation.mutate(offer.rideId)} loading={acceptMutation.isPending}>
                         Accept
@@ -316,6 +366,7 @@ export default function DriverDashboard() {
             >
               Update My Location
             </Button>
+            {locationStatus && <p className="text-xs text-slate-500">{locationStatus}</p>}
           </Card>
         </div>
 
@@ -353,6 +404,24 @@ export default function DriverDashboard() {
                     <p>Payment: {activeRide.paymentType}</p>
                     <p>Distance: {activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0} km</p>
                     <p>Source: {activeRide.distanceSource}</p>
+                  </div>
+                  <div className="mt-4">
+                    <RideMapbox
+                      pickup={{ lat: activeRide.pickupLat, lng: activeRide.pickupLng }}
+                      dropoff={{ lat: activeRide.dropoffLat, lng: activeRide.dropoffLng }}
+                      customerLocation={{
+                        lat: activeRide.pickupLat,
+                        lng: activeRide.pickupLng,
+                        label: activeRide.customerName
+                      }}
+                      driverLocation={{
+                        lat: Number(locationInput.latitude),
+                        lng: Number(locationInput.longitude),
+                        label: "You"
+                      }}
+                      heightClassName="h-64"
+                      helperText="Customer pickup and dropoff are shown here. Keep your location updated so the customer can see you."
+                    />
                   </div>
                 </div>
 

@@ -11,7 +11,7 @@ import java.math.BigDecimal;
 
 public record UpdateSystemSettingsRequest(
     @NotNull(message = "Base fare is required")
-    @DecimalMin(value = "0.00", inclusive = true, message = "Base fare must be at least 0")
+    @DecimalMin(value = "0.00", inclusive = false, message = "Base fare must be greater than 0")
     @Digits(integer = 8, fraction = 2, message = "Base fare format is invalid")
     BigDecimal baseFare,
 

@@ -1,54 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { loadGoogleMaps } from "../lib/googleMaps";
 
 const DEFAULT_CENTER = { lat: -1.3771, lng: 38.0106 };
-const GOOGLE_MAPS_SCRIPT_ID = "google-maps-js-api";
 
-let googleMapsPromise;
-
-function loadGoogleMaps(apiKey) {
-  if (window.google?.maps) {
-    return Promise.resolve(window.google);
-  }
-
-  if (googleMapsPromise) {
-    return googleMapsPromise;
-  }
-
-  googleMapsPromise = new Promise((resolve, reject) => {
-    const existingScript = document.getElementById(GOOGLE_MAPS_SCRIPT_ID);
-    if (existingScript) {
-      existingScript.addEventListener("load", () => resolve(window.google), { once: true });
-      existingScript.addEventListener("error", reject, { once: true });
-      return;
-    }
-
-    const callbackName = "__kituiRidesGoogleMapsReady";
-    window[callbackName] = () => {
-      resolve(window.google);
-      delete window[callbackName];
-    };
-
-    const script = document.createElement("script");
-    script.id = GOOGLE_MAPS_SCRIPT_ID;
-    script.async = true;
-    script.defer = true;
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(apiKey)}&v=weekly&callback=${callbackName}`;
-    script.onerror = () => {
-      delete window[callbackName];
-      googleMapsPromise = null;
-      reject(new Error("Unable to load Google Maps."));
-    };
-    document.head.appendChild(script);
-  });
-
-  return googleMapsPromise;
+function hasCoordinates(point) {
+  return Number.isFinite(Number(point?.lat)) && Number.isFinite(Number(point?.lng));
 }
 
 function createMarkerOverlay(google, marker) {
   return new class extends google.maps.OverlayView {
     onAdd() {
       this.element = document.createElement("div");
-      this.element.className = "h-4 w-4 rounded-full border-2 border-white shadow-md";
+      this.element.className = `${marker.size || "h-4 w-4"} rounded-full border-2 border-white shadow-md`;
       this.element.style.backgroundColor = marker.color;
       this.element.style.position = "absolute";
       this.element.style.transform = "translate(-50%, -50%)";
@@ -80,8 +43,12 @@ export default function RideMapbox({
   pickup,
   dropoff,
   nearbyDrivers = [],
+  driverLocation,
+  customerLocation,
   activePoint,
-  onPointSelect
+  onPointSelect,
+  heightClassName = "h-80",
+  helperText = "Select a map mode below, then click on the map to update pickup or dropoff coordinates."
 }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
@@ -101,25 +68,45 @@ export default function RideMapbox({
 
   const markers = useMemo(() => {
     const points = [];
-    if (pickup?.lat != null && pickup?.lng != null) {
-      points.push({ type: "pickup", lat: pickup.lat, lng: pickup.lng, color: "#0f766e" });
+    if (hasCoordinates(pickup)) {
+      points.push({ type: "pickup", lat: Number(pickup.lat), lng: Number(pickup.lng), color: "#0f766e", label: "Pickup" });
     }
-    if (dropoff?.lat != null && dropoff?.lng != null) {
-      points.push({ type: "dropoff", lat: dropoff.lat, lng: dropoff.lng, color: "#ea580c" });
+    if (hasCoordinates(dropoff)) {
+      points.push({ type: "dropoff", lat: Number(dropoff.lat), lng: Number(dropoff.lng), color: "#ea580c", label: "Dropoff" });
+    }
+    if (hasCoordinates(driverLocation)) {
+      points.push({
+        type: "assigned-driver",
+        lat: Number(driverLocation.lat),
+        lng: Number(driverLocation.lng),
+        color: "#2563eb",
+        label: driverLocation.label || "Driver",
+        size: "h-5 w-5"
+      });
+    }
+    if (hasCoordinates(customerLocation)) {
+      points.push({
+        type: "customer",
+        lat: Number(customerLocation.lat),
+        lng: Number(customerLocation.lng),
+        color: "#7c3aed",
+        label: customerLocation.label || "Customer",
+        size: "h-5 w-5"
+      });
     }
     nearbyDrivers.forEach((driver) => {
-      if (driver.latitude != null && driver.longitude != null) {
+      if (Number.isFinite(Number(driver.latitude)) && Number.isFinite(Number(driver.longitude))) {
         points.push({
           type: "driver",
-          lat: driver.latitude,
-          lng: driver.longitude,
+          lat: Number(driver.latitude),
+          lng: Number(driver.longitude),
           color: "#1d4ed8",
           label: driver.driverName
         });
       }
     });
     return points;
-  }, [dropoff, nearbyDrivers, pickup]);
+  }, [dropoff, driverLocation, customerLocation, nearbyDrivers, pickup]);
 
   useEffect(() => {
     if (!containerRef.current || !apiKey || mapRef.current) {
@@ -135,14 +122,14 @@ export default function RideMapbox({
           return;
         }
 
-        const initialCenter = pickup?.lat != null && pickup?.lng != null
-          ? { lat: pickup.lat, lng: pickup.lng }
+        const initialCenter = hasCoordinates(pickup)
+          ? { lat: Number(pickup.lat), lng: Number(pickup.lng) }
           : DEFAULT_CENTER;
 
         const map = new google.maps.Map(containerRef.current, {
           center: initialCenter,
           zoom: 13,
-          mapTypeControl: false,
+          mapTypeControl: true,
           streetViewControl: false,
           fullscreenControl: false
         });
@@ -151,6 +138,31 @@ export default function RideMapbox({
           if (!activePointRef.current || !onPointSelectRef.current || !event.latLng) {
             return;
           }
+
+          if (event.placeId) {
+            event.stop();
+            const geocoder = new google.maps.Geocoder();
+            geocoder
+              .geocode({ placeId: event.placeId })
+              .then((response) => {
+                const result = response.results?.[0];
+                const location = result?.geometry?.location || event.latLng;
+                onPointSelectRef.current(activePointRef.current, {
+                  lat: Number(location.lat().toFixed(6)),
+                  lng: Number(location.lng().toFixed(6))
+                }, {
+                  address: result?.formatted_address
+                });
+              })
+              .catch(() => {
+                onPointSelectRef.current(activePointRef.current, {
+                  lat: Number(event.latLng.lat().toFixed(6)),
+                  lng: Number(event.latLng.lng().toFixed(6))
+                });
+              });
+            return;
+          }
+
           onPointSelectRef.current(activePointRef.current, {
             lat: Number(event.latLng.lat().toFixed(6)),
             lng: Number(event.latLng.lng().toFixed(6))
@@ -213,7 +225,7 @@ export default function RideMapbox({
   if (!apiKey) {
     return (
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        Set <code>VITE_GOOGLE_MAPS_API_KEY</code> to enable the live customer map. Coordinates and nearby-driver cards still work without it.
+        Set <code>VITE_GOOGLE_MAPS_API_KEY</code> to enable the live map. Coordinates and nearby-driver cards still work without it.
       </div>
     );
   }
@@ -221,22 +233,26 @@ export default function RideMapbox({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2 text-xs text-slate-600">
-        <span className={`rounded-full px-3 py-1 ${activePoint === "pickup" ? "bg-teal-600 text-white" : "bg-teal-100 text-teal-800"}`}>
-          Pickup
-        </span>
-        <span className={`rounded-full px-3 py-1 ${activePoint === "dropoff" ? "bg-orange-500 text-white" : "bg-orange-100 text-orange-800"}`}>
-          Dropoff
-        </span>
-        <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-800">Nearby Drivers</span>
+        {pickup && (
+          <span className={`rounded-full px-3 py-1 ${activePoint === "pickup" ? "bg-teal-600 text-white" : "bg-teal-100 text-teal-800"}`}>
+            Pickup
+          </span>
+        )}
+        {dropoff && (
+          <span className={`rounded-full px-3 py-1 ${activePoint === "dropoff" ? "bg-orange-500 text-white" : "bg-orange-100 text-orange-800"}`}>
+            Dropoff
+          </span>
+        )}
+        {nearbyDrivers.length > 0 && <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-800">Nearby Drivers</span>}
+        {driverLocation && <span className="rounded-full bg-blue-100 px-3 py-1 text-blue-800">Driver</span>}
+        {customerLocation && <span className="rounded-full bg-violet-100 px-3 py-1 text-violet-800">Customer</span>}
       </div>
-      <div ref={containerRef} className="h-80 overflow-hidden rounded-3xl border border-slate-200 shadow-inner" />
+      <div ref={containerRef} className={`${heightClassName} overflow-hidden rounded-3xl border border-slate-200 shadow-inner`} />
       {mapError ? (
         <p className="text-xs text-red-600">{mapError}</p>
-      ) : (
-        <p className="text-xs text-slate-500">
-          Select a map mode below, then click on the map to update pickup or dropoff coordinates.
-        </p>
-      )}
+      ) : helperText ? (
+        <p className="text-xs text-slate-500">{helperText}</p>
+      ) : null}
     </div>
   );
 }

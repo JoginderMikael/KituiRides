@@ -5,6 +5,7 @@ import com.kituirides.api.location.LocationService;
 import com.kituirides.api.location.NearbyDriverResponse;
 import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.ride.CreateRideRequest;
+import com.kituirides.api.ride.RideEstimateResponse;
 import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
 import com.kituirides.api.support.CreateTicketRequest;
@@ -42,6 +43,19 @@ public class CustomerController {
     @GetMapping("/rides")
     public ResponseEntity<ApiResponse<List<RideResponse>>> myRides() {
         return ResponseEntity.ok(ApiResponse.ok(rideService.myCustomerRides()));
+    }
+
+    @GetMapping("/rides/estimate")
+    public ResponseEntity<ApiResponse<RideEstimateResponse>> estimateRide(
+        @RequestParam double pickupLat,
+        @RequestParam double pickupLng,
+        @RequestParam double dropoffLat,
+        @RequestParam double dropoffLng,
+        @RequestParam VehicleType vehicleType
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            rideService.estimateRide(pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType)
+        ));
     }
 
     @GetMapping("/rides/{id}")

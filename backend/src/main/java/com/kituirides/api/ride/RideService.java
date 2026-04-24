@@ -53,6 +53,8 @@ public class RideService {
     private final RideStateMachine rideStateMachine;
     private final RideRedisService rideRedisService;
 
+    private static final int DEFAULT_CAR_ENGINE_SIZE_CC = 1500;
+
     @Transactional
     public RideResponse createRide(CreateRideRequest request) {
         User customer = currentUserService.getCurrentUser();
@@ -72,14 +74,12 @@ public class RideService {
         }
 
         DriverMatchResult bestMatch = matches.get(0);
-        BigDecimal estimatedDistanceKm = BigDecimal.valueOf(
-            matchingService.haversineKm(
-                request.pickupLat(),
-                request.pickupLng(),
-                request.dropoffLat(),
-                request.dropoffLng()
-            )
-        ).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal estimatedDistanceKm = calculateEstimatedTripDistance(
+            request.pickupLat(),
+            request.pickupLng(),
+            request.dropoffLat(),
+            request.dropoffLng()
+        );
 
         Ride ride = new Ride();
         ride.setCustomer(customer);
@@ -388,6 +388,47 @@ public class RideService {
         return rideRepository.findByCustomerOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
     }
 
+    public RideEstimateResponse estimateRide(
+        double pickupLat,
+        double pickupLng,
+        double dropoffLat,
+        double dropoffLng,
+        com.kituirides.api.domain.enums.VehicleType vehicleType
+    ) {
+        BigDecimal estimatedDistanceKm = calculateEstimatedTripDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        List<DriverMatchResult> matches = matchingService.findEligibleDrivers(
+            pickupLat,
+            pickupLng,
+            dropoffLat,
+            dropoffLng,
+            vehicleType
+        );
+
+        if (!matches.isEmpty()) {
+            DriverMatchResult bestMatch = matches.get(0);
+            return new RideEstimateResponse(
+                estimatedDistanceKm,
+                bestMatch.estimatedPrice(),
+                matchingService.calculateSurgeMultiplier(),
+                "Closest available driver"
+            );
+        }
+
+        Double surgeMultiplier = matchingService.calculateSurgeMultiplier();
+        BigDecimal estimatedFare = priceCalculationService.calculatePrice(
+            estimatedDistanceKm,
+            vehicleType,
+            defaultEngineSize(vehicleType),
+            surgeMultiplier
+        );
+        return new RideEstimateResponse(
+            estimatedDistanceKm,
+            estimatedFare,
+            surgeMultiplier,
+            "Average vehicle estimate"
+        );
+    }
+
     public List<RideResponse> myDriverRides() {
         User currentUser = currentUserService.getCurrentUser();
         return rideRepository.findByRiderOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
@@ -441,6 +482,9 @@ public class RideService {
 
     public RideResponse toResponse(Ride ride) {
         Payment payment = paymentRepository.findByRide(ride).orElse(null);
+        LocationPing latestRiderLocation = ride.getRider() == null
+            ? null
+            : locationPingRepository.findTopByUserOrderByTimestampDesc(ride.getRider()).orElse(null);
         return new RideResponse(
             ride.getId(),
             ride.getCustomer().getId(),
@@ -449,6 +493,8 @@ public class RideService {
             ride.getRider() != null ? ride.getRider().getId() : null,
             ride.getRider() != null ? ride.getRider().getFirstName() + " " + ride.getRider().getLastName() : null,
             ride.getRider() != null ? ride.getRider().getPhoneNumber() : null,
+            latestRiderLocation != null ? latestRiderLocation.getLatitude() : null,
+            latestRiderLocation != null ? latestRiderLocation.getLongitude() : null,
             ride.getPickupAddress(),
             ride.getDropoffAddress(),
             ride.getPickupLat(),
@@ -495,6 +541,10 @@ public class RideService {
             ride.getCustomer().getPhoneNumber(),
             ride.getPickupAddress(),
             ride.getDropoffAddress(),
+            ride.getPickupLat(),
+            ride.getPickupLng(),
+            ride.getDropoffLat(),
+            ride.getDropoffLng(),
             ride.getVehicleType(),
             ride.getEstimatedFare(),
             ride.getEstimatedDistanceKm()
@@ -555,6 +605,23 @@ public class RideService {
         ride.setEstimatedFare(recalculatedFare);
         ride.setFinalFare(recalculatedFare);
         ride.setEtaMinutes(Math.max(ride.getEtaMinutes(), 2));
+    }
+
+    private BigDecimal calculateEstimatedTripDistance(
+        double pickupLat,
+        double pickupLng,
+        double dropoffLat,
+        double dropoffLng
+    ) {
+        return BigDecimal.valueOf(
+            matchingService.estimateTripDistanceKm(pickupLat, pickupLng, dropoffLat, dropoffLng)
+        ).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private int defaultEngineSize(com.kituirides.api.domain.enums.VehicleType vehicleType) {
+        return vehicleType == com.kituirides.api.domain.enums.VehicleType.MOTORCYCLE
+            ? 150
+            : DEFAULT_CAR_ENGINE_SIZE_CC;
     }
 
     private void prepareDistanceForSettlement(Ride ride, BigDecimal manualDistanceKm, boolean failWhenManualIsRequired) {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import PaymentMethodSelector from "../components/PaymentMethodSelector";
 import RideMapbox from "../components/RideMapbox";
@@ -15,6 +15,7 @@ import {
 } from "../components/UIComponents";
 import {
   disputeRide,
+  estimateRide,
   getCustomerRides,
   nearbyDrivers,
   requestRide
@@ -23,6 +24,7 @@ import { initiateMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient, unwrap } from "../lib/apiClient";
+import { geocodeAddress, haversineKm, reverseGeocode } from "../lib/googleMaps";
 import { connectRealtimeSocket } from "../lib/socket";
 import {
   isActiveRide,
@@ -60,6 +62,29 @@ function toMpesaPhoneNumber(phoneNumber) {
   return phoneNumber;
 }
 
+function formatDistance(value) {
+  return `${Number(value || 0).toFixed(2)} km`;
+}
+
+function calculateFallbackFare(distanceKm, vehicleType) {
+  const baseFare = 150;
+  const fuelCostPerLiter = 200;
+  const driverMarkup = 1.5;
+  const commissionRate = 0.2;
+  const fuelEconomy = vehicleType === "MOTORCYCLE" ? 37 : 15;
+  const fuelCost = (Math.max(Number(distanceKm) || 0, 0) / fuelEconomy) * fuelCostPerLiter;
+  return (baseFare + fuelCost * (1 + driverMarkup)) / (1 - commissionRate);
+}
+
+function positiveNumber(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+}
+
+function estimateBufferedDistance(directDistanceKm) {
+  return directDistanceKm + (directDistanceKm * 25 / 100);
+}
+
 export default function CustomerDashboard() {
   const queryClient = useQueryClient();
   const { user, session } = useAuth();
@@ -68,10 +93,51 @@ export default function CustomerDashboard() {
   const [selectedRide, setSelectedRide] = useState(null);
   const [paymentRide, setPaymentRide] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
+  const [locationStatus, setLocationStatus] = useState("");
+  const [pickupSearchStatus, setPickupSearchStatus] = useState("");
+  const [dropoffSearchStatus, setDropoffSearchStatus] = useState("");
+  const lastGeocodedPickupRef = useRef("");
+  const lastGeocodedDropoffRef = useRef("");
+  const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   useEffect(() => {
     setPhoneNumber((current) => current || toMpesaPhoneNumber(user?.phoneNumber || ""));
   }, [user?.phoneNumber]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Browser location is unavailable. You can still set pickup on the map.");
+      return;
+    }
+
+    setLocationStatus("Finding your current pickup location...");
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const coordinates = {
+          lat: Number(position.coords.latitude.toFixed(6)),
+          lng: Number(position.coords.longitude.toFixed(6))
+        };
+        let address = "Current location";
+        try {
+          address = await reverseGeocode(googleMapsApiKey, coordinates) || address;
+        } catch {
+          address = "Current location";
+        }
+        lastGeocodedPickupRef.current = address;
+        setForm((current) => ({
+          ...current,
+          pickupLat: coordinates.lat,
+          pickupLng: coordinates.lng,
+          pickupAddress: address
+        }));
+        setLocationStatus("Pickup set from your current location. You can still adjust it.");
+      },
+      () => {
+        setLocationStatus("Location permission was not granted. You can set pickup manually.");
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+    );
+  }, [googleMapsApiKey]);
 
   const nearbyDriverParams = useMemo(
     () => ({
@@ -88,6 +154,13 @@ export default function CustomerDashboard() {
   const driversQuery = useQuery({
     queryKey: ["nearby-drivers", nearbyDriverParams],
     queryFn: () => nearbyDrivers(nearbyDriverParams)
+  });
+  const estimateQuery = useQuery({
+    queryKey: ["ride-estimate", nearbyDriverParams],
+    queryFn: () => estimateRide(nearbyDriverParams),
+    enabled: Object.values(nearbyDriverParams).every((value) => (
+      typeof value === "string" ? value.length > 0 : Number.isFinite(value)
+    ))
   });
   const supportContactQuery = useQuery({
     queryKey: ["support-contact"],
@@ -136,9 +209,127 @@ export default function CustomerDashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
   });
 
-  const estimatedFare = driversQuery.data?.[0]?.estimatedPrice || 0;
+  const fallbackTripDistanceKm = useMemo(() => {
+    const directDistanceKm = haversineKm(
+      { lat: Number(form.pickupLat), lng: Number(form.pickupLng) },
+      { lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }
+    );
+    return estimateBufferedDistance(directDistanceKm);
+  }, [form.dropoffLat, form.dropoffLng, form.pickupLat, form.pickupLng]);
+  const backendEstimatedDistanceKm = positiveNumber(estimateQuery.data?.estimatedDistanceKm);
+  const estimatedTripDistanceKm = Math.max(backendEstimatedDistanceKm, fallbackTripDistanceKm);
+  const backendEstimatedFare = positiveNumber(estimateQuery.data?.estimatedFare);
+  const nearestDriverFare = positiveNumber(driversQuery.data?.[0]?.estimatedPrice);
+  const fallbackEstimatedFare = calculateFallbackFare(estimatedTripDistanceKm, form.vehicleType);
+  const quoteUsesBufferedDistance = !backendEstimatedDistanceKm || backendEstimatedDistanceKm >= fallbackTripDistanceKm * 0.99;
+  const estimatedFare = quoteUsesBufferedDistance
+    ? backendEstimatedFare || nearestDriverFare || fallbackEstimatedFare
+    : fallbackEstimatedFare;
+  const quoteWarning = estimateQuery.isError
+    ? estimateQuery.error?.response?.data?.message || "Live fare quote is unavailable. Showing a local estimate."
+    : !quoteUsesBufferedDistance
+      ? "Live fare quote has not picked up the 25% distance buffer yet. Showing a buffered local estimate."
+    : !backendEstimatedFare && !nearestDriverFare
+      ? "Showing a local estimate until a live fare quote is available."
+      : "";
   const supportPhone = supportContactQuery.data?.phoneNumber;
   const canRequestRide = !activeRide;
+
+  useEffect(() => {
+    const query = form.pickupAddress?.trim() || "";
+    if (mapMode !== "pickup" || query.length < 3 || lastGeocodedPickupRef.current === query) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      setPickupSearchStatus("Searching pickup on the map...");
+      try {
+        const result = await geocodeAddress(googleMapsApiKey, query);
+        if (!result) {
+          setPickupSearchStatus("No matching pickup found. You can click the map instead.");
+          return;
+        }
+        lastGeocodedPickupRef.current = result.address || query;
+        setForm((current) => ({
+          ...current,
+          pickupLat: result.lat,
+          pickupLng: result.lng,
+          pickupAddress: result.address || current.pickupAddress
+        }));
+        setPickupSearchStatus("Pickup matched on the map. You can still adjust it.");
+      } catch {
+        setPickupSearchStatus("Map search is unavailable for this key. Click the map to set pickup.");
+      }
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [form.pickupAddress, googleMapsApiKey, mapMode]);
+
+  useEffect(() => {
+    const query = form.dropoffAddress?.trim() || "";
+    if (mapMode !== "dropoff" || query.length < 3 || lastGeocodedDropoffRef.current === query) {
+      return undefined;
+    }
+
+    const timeout = window.setTimeout(async () => {
+      setDropoffSearchStatus("Searching dropoff on the map...");
+      try {
+        const result = await geocodeAddress(googleMapsApiKey, query);
+        if (!result) {
+          setDropoffSearchStatus("No matching place found. You can click the map instead.");
+          return;
+        }
+        lastGeocodedDropoffRef.current = result.address || query;
+        setForm((current) => ({
+          ...current,
+          dropoffLat: result.lat,
+          dropoffLng: result.lng,
+          dropoffAddress: result.address || current.dropoffAddress
+        }));
+        setDropoffSearchStatus("Dropoff matched on the map. You can still adjust it.");
+      } catch {
+        setDropoffSearchStatus("Map search is unavailable for this key. Click the map to set dropoff.");
+      }
+    }, 700);
+
+    return () => window.clearTimeout(timeout);
+  }, [form.dropoffAddress, googleMapsApiKey, mapMode]);
+
+  const updatePointFromMap = async (point, coordinates, details = {}) => {
+    let address = details.address || (point === "pickup" ? "Selected pickup" : "Selected dropoff");
+    if (!details.address) {
+      try {
+        address = await reverseGeocode(googleMapsApiKey, coordinates) || address;
+      } catch {
+        address = point === "pickup" ? "Selected pickup" : "Selected dropoff";
+      }
+    }
+
+    if (point === "pickup") {
+      lastGeocodedPickupRef.current = address;
+      setPickupSearchStatus("Pickup selected on the map.");
+      setForm((current) => ({
+        ...current,
+        pickupLat: coordinates.lat,
+        pickupLng: coordinates.lng,
+        pickupAddress: address
+      }));
+      return;
+    }
+
+    lastGeocodedDropoffRef.current = address;
+    setDropoffSearchStatus("Dropoff selected on the map.");
+    setForm((current) => ({
+      ...current,
+      dropoffLat: coordinates.lat,
+      dropoffLng: coordinates.lng,
+      dropoffAddress: address
+    }));
+  };
+
+  const activeLocationStatus = mapMode === "pickup"
+    ? pickupSearchStatus || locationStatus
+    : dropoffSearchStatus || locationStatus;
 
   return (
     <div className="space-y-6">
@@ -163,10 +354,10 @@ export default function CustomerDashboard() {
             </div>
             <div className="flex gap-2">
               <Button variant={mapMode === "pickup" ? "primary" : "secondary"} size="sm" onClick={() => setMapMode("pickup")}>
-                Set Pickup
+                Pickup
               </Button>
               <Button variant={mapMode === "dropoff" ? "orange" : "secondary"} size="sm" onClick={() => setMapMode("dropoff")}>
-                Set Dropoff
+                Dropoff
               </Button>
             </div>
           </div>
@@ -176,14 +367,14 @@ export default function CustomerDashboard() {
             dropoff={{ lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }}
             nearbyDrivers={driversQuery.data || []}
             activePoint={mapMode}
-            onPointSelect={(point, coordinates) => {
-              if (point === "pickup") {
-                setForm((current) => ({ ...current, pickupLat: coordinates.lat, pickupLng: coordinates.lng }));
-              } else {
-                setForm((current) => ({ ...current, dropoffLat: coordinates.lat, dropoffLng: coordinates.lng }));
-              }
-            }}
+            onPointSelect={updatePointFromMap}
+            helperText="Choose Pickup or Dropoff, then click anywhere on the map or on a place label. You can also type either address."
           />
+          {activeLocationStatus && (
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+              {activeLocationStatus}
+            </div>
+          )}
 
           <form
             className="space-y-4"
@@ -205,18 +396,20 @@ export default function CustomerDashboard() {
               <Input
                 label="Pickup Address"
                 value={form.pickupAddress}
+                onFocus={() => setMapMode("pickup")}
                 onChange={(event) => setForm((current) => ({ ...current, pickupAddress: event.target.value }))}
                 required
               />
               <Input
                 label="Dropoff Address"
                 value={form.dropoffAddress}
+                onFocus={() => setMapMode("dropoff")}
                 onChange={(event) => setForm((current) => ({ ...current, dropoffAddress: event.target.value }))}
                 required
               />
             </div>
 
-            <div className="grid gap-4 md:grid-cols-4">
+            <div className="grid gap-4 md:grid-cols-[minmax(0,0.8fr),minmax(0,1.2fr)]">
               <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700">Vehicle Type</label>
                 <select
@@ -228,39 +421,22 @@ export default function CustomerDashboard() {
                   <option value="MOTORCYCLE">Motorcycle</option>
                 </select>
               </div>
-              <Input
-                label="Pickup Lat"
-                type="number"
-                value={form.pickupLat}
-                onChange={(event) => setForm((current) => ({ ...current, pickupLat: event.target.value }))}
-              />
-              <Input
-                label="Pickup Lng"
-                type="number"
-                value={form.pickupLng}
-                onChange={(event) => setForm((current) => ({ ...current, pickupLng: event.target.value }))}
-              />
-              <Input
-                label="Dropoff Lat"
-                type="number"
-                value={form.dropoffLat}
-                onChange={(event) => setForm((current) => ({ ...current, dropoffLat: event.target.value }))}
-              />
-            </div>
-
-            <div className="grid gap-4 md:grid-cols-2">
-              <Input
-                label="Dropoff Lng"
-                type="number"
-                value={form.dropoffLng}
-                onChange={(event) => setForm((current) => ({ ...current, dropoffLng: event.target.value }))}
-              />
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-800">Estimated Fare</p>
                 <p className="mt-1 text-2xl font-bold text-orange-600">{formatMoney(estimatedFare)}</p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Based on the closest available {form.vehicleType === "CAR" ? "car" : "motorcycle"} drivers.
+                  Rough trip distance: {formatDistance(estimatedTripDistanceKm)}. Fare is based on the closest available {form.vehicleType === "CAR" ? "car" : "motorcycle"} drivers.
                 </p>
+                {estimateQuery.data?.pricingBasis && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Quote basis: {estimateQuery.data.pricingBasis}.
+                  </p>
+                )}
+                {quoteWarning && (
+                  <p className="mt-1 text-xs text-amber-700">
+                    {quoteWarning}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -344,6 +520,21 @@ export default function CustomerDashboard() {
                       <p className="font-semibold text-slate-900">Driver Assigned</p>
                       <p className="text-sm text-slate-600">{activeRide.riderName}</p>
                       <p className="text-sm text-slate-500">{activeRide.riderPhone}</p>
+                    </div>
+                  )}
+                  {activeRide.riderLat != null && activeRide.riderLng != null && (
+                    <div className="mt-4">
+                      <RideMapbox
+                        pickup={{ lat: activeRide.pickupLat, lng: activeRide.pickupLng }}
+                        dropoff={{ lat: activeRide.dropoffLat, lng: activeRide.dropoffLng }}
+                        driverLocation={{
+                          lat: activeRide.riderLat,
+                          lng: activeRide.riderLng,
+                          label: activeRide.riderName
+                        }}
+                        heightClassName="h-64"
+                        helperText="Your assigned driver's latest location is shown with the driver marker."
+                      />
                     </div>
                   )}
                 </div>

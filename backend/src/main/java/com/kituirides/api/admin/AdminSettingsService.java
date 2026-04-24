@@ -219,8 +219,17 @@ public class AdminSettingsService {
     }
 
     private void validateBusinessRules(UpdateSystemSettingsRequest request) {
+        if (request.baseFare().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Base fare must be greater than zero");
+        }
+        if (request.fuelCostPerLiter().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Fuel cost per liter must be greater than zero");
+        }
         if (request.companyCommissionRate().compareTo(BigDecimal.ONE) >= 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Company commission must remain below 1.0");
+        }
+        if (request.companyCommissionRate().compareTo(BigDecimal.ZERO) < 0) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Company commission cannot be negative");
         }
         if (request.driverMarkup().compareTo(BigDecimal.ZERO) < 0) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Driver markup cannot be negative");

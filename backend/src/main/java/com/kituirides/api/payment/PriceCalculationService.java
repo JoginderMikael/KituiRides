@@ -1,7 +1,9 @@
 package com.kituirides.api.payment;
 
-import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.admin.AdminSettingsService;
+import com.kituirides.api.admin.AdminSettingKey;
+import com.kituirides.api.admin.PricingConfigurationSnapshot;
+import com.kituirides.api.domain.enums.VehicleType;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import lombok.RequiredArgsConstructor;
@@ -36,13 +38,17 @@ public class PriceCalculationService {
             ? BigDecimal.ZERO
             : distanceKm.max(BigDecimal.ZERO).setScale(2, RoundingMode.HALF_UP);
 
-        var pricingConfiguration = adminSettingsService.getPricingConfiguration();
+        var pricingConfiguration = resolvePricingConfiguration();
 
-        BigDecimal baseFare = pricingConfiguration.baseFare();
-        BigDecimal fuelCostPerLiter = pricingConfiguration.fuelCostPerLiter();
-        BigDecimal driverMarkup = pricingConfiguration.driverMarkup();
-        BigDecimal commissionRate = pricingConfiguration.companyCommissionRate();
-        BigDecimal fuelEconomy = getFuelEconomy(vehicleType, engineSize, pricingConfiguration.motorcycleFuelEconomy());
+        BigDecimal baseFare = positiveOrDefault(pricingConfiguration.baseFare(), AdminSettingKey.BASE_FARE);
+        BigDecimal fuelCostPerLiter = positiveOrDefault(pricingConfiguration.fuelCostPerLiter(), AdminSettingKey.FUEL_COST_PER_LITER);
+        BigDecimal driverMarkup = nonNegativeOrDefault(pricingConfiguration.driverMarkup(), AdminSettingKey.DRIVER_MARKUP);
+        BigDecimal commissionRate = nonNegativeOrDefault(pricingConfiguration.companyCommissionRate(), AdminSettingKey.COMPANY_COMMISSION_RATE);
+        BigDecimal fuelEconomy = getFuelEconomy(
+            vehicleType,
+            engineSize,
+            positiveOrDefault(pricingConfiguration.motorcycleFuelEconomy(), AdminSettingKey.MOTORCYCLE_FUEL_ECONOMY)
+        );
 
         BigDecimal fuelCost = calculateFuelCost(sanitizedDistance, fuelEconomy, fuelCostPerLiter);
         BigDecimal markupMultiplier = BigDecimal.ONE.add(driverMarkup);
@@ -60,6 +66,45 @@ public class PriceCalculationService {
         log.info("Price calculated for distance={}km, vehicleType={}, price={} KES",
             sanitizedDistance, vehicleType, price);
         return price;
+    }
+
+    private PricingConfigurationSnapshot resolvePricingConfiguration() {
+        PricingConfigurationSnapshot pricingConfiguration = adminSettingsService.getPricingConfiguration();
+        if (pricingConfiguration != null) {
+            return pricingConfiguration;
+        }
+
+        return new PricingConfigurationSnapshot(
+            configValueOrDefault(AdminSettingKey.BASE_FARE),
+            configValueOrDefault(AdminSettingKey.FUEL_COST_PER_LITER),
+            configValueOrDefault(AdminSettingKey.DRIVER_MARKUP),
+            configValueOrDefault(AdminSettingKey.COMPANY_COMMISSION_RATE),
+            configValueOrDefault(AdminSettingKey.MOTORCYCLE_FUEL_ECONOMY)
+        );
+    }
+
+    private BigDecimal configValueOrDefault(AdminSettingKey settingKey) {
+        String configuredValue = adminSettingsService.getConfigValue(settingKey.configKey());
+        if (configuredValue == null || configuredValue.isBlank()) {
+            configuredValue = settingKey.defaultValue();
+        }
+        return new BigDecimal(configuredValue);
+    }
+
+    private BigDecimal positiveOrDefault(BigDecimal value, AdminSettingKey settingKey) {
+        if (value != null && value.compareTo(BigDecimal.ZERO) > 0) {
+            return value;
+        }
+        log.warn("{} is missing or non-positive. Falling back to default value {}", settingKey.configKey(), settingKey.defaultValue());
+        return new BigDecimal(settingKey.defaultValue());
+    }
+
+    private BigDecimal nonNegativeOrDefault(BigDecimal value, AdminSettingKey settingKey) {
+        if (value != null && value.compareTo(BigDecimal.ZERO) >= 0) {
+            return value;
+        }
+        log.warn("{} is missing or negative. Falling back to default value {}", settingKey.configKey(), settingKey.defaultValue());
+        return new BigDecimal(settingKey.defaultValue());
     }
 
     /**
