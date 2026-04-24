@@ -395,7 +395,12 @@ public class RideService {
         double dropoffLng,
         com.kituirides.api.domain.enums.VehicleType vehicleType
     ) {
+        BigDecimal directDistanceKm = calculateDirectTripDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
         BigDecimal estimatedDistanceKm = calculateEstimatedTripDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
+        BigDecimal distanceBufferPercent = BigDecimal.valueOf(matchingService.estimatedDistanceExtraPercent())
+            .setScale(2, RoundingMode.HALF_UP);
+        BigDecimal distanceBufferKm = estimatedDistanceKm.subtract(directDistanceKm).max(BigDecimal.ZERO)
+            .setScale(2, RoundingMode.HALF_UP);
         List<DriverMatchResult> matches = matchingService.findEligibleDrivers(
             pickupLat,
             pickupLng,
@@ -407,6 +412,9 @@ public class RideService {
         if (!matches.isEmpty()) {
             DriverMatchResult bestMatch = matches.get(0);
             return new RideEstimateResponse(
+                directDistanceKm,
+                distanceBufferPercent,
+                distanceBufferKm,
                 estimatedDistanceKm,
                 bestMatch.estimatedPrice(),
                 matchingService.calculateSurgeMultiplier(),
@@ -422,6 +430,9 @@ public class RideService {
             surgeMultiplier
         );
         return new RideEstimateResponse(
+            directDistanceKm,
+            distanceBufferPercent,
+            distanceBufferKm,
             estimatedDistanceKm,
             estimatedFare,
             surgeMultiplier,
@@ -615,6 +626,17 @@ public class RideService {
     ) {
         return BigDecimal.valueOf(
             matchingService.estimateTripDistanceKm(pickupLat, pickupLng, dropoffLat, dropoffLng)
+        ).setScale(2, RoundingMode.HALF_UP);
+    }
+
+    private BigDecimal calculateDirectTripDistance(
+        double pickupLat,
+        double pickupLng,
+        double dropoffLat,
+        double dropoffLng
+    ) {
+        return BigDecimal.valueOf(
+            matchingService.haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng)
         ).setScale(2, RoundingMode.HALF_UP);
     }
 

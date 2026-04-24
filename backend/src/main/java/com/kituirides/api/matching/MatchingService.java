@@ -25,7 +25,7 @@ public class MatchingService {
 
     private static final double MATCH_RADIUS_KM = 5.0;
     private static final int MAX_MATCHES = 10;
-    private static final Duration LOCATION_FRESHNESS = Duration.ofMinutes(2);
+    private static final Duration LOCATION_FRESHNESS = Duration.ofMinutes(30);
     private static final double ESTIMATED_DISTANCE_EXTRA_PERCENT = 25.0;
 
     private final RiderProfileRepository riderProfileRepository;
@@ -121,5 +121,9 @@ public class MatchingService {
     public double estimateTripDistanceKm(double pickupLat, double pickupLng, double dropoffLat, double dropoffLng) {
         double directDistanceKm = haversineKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
         return directDistanceKm + (directDistanceKm * ESTIMATED_DISTANCE_EXTRA_PERCENT / 100);
+    }
+
+    public double estimatedDistanceExtraPercent() {
+        return ESTIMATED_DISTANCE_EXTRA_PERCENT;
     }
 }

@@ -3,12 +3,14 @@ package com.kituirides.api.driver;
 import com.kituirides.api.admin.AdminSettingsService;
 import com.kituirides.api.common.ApiException;
 import com.kituirides.api.domain.entity.DriverWallet;
+import com.kituirides.api.domain.entity.LocationPing;
 import com.kituirides.api.domain.entity.RiderProfile;
 import com.kituirides.api.domain.entity.Vehicle;
 import com.kituirides.api.domain.enums.DocumentType;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.VehicleType;
 import com.kituirides.api.payment.DriverWalletService;
+import com.kituirides.api.repository.LocationPingRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
 import com.kituirides.api.repository.VehicleRepository;
 import com.kituirides.api.ride.RideOfferResponse;
@@ -33,6 +35,7 @@ public class DriverService {
     private final DocumentService documentService;
     private final DriverWalletService driverWalletService;
     private final AdminSettingsService adminSettingsService;
+    private final LocationPingRepository locationPingRepository;
 
     public DriverDashboardResponse dashboard() {
         var current = currentUserService.getCurrentUser();
@@ -40,6 +43,7 @@ public class DriverService {
             .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "Driver profile not found"));
         Vehicle vehicle = vehicleRepository.findByRiderProfile(profile).orElse(null);
         DriverWallet wallet = driverWalletService.getWalletDetails(current);
+        LocationPing latestLocation = locationPingRepository.findTopByUserOrderByTimestampDesc(current).orElse(null);
 
         RideResponse activeTrip = rideService.myDriverRides().stream()
             .filter(ride -> ride.status() == RideStatus.DRIVER_ACCEPTED
@@ -76,6 +80,9 @@ public class DriverService {
             activeTrip,
             rideService.myDriverOffers().size(),
             adminSettingsService.getSupportSettings().supportPhoneNumber(),
+            latestLocation != null ? latestLocation.getLatitude() : null,
+            latestLocation != null ? latestLocation.getLongitude() : null,
+            latestLocation != null ? latestLocation.getTimestamp() : null,
             vehicleSummary,
             walletSummary
         );

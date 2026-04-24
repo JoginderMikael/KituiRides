@@ -197,6 +197,9 @@ export default function CustomerDashboard() {
 
   const estimatedTripDistanceKm = positiveNumber(estimateQuery.data?.estimatedDistanceKm);
   const estimatedFare = positiveNumber(estimateQuery.data?.estimatedFare);
+  const directDistanceKm = positiveNumber(estimateQuery.data?.directDistanceKm);
+  const distanceBufferKm = positiveNumber(estimateQuery.data?.distanceBufferKm);
+  const distanceBufferPercent = positiveNumber(estimateQuery.data?.distanceBufferPercent);
   const hasBackendEstimate = estimatedTripDistanceKm > 0 && estimatedFare > 0;
   const quoteWarning = estimateQuery.isError
     ? estimateQuery.error?.response?.data?.message || "Unable to calculate the fare right now."
@@ -404,6 +407,11 @@ export default function CustomerDashboard() {
                 <p className="mt-1 text-xs text-slate-500">
                   Estimated trip distance: {hasBackendEstimate ? formatDistance(estimatedTripDistanceKm) : "Calculating..."}. Fare is calculated by the backend pricing model.
                 </p>
+                {hasBackendEstimate && directDistanceKm > 0 && distanceBufferKm > 0 && (
+                  <p className="mt-1 text-xs text-slate-400">
+                    Backend distance: {formatDistance(directDistanceKm)} + {distanceBufferPercent}% buffer ({formatDistance(distanceBufferKm)}).
+                  </p>
+                )}
                 {estimateQuery.data?.pricingBasis && (
                   <p className="mt-1 text-xs text-slate-400">
                     Quote basis: {estimateQuery.data.pricingBasis}.

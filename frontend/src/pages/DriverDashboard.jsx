@@ -42,7 +42,7 @@ export default function DriverDashboard() {
   const queryClient = useQueryClient();
   const { session } = useAuth();
   const [selectedRide, setSelectedRide] = useState(null);
-  const [locationInput, setLocationInput] = useState({ latitude: "-1.3760", longitude: "38.0100" });
+  const [currentLocation, setCurrentLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("");
   const [manualDistance, setManualDistance] = useState("");
 
@@ -66,29 +66,6 @@ export default function DriverDashboard() {
     });
     return disconnect;
   }, [queryClient, session?.userId]);
-
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setLocationStatus("Browser location is unavailable. Enter your coordinates manually.");
-      return;
-    }
-
-    setLocationStatus("Finding your current driver location...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          latitude: position.coords.latitude.toFixed(6),
-          longitude: position.coords.longitude.toFixed(6)
-        };
-        setLocationInput(nextLocation);
-        setLocationStatus("Current location ready. Update it before going online or accepting offers.");
-      },
-      () => {
-        setLocationStatus("Location permission was not granted. Enter your coordinates manually.");
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
-  }, []);
 
   const refresh = () => {
     queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
@@ -116,10 +93,60 @@ export default function DriverDashboard() {
     onSuccess: refresh
   });
   const completeMutation = useMutation({ mutationFn: completeDriverRide, onSuccess: refresh });
-  const locationMutation = useMutation({ mutationFn: updateDriverLocation, onSuccess: refresh });
+  const locationMutation = useMutation({
+    mutationFn: updateDriverLocation,
+    onSuccess: (_, variables) => {
+      setCurrentLocation(variables);
+      setLocationStatus("Location updated. Customers within 5 km can now see your latest position.");
+      refresh();
+    },
+    onError: () => {
+      setLocationStatus("Unable to update your location right now. Please try again.");
+    }
+  });
 
   const dashboard = dashboardQuery.data;
   const supportPhone = supportContactQuery.data?.phoneNumber || dashboard?.supportPhoneNumber;
+  const driverMapLocation = currentLocation || (
+    dashboard?.latitude != null && dashboard?.longitude != null
+      ? { latitude: dashboard.latitude, longitude: dashboard.longitude }
+      : null
+  );
+
+  useEffect(() => {
+    if (dashboard?.latitude != null && dashboard?.longitude != null) {
+      setCurrentLocation({ latitude: dashboard.latitude, longitude: dashboard.longitude });
+      setLocationStatus(
+        dashboard.locationUpdatedAt
+          ? `Last location update: ${new Date(dashboard.locationUpdatedAt).toLocaleString()}`
+          : "Latest saved location is ready."
+      );
+      return;
+    }
+    setLocationStatus("Update your location to appear to customers within 5 km.");
+  }, [dashboard?.latitude, dashboard?.longitude, dashboard?.locationUpdatedAt]);
+
+  const updateExactLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationStatus("Browser location is unavailable on this device.");
+      return;
+    }
+
+    setLocationStatus("Getting your exact location...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        locationMutation.mutate({
+          latitude: Number(position.coords.latitude.toFixed(6)),
+          longitude: Number(position.coords.longitude.toFixed(6))
+        });
+      },
+      () => {
+        setLocationStatus("Location permission was not granted. Allow location access and try again.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+    );
+  };
+
   const currentActionCard = useMemo(() => {
     if (!activeRide) {
       return null;
@@ -316,13 +343,13 @@ export default function DriverDashboard() {
                             lng: offer.pickupLng,
                             label: offer.customerName
                           }}
-                          driverLocation={{
-                            lat: Number(locationInput.latitude),
-                            lng: Number(locationInput.longitude),
+                          driverLocation={driverMapLocation ? {
+                            lat: Number(driverMapLocation.latitude),
+                            lng: Number(driverMapLocation.longitude),
                             label: "You"
-                          }}
+                          } : undefined}
                           heightClassName="h-56"
-                          helperText="Customer pickup and your latest entered location are shown on the map."
+                          helperText="Customer pickup and your latest saved location are shown on the map."
                         />
                       </div>
                     )}
@@ -342,26 +369,9 @@ export default function DriverDashboard() {
 
           <Card>
             <h2 className="text-xl font-bold text-slate-900">Location Update</h2>
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
-              <Input
-                label="Latitude"
-                type="number"
-                value={locationInput.latitude}
-                onChange={(event) => setLocationInput((current) => ({ ...current, latitude: event.target.value }))}
-              />
-              <Input
-                label="Longitude"
-                type="number"
-                value={locationInput.longitude}
-                onChange={(event) => setLocationInput((current) => ({ ...current, longitude: event.target.value }))}
-              />
-            </div>
             <Button
-              className="w-full"
-              onClick={() => locationMutation.mutate({
-                latitude: Number(locationInput.latitude),
-                longitude: Number(locationInput.longitude)
-              })}
+              className="mt-4 w-full"
+              onClick={updateExactLocation}
               loading={locationMutation.isPending}
             >
               Update My Location
@@ -414,11 +424,11 @@ export default function DriverDashboard() {
                         lng: activeRide.pickupLng,
                         label: activeRide.customerName
                       }}
-                      driverLocation={{
-                        lat: Number(locationInput.latitude),
-                        lng: Number(locationInput.longitude),
+                      driverLocation={driverMapLocation ? {
+                        lat: Number(driverMapLocation.latitude),
+                        lng: Number(driverMapLocation.longitude),
                         label: "You"
-                      }}
+                      } : undefined}
                       heightClassName="h-64"
                       helperText="Customer pickup and dropoff are shown here. Keep your location updated so the customer can see you."
                     />
