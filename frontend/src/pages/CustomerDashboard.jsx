@@ -24,7 +24,7 @@ import { initiateMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient, unwrap } from "../lib/apiClient";
-import { geocodeAddress, haversineKm, reverseGeocode } from "../lib/googleMaps";
+import { geocodeAddress, reverseGeocode } from "../lib/googleMaps";
 import { connectRealtimeSocket } from "../lib/socket";
 import {
   isActiveRide,
@@ -66,23 +66,9 @@ function formatDistance(value) {
   return `${Number(value || 0).toFixed(2)} km`;
 }
 
-function calculateFallbackFare(distanceKm, vehicleType) {
-  const baseFare = 150;
-  const fuelCostPerLiter = 200;
-  const driverMarkup = 1.5;
-  const commissionRate = 0.2;
-  const fuelEconomy = vehicleType === "MOTORCYCLE" ? 37 : 15;
-  const fuelCost = (Math.max(Number(distanceKm) || 0, 0) / fuelEconomy) * fuelCostPerLiter;
-  return (baseFare + fuelCost * (1 + driverMarkup)) / (1 - commissionRate);
-}
-
 function positiveNumber(value) {
   const parsed = Number(value);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function estimateBufferedDistance(directDistanceKm) {
-  return directDistanceKm + (directDistanceKm * 25 / 100);
 }
 
 export default function CustomerDashboard() {
@@ -209,28 +195,13 @@ export default function CustomerDashboard() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["customer-rides"] })
   });
 
-  const fallbackTripDistanceKm = useMemo(() => {
-    const directDistanceKm = haversineKm(
-      { lat: Number(form.pickupLat), lng: Number(form.pickupLng) },
-      { lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }
-    );
-    return estimateBufferedDistance(directDistanceKm);
-  }, [form.dropoffLat, form.dropoffLng, form.pickupLat, form.pickupLng]);
-  const backendEstimatedDistanceKm = positiveNumber(estimateQuery.data?.estimatedDistanceKm);
-  const estimatedTripDistanceKm = Math.max(backendEstimatedDistanceKm, fallbackTripDistanceKm);
-  const backendEstimatedFare = positiveNumber(estimateQuery.data?.estimatedFare);
-  const nearestDriverFare = positiveNumber(driversQuery.data?.[0]?.estimatedPrice);
-  const fallbackEstimatedFare = calculateFallbackFare(estimatedTripDistanceKm, form.vehicleType);
-  const quoteUsesBufferedDistance = !backendEstimatedDistanceKm || backendEstimatedDistanceKm >= fallbackTripDistanceKm * 0.99;
-  const estimatedFare = quoteUsesBufferedDistance
-    ? backendEstimatedFare || nearestDriverFare || fallbackEstimatedFare
-    : fallbackEstimatedFare;
+  const estimatedTripDistanceKm = positiveNumber(estimateQuery.data?.estimatedDistanceKm);
+  const estimatedFare = positiveNumber(estimateQuery.data?.estimatedFare);
+  const hasBackendEstimate = estimatedTripDistanceKm > 0 && estimatedFare > 0;
   const quoteWarning = estimateQuery.isError
-    ? estimateQuery.error?.response?.data?.message || "Live fare quote is unavailable. Showing a local estimate."
-    : !quoteUsesBufferedDistance
-      ? "Live fare quote has not picked up the 25% distance buffer yet. Showing a buffered local estimate."
-    : !backendEstimatedFare && !nearestDriverFare
-      ? "Showing a local estimate until a live fare quote is available."
+    ? estimateQuery.error?.response?.data?.message || "Unable to calculate the fare right now."
+    : !estimateQuery.isLoading && !hasBackendEstimate
+      ? "Waiting for the backend fare quote."
       : "";
   const supportPhone = supportContactQuery.data?.phoneNumber;
   const canRequestRide = !activeRide;
@@ -423,9 +394,15 @@ export default function CustomerDashboard() {
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <p className="text-sm font-semibold text-slate-800">Estimated Fare</p>
-                <p className="mt-1 text-2xl font-bold text-orange-600">{formatMoney(estimatedFare)}</p>
+                <p className="mt-1 text-2xl font-bold text-orange-600">
+                  {estimateQuery.isFetching
+                    ? "Calculating..."
+                    : hasBackendEstimate
+                      ? formatMoney(estimatedFare)
+                      : "Unavailable"}
+                </p>
                 <p className="mt-1 text-xs text-slate-500">
-                  Rough trip distance: {formatDistance(estimatedTripDistanceKm)}. Fare is based on the closest available {form.vehicleType === "CAR" ? "car" : "motorcycle"} drivers.
+                  Estimated trip distance: {hasBackendEstimate ? formatDistance(estimatedTripDistanceKm) : "Calculating..."}. Fare is calculated by the backend pricing model.
                 </p>
                 {estimateQuery.data?.pricingBasis && (
                   <p className="mt-1 text-xs text-slate-400">
@@ -441,7 +418,8 @@ export default function CustomerDashboard() {
             </div>
 
             <PaymentMethodSelector
-              estimatedFare={Number(estimatedFare || 0)}
+              estimatedFare={hasBackendEstimate ? Number(estimatedFare) : null}
+              estimatePending={estimateQuery.isFetching}
               onSelect={(paymentType) => setForm((current) => ({ ...current, paymentType }))}
             />
 
@@ -451,7 +429,12 @@ export default function CustomerDashboard() {
               </div>
             )}
 
-            <Button className="w-full" size="lg" loading={requestRideMutation.isPending} disabled={!canRequestRide}>
+            <Button
+              className="w-full"
+              size="lg"
+              loading={requestRideMutation.isPending}
+              disabled={!canRequestRide || estimateQuery.isFetching || !hasBackendEstimate}
+            >
               Request Ride
             </Button>
           </form>

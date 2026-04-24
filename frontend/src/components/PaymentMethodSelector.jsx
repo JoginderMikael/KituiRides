@@ -5,9 +5,13 @@ import React, { useState } from 'react';
  * Allows customers to choose payment method: M-Pesa or Cash
  * Integrated into ride request flow
  */
-const PaymentMethodSelector = ({ onSelect, estimatedFare = 0 }) => {
+const PaymentMethodSelector = ({ onSelect, estimatedFare = null, estimatePending = false }) => {
   const [selectedMethod, setSelectedMethod] = useState('MPESA');
   const [showDetails, setShowDetails] = useState(false);
+  const hasEstimate = Number.isFinite(Number(estimatedFare)) && Number(estimatedFare) > 0;
+  const fareLabel = estimatePending ? 'Calculating...' : hasEstimate
+    ? `KES ${Number(estimatedFare).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+    : 'Unavailable';
 
   const handleSelect = (method) => {
     setSelectedMethod(method);
@@ -108,7 +112,7 @@ const PaymentMethodSelector = ({ onSelect, estimatedFare = 0 }) => {
           {selectedMethod === 'CASH' && (
             <div className="mt-3 bg-blue-100 border-l-4 border-blue-500 p-3 rounded">
               <p className="text-sm text-gray-700">
-                <strong>How it works:</strong> Pay the exact fare (KES {estimatedFare.toLocaleString()}) to the driver when you arrive. Driver confirms payment completion.
+                <strong>How it works:</strong> Pay the exact fare ({fareLabel}) to the driver when you arrive. Driver confirms payment completion.
               </p>
             </div>
           )}
@@ -119,18 +123,18 @@ const PaymentMethodSelector = ({ onSelect, estimatedFare = 0 }) => {
       <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
         <div className="flex justify-between items-center mb-3">
           <span className="text-gray-700">Estimated Fare</span>
-          <span className="font-semibold text-gray-900">KES {estimatedFare.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+          <span className="font-semibold text-gray-900">{fareLabel}</span>
         </div>
         
         {selectedMethod === 'MPESA' && (
           <>
             <div className="flex justify-between items-center text-sm text-gray-600 mb-2">
               <span>Service Fee</span>
-              <span>KES 0.00</span>
+              <span>Included</span>
             </div>
             <div className="border-t border-gray-300 pt-3 flex justify-between items-center">
               <span className="font-medium">Total</span>
-              <span className="font-semibold text-lg text-gray-900">KES {estimatedFare.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              <span className="font-semibold text-lg text-gray-900">{fareLabel}</span>
             </div>
           </>
         )}
@@ -171,10 +175,10 @@ const PaymentMethodSelector = ({ onSelect, estimatedFare = 0 }) => {
         <div className="mt-4 p-4 bg-gray-100 rounded-lg text-sm text-gray-700 space-y-2">
           <p><strong>What's included in the fare:</strong></p>
           <ul className="list-disc list-inside space-y-1 text-xs">
-            <li>Base fare (150 KES)</li>
-            <li>Distance charge (calculated per km based on vehicle type and fuel consumption)</li>
-            <li>Surge pricing (if applicable)</li>
-            <li>Driver commission deducted automatically</li>
+            <li>Base fare from current admin pricing settings</li>
+            <li>Distance charge calculated by the backend pricing model</li>
+            <li>Vehicle type and fuel consumption rules</li>
+            <li>Surge and company commission rules where applicable</li>
           </ul>
         </div>
       )}
