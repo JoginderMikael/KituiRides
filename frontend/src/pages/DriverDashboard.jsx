@@ -46,9 +46,21 @@ export default function DriverDashboard() {
   const [locationStatus, setLocationStatus] = useState("");
   const [manualDistance, setManualDistance] = useState("");
 
-  const dashboardQuery = useQuery({ queryKey: ["driver-dashboard"], queryFn: getDriverDashboard });
-  const ridesQuery = useQuery({ queryKey: ["driver-rides"], queryFn: getDriverRides });
-  const offersQuery = useQuery({ queryKey: ["driver-offers"], queryFn: getDriverOffers });
+  const dashboardQuery = useQuery({
+    queryKey: ["driver-dashboard"],
+    queryFn: getDriverDashboard,
+    refetchInterval: 15000
+  });
+  const ridesQuery = useQuery({
+    queryKey: ["driver-rides"],
+    queryFn: getDriverRides,
+    refetchInterval: 5000
+  });
+  const offersQuery = useQuery({
+    queryKey: ["driver-offers"],
+    queryFn: getDriverOffers,
+    refetchInterval: 5000
+  });
   const supportContactQuery = useQuery({ queryKey: ["support-contact"], queryFn: getSupportContact });
 
   const rides = ridesQuery.data || [];
@@ -61,8 +73,12 @@ export default function DriverDashboard() {
       onRideUpdate: () => {
         queryClient.invalidateQueries({ queryKey: ["driver-rides"] });
         queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
+        queryClient.invalidateQueries({ queryKey: ["driver-offers"] });
       },
-      onDriverOffer: () => queryClient.invalidateQueries({ queryKey: ["driver-offers"] })
+      onDriverOffer: () => {
+        queryClient.invalidateQueries({ queryKey: ["driver-offers"] });
+        queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
+      }
     });
     return disconnect;
   }, [queryClient, session?.userId]);
@@ -107,6 +123,7 @@ export default function DriverDashboard() {
 
   const dashboard = dashboardQuery.data;
   const supportPhone = supportContactQuery.data?.phoneNumber || dashboard?.supportPhoneNumber;
+  const offersErrorMessage = offersQuery.error?.response?.data?.message || "Unable to load incoming ride offers right now.";
   const driverMapLocation = currentLocation || (
     dashboard?.latitude != null && dashboard?.longitude != null
       ? { latitude: dashboard.latitude, longitude: dashboard.longitude }
@@ -313,6 +330,10 @@ export default function DriverDashboard() {
 
             {offersQuery.isLoading ? (
               <LoadingSpinner />
+            ) : offersQuery.isError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {offersErrorMessage}
+              </div>
             ) : !(offersQuery.data || []).length ? (
               <EmptyState icon="🛰" title="No ride offers yet" description="Stay online and update your location to receive nearby requests." />
             ) : (

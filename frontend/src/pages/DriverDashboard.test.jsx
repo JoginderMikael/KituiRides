@@ -48,6 +48,10 @@ vi.mock("../components/ChatBox", () => ({
   default: () => <div data-testid="chat-box" />
 }));
 
+vi.mock("../components/RideMapbox", () => ({
+  default: () => <div data-testid="ride-map" />
+}));
+
 function renderPage() {
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -125,9 +129,37 @@ describe("DriverDashboard", () => {
       vehicle: { make: "Toyota", model: "Vitz", color: "Silver", plateNumber: "KAA 123A", engineSize: 1500, yearOfManufacture: 2015 },
       wallet: { balance: 200, totalEarned: 1200, totalWithdrawn: 500, outstandingCommission: 50 }
     });
+    mockGetDriverRides.mockResolvedValue([]);
     mockGetDriverOffers.mockResolvedValue([]);
     mockGetSupportContact.mockResolvedValue({ phoneNumber: "+254797753625" });
     mockGetChatConversations.mockResolvedValue([]);
+  });
+
+  it("shows incoming offers for the driver", async () => {
+    mockGetDriverOffers.mockResolvedValue([{
+      id: 9,
+      rideId: 3,
+      status: "PENDING",
+      offeredAt: "2026-04-24T12:00:00Z",
+      expiresAt: "2026-04-24T12:02:00Z",
+      customerId: 1,
+      customerName: "Jane Customer",
+      customerPhone: "254700000001",
+      pickupAddress: "Kitui CBD",
+      dropoffAddress: "Kalundu",
+      pickupLat: -1.3771,
+      pickupLng: 38.0106,
+      dropoffLat: -1.3656,
+      dropoffLng: 38.0118,
+      vehicleType: "CAR",
+      estimatedFare: 470,
+      estimatedDistanceKm: 4.2
+    }]);
+
+    renderPage();
+
+    expect(await screen.findByText("Ride #3")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /accept/i })).toBeTruthy();
   });
 
   it("shows the cash approval action for cash trips in progress", async () => {

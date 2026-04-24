@@ -386,6 +386,7 @@ public class RideService {
         return toResponse(saved);
     }
 
+    @Transactional(readOnly = true)
     public List<RideResponse> myCustomerRides() {
         User currentUser = currentUserService.getCurrentUser();
         return rideRepository.findByCustomerOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
@@ -443,11 +444,13 @@ public class RideService {
         );
     }
 
+    @Transactional(readOnly = true)
     public List<RideResponse> myDriverRides() {
         User currentUser = currentUserService.getCurrentUser();
         return rideRepository.findByRiderOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
     }
 
+    @Transactional(readOnly = true)
     public List<RideOfferResponse> myDriverOffers() {
         User currentUser = currentUserService.getCurrentUser();
         expireStaleOffersForDriver(currentUser);
@@ -458,6 +461,7 @@ public class RideService {
             .toList();
     }
 
+    @Transactional(readOnly = true)
     public RideResponse customerRideById(Long rideId) {
         User currentUser = currentUserService.getCurrentUser();
         Ride ride = getRideById(rideId);
@@ -467,6 +471,7 @@ public class RideService {
         return toResponse(ride);
     }
 
+    @Transactional(readOnly = true)
     public RideResponse driverRideById(Long rideId) {
         User currentUser = currentUserService.getCurrentUser();
         Ride ride = getRideById(rideId);
@@ -478,10 +483,12 @@ public class RideService {
         return toResponse(ride);
     }
 
+    @Transactional(readOnly = true)
     public RideResponse rideById(Long rideId) {
         return toResponse(getRideById(rideId));
     }
 
+    @Transactional(readOnly = true)
     public List<RideResponse> listAll() {
         return rideRepository.findAll().stream()
             .sorted(Comparator.comparing(Ride::getRequestedAt).reversed())
