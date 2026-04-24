@@ -150,7 +150,7 @@ export function Modal({ isOpen, title, children, onClose, footer, size = 'md' })
 }
 
 // Badge Component
-export function Badge({ label, variant = 'default', size = 'md' }) {
+export function Badge({ label, variant = 'default', size = 'md', className = '' }) {
   const bgColor = {
     default: 'bg-gray-100 text-gray-800',
     success: 'bg-green-100 text-green-800',
@@ -168,7 +168,7 @@ export function Badge({ label, variant = 'default', size = 'md' }) {
   }[size];
 
   return (
-    <span className={`${bgColor} ${sizeClass} rounded-full font-medium inline-block`}>
+    <span className={`${bgColor} ${sizeClass} rounded-full font-medium inline-block ${className}`}>
       {label}
     </span>
   );

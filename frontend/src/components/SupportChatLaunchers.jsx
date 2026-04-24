@@ -761,7 +761,7 @@ function ChatLauncher({ lane, role, unreadCount }) {
             setSelectedThreadId(null);
             setIsOpen(true);
           }}
-          className={`fixed bottom-6 ${lane.position === "left" ? "left-6" : "right-6"} z-[75] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${lane.accent} text-white shadow-[0_24px_45px_-24px_rgba(15,23,42,0.7)] transition hover:scale-[1.03] focus:outline-none focus:ring-4 focus:ring-white/60`}
+          className={`fixed bottom-24 md:bottom-6 ${lane.position === "left" ? "left-4 md:left-6" : "right-4 md:right-6"} z-[75] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${lane.accent} text-white shadow-[0_24px_45px_-24px_rgba(15,23,42,0.7)] transition hover:scale-[1.03] focus:outline-none focus:ring-4 focus:ring-white/60`}
           aria-label={lane.title}
         >
           <Icon className="text-2xl" />

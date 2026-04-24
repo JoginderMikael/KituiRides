@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import CustomerDashboard from "./CustomerDashboard";
 
+const mockNavigate = vi.fn();
 const mockUseAuth = vi.fn();
 const mockGetCustomerRides = vi.fn();
 const mockNearbyDrivers = vi.fn();
@@ -18,6 +19,14 @@ const mockGetChatConversations = vi.fn();
 vi.mock("../hooks/useAuth", () => ({
   useAuth: () => mockUseAuth()
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate
+  };
+});
 
 vi.mock("../features/customer/customerApi", () => ({
   createCustomerTicket: (...args) => mockCreateCustomerTicket(...args),
@@ -160,11 +169,11 @@ describe("CustomerDashboard", () => {
 
     renderPage();
 
-    const statusLabel = await screen.findByText("Driver Accepted");
-    const requestButton = await screen.findByRole("button", { name: /request driver/i });
+    const statusLabels = await screen.findAllByText("Driver Accepted");
+    const requestButton = screen.queryByRole("button", { name: /request driver/i });
 
-    expect(statusLabel).toBeTruthy();
-    expect(requestButton.disabled).toBe(true);
+    expect(statusLabels.length).toBeGreaterThan(0);
+    expect(requestButton).toBeNull();
   });
 
   it("queries nearby drivers with pickup, dropoff, and vehicle type parameters", async () => {
@@ -220,6 +229,7 @@ describe("CustomerDashboard", () => {
 
     renderPage();
 
+    fireEvent.click(await screen.findByRole("button", { name: /open ride chat/i }));
     expect(await screen.findByTestId("chat-box")).toBeTruthy();
     expect(await screen.findByRole("button", { name: /complete trip/i })).toBeTruthy();
   });
@@ -241,9 +251,11 @@ describe("CustomerDashboard", () => {
 
     renderPage();
 
-    await screen.findByText("Driver Two");
-    const requestButton = await screen.findByRole("button", { name: /request driver/i });
-    fireEvent.click(requestButton);
+    const driverMatches = await screen.findAllByText("Driver Two");
+    const requestButtons = await screen.findAllByRole("button", { name: /request driver/i });
+
+    expect(driverMatches.length).toBeGreaterThan(0);
+    fireEvent.click(requestButtons[0]);
 
     await waitFor(() => expect(mockRequestRide).toHaveBeenCalledTimes(1));
     expect(mockRequestRide.mock.calls[0][0]).toEqual({

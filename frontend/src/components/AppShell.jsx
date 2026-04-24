@@ -13,6 +13,7 @@ export default function AppShell() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
   const isAdmin = role === "ADMIN";
+  const useImmersiveShell = role === "CUSTOMER" || role === "DRIVER";
 
   function onLogout() {
     setShowUserMenu(false);
@@ -51,8 +52,8 @@ export default function AppShell() {
   const userName = user ? `${user.firstName} ${user.lastName}` : session?.email || "User";
 
   return (
-    <div className={isAdmin ? "min-h-screen bg-slate-100" : "min-h-screen bg-gradient-to-b from-teal-50 to-orange-50"}>
-      <header className="relative z-[70] border-b bg-white/95 shadow-sm backdrop-blur">
+    <div className={isAdmin ? "min-h-screen bg-slate-100" : "min-h-screen bg-gradient-to-b from-[#f7faf9] via-[#eef7f5] to-[#fff5eb]"}>
+      <header className={`relative z-[70] border-b bg-white/95 shadow-sm backdrop-blur ${useImmersiveShell ? "hidden md:block" : ""}`}>
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
           <Link to={roleHomePath(role)} className="flex items-center gap-2">
             <div className="text-2xl font-bold bg-gradient-to-r from-teal-600 to-teal-700 text-white px-3 py-1 rounded-lg">
@@ -138,7 +139,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <main className={isAdmin ? "relative z-0 min-h-[calc(100vh-81px)]" : "mx-auto max-w-6xl px-4 py-6"}>
+      <main className={isAdmin ? "relative z-0 min-h-[calc(100vh-81px)]" : `mx-auto w-full ${useImmersiveShell ? "max-w-7xl px-4 py-4 md:py-6" : "max-w-6xl px-4 py-6"}`}>
         <Outlet />
       </main>
       <SupportChatLaunchers />

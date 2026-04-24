@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import DriverDashboard from "./DriverDashboard";
 
+const mockNavigate = vi.fn();
 const mockUseAuth = vi.fn();
 const mockGetDriverDashboard = vi.fn();
 const mockGetDriverOffers = vi.fn();
@@ -13,6 +14,14 @@ const mockGetChatConversations = vi.fn();
 vi.mock("../hooks/useAuth", () => ({
   useAuth: () => mockUseAuth()
 }));
+
+vi.mock("react-router-dom", async () => {
+  const actual = await vi.importActual("react-router-dom");
+  return {
+    ...actual,
+    useNavigate: () => mockNavigate
+  };
+});
 
 vi.mock("../features/driver/driverApi", () => ({
   acceptDriverRide: vi.fn(),
@@ -112,6 +121,10 @@ function buildRide(overrides = {}) {
 }
 
 describe("DriverDashboard", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
@@ -202,6 +215,7 @@ describe("DriverDashboard", () => {
 
     renderPage();
 
+    fireEvent.click((await screen.findAllByRole("button", { name: /open ride chat/i }))[0]);
     expect(await screen.findByTestId("chat-box")).toBeTruthy();
     const completeButtons = await screen.findAllByRole("button", { name: /complete trip/i });
     expect(completeButtons.length).toBeGreaterThan(0);

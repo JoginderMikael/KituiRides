@@ -11,7 +11,8 @@ export default function ChatBox({
   participantName,
   participantPhone,
   onClose,
-  onActivity
+  onActivity,
+  heightClassName = "h-[28rem]"
 }) {
   const queryClient = useQueryClient();
   const { session } = useAuth();
@@ -44,8 +45,15 @@ export default function ChatBox({
     if (!conversationId) {
       return;
     }
-    markConversationRead(conversationId).catch(() => {});
-  }, [conversationId, messagesQuery.data]);
+    markConversationRead(conversationId)
+      .then(() => {
+        queryClient.invalidateQueries({ queryKey: ["chat-threads"] });
+        queryClient.invalidateQueries({ queryKey: ["chat-unread-summary"] });
+        queryClient.invalidateQueries({ queryKey: ["ride-chat-thread"] });
+        onActivity?.();
+      })
+      .catch(() => {});
+  }, [conversationId, messagesQuery.data, onActivity, queryClient]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,7 +89,7 @@ export default function ChatBox({
   }
 
   return (
-    <div className="flex h-[28rem] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className={`flex ${heightClassName} flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
       <div className="flex items-center justify-between border-b border-slate-200 bg-slate-900 px-4 py-3 text-white">
         <div>
           <p className="font-semibold">{title}</p>
