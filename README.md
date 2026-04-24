@@ -40,7 +40,7 @@ Production-oriented MVP for a localized ride-hailing platform in Kitui Town, Ken
 
 External Integrations:
 - M-Pesa Daraja API (currently mocked adapter for MVP)
-- Mapbox GL JS (customer request map via `VITE_MAPBOX_TOKEN`)
+- Google Maps JavaScript API (customer request map via `VITE_GOOGLE_MAPS_API_KEY`)
 ```
 
 ## 2) Backend Structure
@@ -139,11 +139,11 @@ npm run dev
 
 ### Frontend Environment
 
-Mapbox is optional for development, but the live request map only appears when the frontend receives a token.
+Google Maps is optional for development, but the live request map only appears when the frontend receives an API key.
 
 ```bash
 # frontend/.env.local
-VITE_MAPBOX_TOKEN=your_mapbox_public_token
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
 # optional when the frontend is not reverse-proxied to the backend
 VITE_API_URL=http://localhost:8080/api
@@ -264,7 +264,7 @@ Support agents **cannot** create their own accounts. They must be created by an 
 ## 11) Notes & PostgreSQL Troubleshooting
 
 - M-Pesa integration is represented by a mock `MpesaClient` adapter in this MVP and can be swapped to real Daraja API calls without changing controller/service contracts.
-- The customer dashboard now uses Mapbox for pickup/dropoff selection and nearby-driver visualization when `VITE_MAPBOX_TOKEN` is set.
+- The customer dashboard now uses Google Maps for pickup/dropoff selection and nearby-driver visualization when `VITE_GOOGLE_MAPS_API_KEY` is set.
 - Payment must complete before a driver can finish a trip. Cash rides require driver approval; M-Pesa rides require a successful callback.
 - The strict ride lifecycle used across backend and frontend is:
   `REQUESTED -> DRIVER_ASSIGNED -> DRIVER_ACCEPTED -> DRIVER_ARRIVED -> TRIP_STARTED -> PAYMENT_PENDING -> PAYMENT_COMPLETED -> TRIP_COMPLETED`
