@@ -3,7 +3,7 @@
  * Toast, Modal, Loading States, Badges, Cards
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 
 // Toast Notification Component
 export function Toast({ message, type = 'info', duration = 3000, onClose }) {
@@ -264,14 +264,17 @@ export function Input({
   disabled = false,
   required = false,
 }) {
+  const inputId = useId();
+
   return (
     <div className="mb-4">
       {label && (
-        <label className="block text-sm font-medium text-gray-700 mb-1">
+        <label htmlFor={inputId} className="block text-sm font-medium text-gray-700 mb-1">
           {label} {required && <span className="text-red-500">*</span>}
         </label>
       )}
       <input
+        id={inputId}
         type={type}
         value={value}
         onChange={onChange}

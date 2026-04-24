@@ -233,11 +233,21 @@ public class RideService {
     @Transactional
     public RideResponse completeRide(Long rideId) {
         Ride ride = getRideForCompletionParticipant(rideId);
-        if (ride.getStatus() != RideStatus.PAYMENT_COMPLETED) {
-            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must reach PAYMENT_COMPLETED before completion");
-        }
-        if (!ride.getPaymentApproved()) {
+        Payment payment = paymentRepository.findByRide(ride).orElse(null);
+        boolean paymentSettled = Boolean.TRUE.equals(ride.getPaymentApproved())
+            || (payment != null && payment.getStatus() == PaymentStatus.SUCCESS);
+        if (!paymentSettled) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Payment must be completed before trip completion");
+        }
+        ride.setPaymentApproved(true);
+        if (ride.getStatus() != RideStatus.PAYMENT_COMPLETED && ride.getStatus() != RideStatus.PAYMENT_PENDING) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Ride must reach payment settlement before completion");
+        }
+        if (ride.getStatus() == RideStatus.PAYMENT_PENDING) {
+            transitionStatus(ride, RideStatus.PAYMENT_COMPLETED);
+            if (ride.getPaymentCompletedAt() == null) {
+                ride.setPaymentCompletedAt(payment != null && payment.getCompletedAt() != null ? payment.getCompletedAt() : Instant.now());
+            }
         }
 
         transitionStatus(ride, RideStatus.TRIP_COMPLETED);

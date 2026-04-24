@@ -41,6 +41,10 @@ function formatDistance(value) {
   return `${Number(value || 0).toFixed(2)} km`;
 }
 
+function canShowManualDistanceForm(status) {
+  return ["TRIP_STARTED", "PAYMENT_PENDING", "DISPUTED"].includes(status);
+}
+
 export default function DriverDashboard() {
   const queryClient = useQueryClient();
   const { session } = useAuth();
@@ -48,6 +52,7 @@ export default function DriverDashboard() {
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("");
   const [manualDistance, setManualDistance] = useState("");
+  const [tripActionStatus, setTripActionStatus] = useState("");
 
   const dashboardQuery = useQuery({
     queryKey: ["driver-dashboard"],
@@ -97,10 +102,12 @@ export default function DriverDashboard() {
     return disconnect;
   }, [queryClient, session?.userId]);
 
-  const refresh = () => {
-    queryClient.invalidateQueries({ queryKey: ["driver-dashboard"] });
-    queryClient.invalidateQueries({ queryKey: ["driver-rides"] });
-    queryClient.invalidateQueries({ queryKey: ["driver-offers"] });
+  const refresh = async () => {
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ["driver-dashboard"] }),
+      queryClient.refetchQueries({ queryKey: ["driver-rides"] }),
+      queryClient.refetchQueries({ queryKey: ["driver-offers"] })
+    ]);
   };
 
   const statusMutation = useMutation({
@@ -113,19 +120,40 @@ export default function DriverDashboard() {
   const startMutation = useMutation({ mutationFn: startDriverRide, onSuccess: refresh });
   const distanceMutation = useMutation({
     mutationFn: ({ rideId, distanceKm }) => submitManualDistance(rideId, distanceKm),
-    onSuccess: () => {
+    onSuccess: async () => {
       setManualDistance("");
-      refresh();
+      await refresh();
     }
   });
   const cashMutation = useMutation({
     mutationFn: ({ rideId, manualDistanceKm }) => approveCashPayment(rideId, manualDistanceKm ? { manualDistanceKm } : {}),
-    onSuccess: refresh
+    onSuccess: async () => {
+      setTripActionStatus("Cash payment approved. Refreshing the trip so you can complete it.");
+      await refresh();
+    },
+    onError: (error) => {
+      setTripActionStatus(error?.response?.data?.message || "Cash payment approval failed. Please try again.");
+    }
   });
-  const completeMutation = useMutation({ mutationFn: completeDriverRide, onSuccess: refresh });
+  const completeMutation = useMutation({
+    mutationFn: completeDriverRide,
+    onSuccess: async () => {
+      setTripActionStatus("Trip completed successfully.");
+      await refresh();
+    },
+    onError: (error) => {
+      setTripActionStatus(error?.response?.data?.message || "Unable to complete the trip right now.");
+    }
+  });
   const cancelMutation = useMutation({
     mutationFn: ({ rideId, reason }) => cancelDriverRide(rideId, reason),
-    onSuccess: refresh
+    onSuccess: async () => {
+      setTripActionStatus("Trip cancelled and sent to support review.");
+      await refresh();
+    },
+    onError: (error) => {
+      setTripActionStatus(error?.response?.data?.message || "Unable to cancel the trip right now.");
+    }
   });
   const locationMutation = useMutation({
     mutationFn: updateDriverLocation,
@@ -142,6 +170,7 @@ export default function DriverDashboard() {
   const dashboard = dashboardQuery.data;
   const supportPhone = supportContactQuery.data?.phoneNumber || dashboard?.supportPhoneNumber;
   const offersErrorMessage = offersQuery.error?.response?.data?.message || "Unable to load incoming ride offers right now.";
+  const showManualDistanceForm = Boolean(activeRide && canShowManualDistanceForm(activeRide.status));
   const driverMapLocation = currentLocation || (
     dashboard?.latitude != null && dashboard?.longitude != null
       ? { latitude: dashboard.latitude, longitude: dashboard.longitude }
@@ -160,6 +189,16 @@ export default function DriverDashboard() {
     }
     setLocationStatus("Update your location to appear to customers within 5 km.");
   }, [dashboard?.latitude, dashboard?.longitude, dashboard?.locationUpdatedAt]);
+
+  useEffect(() => {
+    if (!activeRide) {
+      setTripActionStatus("");
+      return;
+    }
+    if (activeRide.status === "PAYMENT_COMPLETED") {
+      setTripActionStatus("Payment is settled. You can now complete the trip.");
+    }
+  }, [activeRide?.id, activeRide?.status]);
 
   const updateExactLocation = () => {
     if (!navigator.geolocation) {
@@ -186,6 +225,9 @@ export default function DriverDashboard() {
     if (!activeRide) {
       return null;
     }
+    const paymentSettled = activeRide.paymentApproved
+      || activeRide.paymentStatus === "SUCCESS"
+      || activeRide.status === "PAYMENT_COMPLETED";
     if (activeRide.status === "DRIVER_ACCEPTED") {
       return {
         title: "Head to Pickup",
@@ -231,6 +273,17 @@ export default function DriverDashboard() {
       };
     }
     if (activeRide.status === "PAYMENT_PENDING") {
+      if (paymentSettled) {
+        return {
+          title: "Ready to Complete",
+          description: "Payment is settled. Complete the trip to release the ride and update both dashboards.",
+          action: (
+            <Button variant="success" onClick={() => completeMutation.mutate(activeRide.id)} loading={completeMutation.isPending}>
+              Complete Trip
+            </Button>
+          )
+        };
+      }
       return {
         title: "Payment Pending",
         description: activeRide.paymentType === "MPESA"
@@ -474,15 +527,25 @@ export default function DriverDashboard() {
                   </div>
                 </div>
 
-                {(activeRide.manualDistanceRequired || activeRide.status === "DISPUTED") && (
-                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="text-sm text-amber-900">
-                      GPS distance needs help. Submit manual KM if you have the final distance.
+                {showManualDistanceForm && (
+                  <div
+                    className={`rounded-2xl p-4 ${
+                      activeRide.manualDistanceRequired || activeRide.status === "DISPUTED"
+                        ? "border border-amber-200 bg-amber-50"
+                        : "border border-slate-200 bg-slate-50"
+                    }`}
+                  >
+                    <p className={`text-sm ${activeRide.manualDistanceRequired || activeRide.status === "DISPUTED" ? "text-amber-900" : "text-slate-700"}`}>
+                      {activeRide.manualDistanceRequired
+                        ? "Manual KM is required before payment can continue. Enter the final trip distance here."
+                        : "You can enter the trip KM here whenever GPS is incomplete or you need to confirm the final distance before payment."}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-3">
                       <Input
                         label="Manual KM"
                         type="number"
+                        min="0"
+                        step="0.1"
                         value={manualDistance}
                         onChange={(event) => setManualDistance(event.target.value)}
                       />
@@ -503,6 +566,12 @@ export default function DriverDashboard() {
                     <p className="font-semibold text-slate-900">{currentActionCard.title}</p>
                     <p className="mt-1 text-sm text-slate-600">{currentActionCard.description}</p>
                     {currentActionCard.action && <div className="mt-4">{currentActionCard.action}</div>}
+                  </div>
+                )}
+
+                {tripActionStatus && (
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+                    {tripActionStatus}
                   </div>
                 )}
 

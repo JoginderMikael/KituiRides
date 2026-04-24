@@ -170,6 +170,23 @@ describe("DriverDashboard", () => {
 
     const approveButton = await screen.findByRole("button", { name: /approve cash payment/i });
     expect(approveButton).toBeTruthy();
+    expect(screen.getByLabelText(/manual km/i)).toBeTruthy();
+  });
+
+  it("shows the complete action when payment is already settled but the ride is still pending completion", async () => {
+    mockGetDriverRides.mockResolvedValue([
+      buildRide({
+        status: "PAYMENT_PENDING",
+        paymentType: "MPESA",
+        paymentApproved: true,
+        paymentStatus: "SUCCESS"
+      })
+    ]);
+
+    renderPage();
+
+    const completeButton = await screen.findByRole("button", { name: /complete trip/i });
+    expect(completeButton).toBeTruthy();
   });
 
   it("shows the complete-trip action only after payment is completed", async () => {
@@ -186,7 +203,7 @@ describe("DriverDashboard", () => {
     renderPage();
 
     expect(await screen.findByTestId("chat-box")).toBeTruthy();
-    const completeButton = await screen.findByRole("button", { name: /complete trip/i });
-    expect(completeButton).toBeTruthy();
+    const completeButtons = await screen.findAllByRole("button", { name: /complete trip/i });
+    expect(completeButtons.length).toBeGreaterThan(0);
   });
 });
