@@ -208,6 +208,10 @@ export default function CustomerDashboard() {
       : "";
   const supportPhone = supportContactQuery.data?.phoneNumber;
   const canRequestRide = !activeRide;
+  const nearbyDriversError = driversQuery.error?.response?.data?.message
+    || (driversQuery.error?.response?.status === 403
+      ? "Nearby drivers could not load because this session is not authorized as a customer. Log in as the customer in a separate browser or profile when testing driver and customer side by side."
+      : "Unable to load nearby drivers right now.");
 
   useEffect(() => {
     const query = form.pickupAddress?.trim() || "";
@@ -457,6 +461,10 @@ export default function CustomerDashboard() {
 
             {driversQuery.isLoading ? (
               <LoadingSpinner />
+            ) : driversQuery.isError ? (
+              <div className="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                {nearbyDriversError}
+              </div>
             ) : (driversQuery.data || []).length === 0 ? (
               <EmptyState icon="🧭" title="No Drivers Nearby" description="Try adjusting your pickup or wait for more drivers to come online." />
             ) : (

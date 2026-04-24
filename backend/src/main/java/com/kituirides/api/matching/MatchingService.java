@@ -17,8 +17,11 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class MatchingService {
@@ -35,6 +38,7 @@ public class MatchingService {
     private final RideStateMachine rideStateMachine;
     private final PriceCalculationService priceCalculationService;
 
+    @Transactional(readOnly = true)
     public List<DriverMatchResult> findEligibleDrivers(
         double pickupLat,
         double pickupLng,
@@ -45,19 +49,35 @@ public class MatchingService {
         Instant freshnessCutoff = Instant.now().minus(LOCATION_FRESHNESS);
         double estimatedDistance = estimateTripDistanceKm(pickupLat, pickupLng, dropoffLat, dropoffLng);
         double surgeMultiplier = calculateSurgeMultiplier();
+        int[] rejected = new int[6];
 
-        return riderProfileRepository.findByVerifiedTrueAndAvailableTrue().stream()
+        List<DriverMatchResult> matches = riderProfileRepository.findAllWithUser().stream()
             .map(profile -> {
+                if (!Boolean.TRUE.equals(profile.getVerified())) {
+                    rejected[0]++;
+                    return null;
+                }
+                if (!Boolean.TRUE.equals(profile.getAvailable())) {
+                    rejected[1]++;
+                    return null;
+                }
                 Vehicle vehicle = vehicleRepository.findByRiderProfile(profile).orElse(null);
-                if (vehicle == null || vehicle.getVehicleType() != vehicleType) {
+                if (vehicle == null) {
+                    rejected[2]++;
+                    return null;
+                }
+                if (vehicle.getVehicleType() != vehicleType) {
+                    rejected[3]++;
                     return null;
                 }
                 if (rideRepository.existsByRiderAndStatusIn(profile.getUser(), rideStateMachine.activeDriverStatuses())) {
+                    rejected[4]++;
                     return null;
                 }
 
                 Optional<LocationPing> latestPing = locationPingRepository.findTopByUserOrderByTimestampDesc(profile.getUser());
                 if (latestPing.isEmpty() || latestPing.get().getTimestamp().isBefore(freshnessCutoff)) {
+                    rejected[5]++;
                     return null;
                 }
 
@@ -68,6 +88,12 @@ public class MatchingService {
                     latestPing.get().getLongitude()
                 );
                 if (distanceToPickupKm > MATCH_RADIUS_KM) {
+                    log.info(
+                        "Driver {} rejected for pickup match: distanceToPickup={}km exceeds radius={}km",
+                        profile.getUser().getId(),
+                        BigDecimal.valueOf(distanceToPickupKm).setScale(2, RoundingMode.HALF_UP),
+                        MATCH_RADIUS_KM
+                    );
                     return null;
                 }
 
@@ -84,6 +110,10 @@ public class MatchingService {
                     vehicle,
                     latestPing.get().getLatitude(),
                     latestPing.get().getLongitude(),
+                    displayName(profile.getUser().getFirstName(), profile.getUser().getLastName(), "Driver " + profile.getUser().getId()),
+                    displayName(vehicle.getMake(), vehicle.getModel(), "Registered vehicle"),
+                    vehicle.getPlateNumber(),
+                    vehicle.getVehicleType(),
                     eta,
                     distanceToPickupKm,
                     estimatedPrice
@@ -93,6 +123,21 @@ public class MatchingService {
             .sorted(Comparator.comparingDouble(DriverMatchResult::distanceToPickupKm))
             .limit(MAX_MATCHES)
             .toList();
+
+        log.info(
+            "Driver match summary: pickup=({}, {}), vehicleType={}, matched={}, rejectedUnverified={}, rejectedOffline={}, rejectedNoVehicle={}, rejectedVehicleType={}, rejectedActiveRide={}, rejectedNoFreshLocation={}",
+            pickupLat,
+            pickupLng,
+            vehicleType,
+            matches.size(),
+            rejected[0],
+            rejected[1],
+            rejected[2],
+            rejected[3],
+            rejected[4],
+            rejected[5]
+        );
+        return matches;
     }
 
     public double calculateSurgeMultiplier() {
@@ -125,5 +170,10 @@ public class MatchingService {
 
     public double estimatedDistanceExtraPercent() {
         return ESTIMATED_DISTANCE_EXTRA_PERCENT;
+    }
+
+    private String displayName(String first, String second, String fallback) {
+        String joined = ((first == null ? "" : first) + " " + (second == null ? "" : second)).trim();
+        return joined.isBlank() ? fallback : joined;
     }
 }

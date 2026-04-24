@@ -13,9 +13,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class LocationService {
@@ -30,6 +32,7 @@ public class LocationService {
     @Transactional
     public void updateMyLocation(LocationUpdateRequest request) {
         var user = currentUserService.getCurrentUser();
+        log.info("Driver {} updating location to lat={}, lng={}", user.getId(), request.latitude(), request.longitude());
         LocationPing ping = new LocationPing();
         ping.setUser(user);
         ping.setLatitude(request.latitude());
@@ -67,16 +70,27 @@ public class LocationService {
                 match.driver().getId(),
                 match.latitude(),
                 match.longitude(),
-                match.vehicle().getMake() + " " + match.vehicle().getModel(),
-                match.vehicle().getPlateNumber(),
-                match.driver().getFirstName() + " " + match.driver().getLastName(),
-                match.vehicle().getVehicleType(),
+                match.vehicleModel(),
+                match.plateNumber(),
+                match.driverName(),
+                match.vehicleType(),
                 match.etaMinutes(),
                 BigDecimal.valueOf(match.distanceToPickupKm()).setScale(2, RoundingMode.HALF_UP),
                 match.estimatedPrice()
             ))
             .toList();
-        realtimePublisher.publishNearbyDrivers(nearby);
+        log.info(
+            "Nearby drivers response: pickup=({}, {}), vehicleType={}, count={}",
+            pickupLat,
+            pickupLng,
+            vehicleType,
+            nearby.size()
+        );
+        try {
+            realtimePublisher.publishNearbyDrivers(nearby);
+        } catch (RuntimeException exception) {
+            log.warn("Failed to publish nearby drivers update", exception);
+        }
         return nearby;
     }
 }
