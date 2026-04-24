@@ -1,6 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  FiArrowLeft,
   FiArrowUp,
   FiCheckCircle,
   FiHeadphones,
@@ -456,7 +457,8 @@ function ThreadConversation({
   sendPending,
   onCloseThread,
   onResolveThread,
-  onReopenThread
+  onReopenThread,
+  onBackToThreads
 }) {
   const messagesEndRef = useRef(null);
 
@@ -483,6 +485,14 @@ function ThreadConversation({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="min-w-0">
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={onBackToThreads}
+                className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50"
+                aria-label="Back to threads"
+              >
+                <FiArrowLeft />
+              </button>
               <span className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700">
                 <TypeIcon />
               </span>
@@ -685,12 +695,8 @@ function ChatLauncher({ lane, role, unreadCount }) {
   }, [searchTerm, statusFilter, threadsQuery.data]);
 
   useEffect(() => {
-    if (!visibleThreads.length) {
+    if (selectedThreadId && !visibleThreads.some((thread) => thread.id === selectedThreadId)) {
       setSelectedThreadId(null);
-      return;
-    }
-    if (!selectedThreadId || !visibleThreads.some((thread) => thread.id === selectedThreadId)) {
-      setSelectedThreadId(visibleThreads[0].id);
     }
   }, [selectedThreadId, visibleThreads]);
 
@@ -751,7 +757,10 @@ function ChatLauncher({ lane, role, unreadCount }) {
       {!isOpen && (
         <button
           type="button"
-          onClick={() => setIsOpen((current) => !current)}
+          onClick={() => {
+            setSelectedThreadId(null);
+            setIsOpen(true);
+          }}
           className={`fixed bottom-6 ${lane.position === "left" ? "left-6" : "right-6"} z-[75] flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br ${lane.accent} text-white shadow-[0_24px_45px_-24px_rgba(15,23,42,0.7)] transition hover:scale-[1.03] focus:outline-none focus:ring-4 focus:ring-white/60`}
           aria-label={lane.title}
         >
@@ -767,26 +776,26 @@ function ChatLauncher({ lane, role, unreadCount }) {
       {isOpen && (
         <div className="fixed inset-0 z-[80] bg-slate-950/45 backdrop-blur-[2px]">
           <div
-            className={`absolute inset-y-0 ${lane.position === "left" ? "left-0 justify-start" : "right-0 justify-end"} flex w-full`}
+            className={`absolute inset-y-4 ${lane.position === "left" ? "left-4 justify-start" : "right-4 justify-end"} flex w-[calc(100%-2rem)] sm:inset-y-6 sm:w-[calc(100%-3rem)] ${lane.position === "left" ? "sm:left-6" : "sm:right-6"}`}
           >
-            <div className="flex h-full w-full max-w-[1100px] flex-col bg-[linear-gradient(180deg,rgba(241,245,249,0.98),rgba(255,255,255,0.98))] shadow-2xl">
+            <div className="flex h-full w-full max-w-[430px] flex-col overflow-hidden rounded-[28px] bg-[linear-gradient(180deg,rgba(241,245,249,0.98),rgba(255,255,255,0.98))] shadow-2xl">
               <div className={`bg-gradient-to-r ${lane.panelAccent} px-5 py-4 text-white`}>
-                <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/70">{lane.subtitle}</p>
                     <h2 className="mt-1 text-2xl font-semibold">{lane.title}</h2>
-                    <p className="mt-1 text-sm text-white/75">
-                      Ticket-linked threads with unread counts, timestamps, and role-safe actions.
-                    </p>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex shrink-0 items-start gap-2">
                     <Button size="sm" variant="secondary" onClick={() => setShowNewTicketModal(true)}>
                       <FiPlus />
                       New Ticket
                     </Button>
                     <button
                       type="button"
-                      onClick={() => setIsOpen(false)}
+                      onClick={() => {
+                        setIsOpen(false);
+                        setSelectedThreadId(null);
+                      }}
                       className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/15"
                     >
                       <FiX />
@@ -795,62 +804,8 @@ function ChatLauncher({ lane, role, unreadCount }) {
                 </div>
               </div>
 
-              <div className="grid min-h-0 flex-1 gap-4 p-4 lg:grid-cols-[330px_minmax(0,1fr)]">
-                <div className="flex min-h-0 flex-col rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-[0_30px_65px_-45px_rgba(15,23,42,0.55)]">
-                  <div className="relative">
-                    <FiSearch className="pointer-events-none absolute left-3 top-3.5 text-slate-400" />
-                    <input
-                      value={searchTerm}
-                      onChange={(event) => setSearchTerm(event.target.value)}
-                      placeholder="Search subject, ticket, participant"
-                      className="w-full rounded-2xl border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
-                    />
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {STATUS_FILTERS.map((filter) => (
-                      <button
-                        key={filter.key}
-                        type="button"
-                        onClick={() => setStatusFilter(filter.key)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                          statusFilter === filter.key
-                            ? "bg-slate-900 text-white"
-                            : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                        }`}
-                      >
-                        {filter.label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-4 min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
-                    {threadsQuery.isLoading ? (
-                      <div className="flex h-40 items-center justify-center">
-                        <LoadingSpinner />
-                      </div>
-                    ) : threadsQuery.isError ? (
-                      <div className="rounded-[24px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
-                        {threadsQuery.error?.response?.data?.message || "Unable to load threads right now."}
-                      </div>
-                    ) : !visibleThreads.length ? (
-                      <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
-                        No threads match the current filters. Start a new ticket to open a fresh support thread.
-                      </div>
-                    ) : (
-                      visibleThreads.map((thread) => (
-                        <ThreadListItem
-                          key={thread.id}
-                          thread={thread}
-                          active={thread.id === selectedThreadId}
-                          onSelect={() => setSelectedThreadId(thread.id)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-
-                <div className="min-h-0">
+              <div className="min-h-0 flex-1 p-4">
+                {selectedThread ? (
                   <ThreadConversation
                     thread={selectedThread}
                     messages={messagesQuery.data || []}
@@ -881,8 +836,63 @@ function ChatLauncher({ lane, role, unreadCount }) {
                       resolveMutation.mutate({ resolutionNotes });
                     }}
                     onReopenThread={() => reopenMutation.mutate()}
+                    onBackToThreads={() => setSelectedThreadId(null)}
                   />
-                </div>
+                ) : (
+                  <div className="flex h-full min-h-[32rem] flex-col rounded-[28px] border border-white/70 bg-white/80 p-4 shadow-[0_30px_65px_-45px_rgba(15,23,42,0.55)]">
+                    <div className="relative">
+                      <FiSearch className="pointer-events-none absolute left-3 top-3.5 text-slate-400" />
+                      <input
+                        value={searchTerm}
+                        onChange={(event) => setSearchTerm(event.target.value)}
+                        placeholder="Search subject, ticket, participant"
+                        className="w-full rounded-2xl border border-slate-300 py-2.5 pl-10 pr-4 text-sm focus:border-teal-500 focus:outline-none focus:ring-2 focus:ring-teal-100"
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {STATUS_FILTERS.map((filter) => (
+                        <button
+                          key={filter.key}
+                          type="button"
+                          onClick={() => setStatusFilter(filter.key)}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                            statusFilter === filter.key
+                              ? "bg-slate-900 text-white"
+                              : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          }`}
+                        >
+                          {filter.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 min-h-0 flex-1 overflow-y-auto space-y-3 pr-1">
+                      {threadsQuery.isLoading ? (
+                        <div className="flex h-40 items-center justify-center">
+                          <LoadingSpinner />
+                        </div>
+                      ) : threadsQuery.isError ? (
+                        <div className="rounded-[24px] border border-red-200 bg-red-50 p-5 text-sm text-red-700">
+                          {threadsQuery.error?.response?.data?.message || "Unable to load threads right now."}
+                        </div>
+                      ) : !visibleThreads.length ? (
+                        <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">
+                          No threads match the current filters. Start a new ticket to open a fresh support thread.
+                        </div>
+                      ) : (
+                        visibleThreads.map((thread) => (
+                          <ThreadListItem
+                            key={thread.id}
+                            thread={thread}
+                            active={false}
+                            onSelect={() => setSelectedThreadId(thread.id)}
+                          />
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
