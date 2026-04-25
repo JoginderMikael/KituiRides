@@ -8,6 +8,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 
+/**
+ * Request payload for create ride.
+ */
 public record CreateRideRequest(
     @NotNull @Min(-90) @Max(90) Double pickupLat,
     @NotNull @Min(-180) @Max(180) Double pickupLng,

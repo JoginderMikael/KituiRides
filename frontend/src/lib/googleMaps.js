@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Google Maps integration helpers used by the UI.
+ */
 const GOOGLE_MAPS_SCRIPT_ID = "google-maps-js-api";
 const DEFAULT_REGION = "ke";
 

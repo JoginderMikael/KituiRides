@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Request payload for mpesa callback.
+ */
 @JsonIgnoreProperties(ignoreUnknown = true)
 public record MpesaCallbackRequest(
     BodyPayload Body

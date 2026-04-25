@@ -16,6 +16,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Entity representing driver wallet.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

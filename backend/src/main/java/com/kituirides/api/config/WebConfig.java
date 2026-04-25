@@ -7,6 +7,9 @@ import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
+/**
+ * Configures shared web MVC behavior such as CORS and static resources.
+ */
 @Configuration
 public class WebConfig implements WebMvcConfigurer {
 

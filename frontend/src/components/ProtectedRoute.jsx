@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for protected route.
+ */
 import { Navigate, Outlet } from "react-router-dom";
 import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";

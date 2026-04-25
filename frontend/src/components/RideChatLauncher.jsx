@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for ride chat launcher.
+ */
 import { useEffect, useRef, useState } from "react";
 import { FiMessageSquare, FiX } from "react-icons/fi";
 import { useAuth } from "../hooks/useAuth";

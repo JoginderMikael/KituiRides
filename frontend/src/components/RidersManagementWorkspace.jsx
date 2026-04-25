@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for riders management workspace.
+ */
 import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity,

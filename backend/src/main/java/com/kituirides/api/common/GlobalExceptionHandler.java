@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+/**
+ * Maps backend exceptions to consistent API responses.
+ */
 @RestControllerAdvice
 @Slf4j
 public class GlobalExceptionHandler {

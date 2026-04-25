@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for file upload.
+ */
 import React, { useState } from 'react';
 import { apiClient } from '../lib/apiClient';
 

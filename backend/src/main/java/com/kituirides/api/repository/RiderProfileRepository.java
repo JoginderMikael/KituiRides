@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.Query;
 
+/**
+ * Provides persistence access for rider profile.
+ */
 public interface RiderProfileRepository extends JpaRepository<RiderProfile, Long> {
     @EntityGraph(attributePaths = "user")
     @Query("select profile from RiderProfile profile")

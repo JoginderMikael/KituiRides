@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Shared HTTP client utilities for frontend API calls.
+ */
 import axios from "axios";
 import { getToken } from "./auth";
 

@@ -4,6 +4,9 @@ import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.domain.enums.VehicleType;
 import java.time.Instant;
 
+/**
+ * Response payload for user profile.
+ */
 public record UserProfileResponse(
     Long id,
     String firstName,

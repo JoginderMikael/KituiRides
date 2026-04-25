@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for support chat launchers.
+ */
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {

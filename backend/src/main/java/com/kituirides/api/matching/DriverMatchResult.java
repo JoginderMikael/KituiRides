@@ -5,6 +5,9 @@ import com.kituirides.api.domain.entity.Vehicle;
 import com.kituirides.api.domain.enums.VehicleType;
 import java.math.BigDecimal;
 
+/**
+ * Result payload for driver match.
+ */
 public record DriverMatchResult(
     User driver,
     Vehicle vehicle,

@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for drivers management workspace.
+ */
 import { useEffect, useMemo, useState } from "react";
 import {
   FiActivity,

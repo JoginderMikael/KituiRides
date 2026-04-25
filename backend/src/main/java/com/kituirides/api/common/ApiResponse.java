@@ -1,6 +1,19 @@
 package com.kituirides.api.common;
 
-public record ApiResponse<T>(boolean success, T data, String message) {
+import io.swagger.v3.oas.annotations.media.Schema;
+
+/**
+ * Standard API response wrapper returned by REST endpoints.
+ */
+@Schema(description = "Standard API response envelope.")
+public record ApiResponse<T>(
+    @Schema(description = "Indicates whether the request succeeded.")
+    boolean success,
+    @Schema(description = "Response payload returned by the endpoint.")
+    T data,
+    @Schema(description = "Optional human-readable result message.")
+    String message
+) {
     public static <T> ApiResponse<T> ok(T data) {
         return new ApiResponse<>(true, data, null);
     }

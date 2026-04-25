@@ -29,6 +29,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Handles admin settings workflows.
+ */
 @Slf4j
 @Service
 @RequiredArgsConstructor

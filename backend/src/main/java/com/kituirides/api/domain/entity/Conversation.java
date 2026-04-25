@@ -22,6 +22,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Entity representing conversation.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

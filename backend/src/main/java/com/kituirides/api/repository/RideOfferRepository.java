@@ -9,6 +9,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * Provides persistence access for ride offer.
+ */
 public interface RideOfferRepository extends JpaRepository<RideOffer, Long> {
     List<RideOffer> findByRideOrderByOfferedAtAsc(Ride ride);
     List<RideOffer> findByRideAndStatusOrderByOfferedAtAsc(Ride ride, RideOfferStatus status);

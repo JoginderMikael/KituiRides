@@ -3,6 +3,9 @@ package com.kituirides.api.admin;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Response payload for system settings.
+ */
 public record SystemSettingsResponse(
     SettingsSummary summary,
     PricingSettings pricing,

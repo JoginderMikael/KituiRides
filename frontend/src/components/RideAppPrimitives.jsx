@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for ride app primitives.
+ */
 import { useEffect, useRef } from "react";
 import { FiChevronDown, FiChevronUp } from "react-icons/fi";
 import { Badge, Button, Card } from "./UIComponents";

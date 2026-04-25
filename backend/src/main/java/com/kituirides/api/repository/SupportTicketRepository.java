@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+/**
+ * Provides persistence access for support ticket.
+ */
 public interface SupportTicketRepository extends JpaRepository<SupportTicket, Long> {
     List<SupportTicket> findByCreatedByOrderByCreatedAtDesc(User createdBy);
     List<SupportTicket> findByAssignedToOrAssignedToIsNullOrderByCreatedAtDesc(User assignedTo);

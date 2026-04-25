@@ -20,6 +20,9 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Entity representing ride.
+ */
 @Getter
 @Setter
 @Entity

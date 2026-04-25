@@ -1,3 +1,6 @@
+/**
+ * @fileoverview React context module for auth context.
+ */
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { clearSession, getSession, saveSession } from "../lib/auth";
 import { apiClient, unwrap } from "../lib/apiClient";

@@ -4,6 +4,9 @@ import com.kituirides.api.ride.RideResponse;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Response payload for driver dashboard.
+ */
 public record DriverDashboardResponse(
     Long userId,
     String fullName,
@@ -22,6 +25,9 @@ public record DriverDashboardResponse(
 ) {
 }
 
+/**
+ * Immutable data type for driver vehicle summary.
+ */
 record DriverVehicleSummary(
     String make,
     String model,
@@ -32,6 +38,9 @@ record DriverVehicleSummary(
 ) {
 }
 
+/**
+ * Immutable data type for driver wallet summary.
+ */
 record DriverWalletSummary(
     BigDecimal balance,
     BigDecimal totalEarned,

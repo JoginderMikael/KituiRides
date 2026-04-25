@@ -10,6 +10,9 @@ import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+/**
+ * Provides JWT generation and parsing helpers.
+ */
 @Service
 public class JwtService {
 

@@ -1,5 +1,8 @@
 package com.kituirides.api.domain.enums;
 
+/**
+ * Enumerates ride status values.
+ */
 public enum RideStatus {
     REQUESTED,
     DRIVER_ASSIGNED,

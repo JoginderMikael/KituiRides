@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
+/**
+ * Handles ride redis workflows.
+ */
 @Service
 @RequiredArgsConstructor
 public class RideRedisService {

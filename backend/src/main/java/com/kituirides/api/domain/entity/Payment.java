@@ -18,6 +18,9 @@ import java.time.Instant;
 import lombok.Getter;
 import lombok.Setter;
 
+/**
+ * Entity representing payment.
+ */
 @Getter
 @Setter
 @Entity

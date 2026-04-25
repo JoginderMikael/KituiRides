@@ -9,6 +9,9 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
+/**
+ * Request payload for update system settings.
+ */
 public record UpdateSystemSettingsRequest(
     @NotNull(message = "Base fare is required")
     @DecimalMin(value = "0.00", inclusive = false, message = "Base fare must be greater than 0")

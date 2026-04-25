@@ -46,6 +46,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Handles admin workflows.
+ */
 @Service
 @RequiredArgsConstructor
 public class AdminService {
@@ -363,6 +366,9 @@ public class AdminService {
     }
 }
 
+/**
+ * Request payload for create support agent.
+ */
 record CreateSupportAgentRequest(
     @NotBlank(message = "First name is required") String firstName,
     @NotBlank(message = "Last name is required") String lastName,
@@ -373,6 +379,9 @@ record CreateSupportAgentRequest(
     String password
 ) {}
 
+/**
+ * Request payload for update driver details.
+ */
 record UpdateDriverDetailsRequest(
     @NotBlank(message = "First name is required") String firstName,
     @NotBlank(message = "Last name is required") String lastName,

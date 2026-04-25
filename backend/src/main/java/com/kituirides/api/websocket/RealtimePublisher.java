@@ -5,6 +5,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Component;
 
+/**
+ * Publishes realtime ride and driver updates over messaging channels.
+ */
 @Component
 @RequiredArgsConstructor
 public class RealtimePublisher {

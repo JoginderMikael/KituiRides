@@ -9,6 +9,9 @@ import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+/**
+ * Provides persistence access for document.
+ */
 @Repository
 public interface DocumentRepository extends JpaRepository<Document, Long> {
     List<Document> findByDriver_IdAndStatus(Long driverId, DocumentStatus status);

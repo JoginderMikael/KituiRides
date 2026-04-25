@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Page component for support page.
+ */
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Card, EmptyState, Input, LoadingSpinner } from "../components/UIComponents";

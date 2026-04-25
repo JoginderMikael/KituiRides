@@ -26,6 +26,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Handles driver workflows.
+ */
 @Service
 @RequiredArgsConstructor
 public class DriverService {
@@ -197,6 +200,9 @@ public class DriverService {
     }
 }
 
+/**
+ * Request payload for update vehicle details.
+ */
 record UpdateVehicleDetailsRequest(
     String make,
     String model,

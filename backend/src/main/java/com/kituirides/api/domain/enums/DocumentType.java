@@ -1,5 +1,8 @@
 package com.kituirides.api.domain.enums;
 
+/**
+ * Enumerates document type values.
+ */
 public enum DocumentType {
     PASSPORT_PHOTO,
     ID_FRONT,

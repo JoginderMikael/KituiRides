@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Test coverage for router.
+ */
 import { describe, expect, it } from "vitest";
 import { router } from "./router";
 

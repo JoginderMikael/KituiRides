@@ -5,6 +5,9 @@ import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.payment.DriverWalletService;
 import com.kituirides.api.repository.UserRepository;
 import com.kituirides.api.security.JwtTokenProvider;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.math.BigDecimal;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,10 +20,14 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Exposes driver wallet balance, earnings, and withdrawal endpoints.
+ */
 @Slf4j
 @RestController
 @RequestMapping("/api/wallet")
 @RequiredArgsConstructor
+@Tag(name = "Wallet", description = "Driver wallet and withdrawal endpoints")
 public class WalletController {
 
     private final DriverWalletService walletService;
@@ -28,10 +35,15 @@ public class WalletController {
     private final UserRepository userRepository;
 
     /**
-     * Get driver's wallet details
+     * Returns the authenticated driver's wallet details.
+     *
+     * @param token bearer token containing the authenticated driver identity
+     * @return the driver's wallet record
      */
     @GetMapping("/my-wallet")
     @PreAuthorize("hasRole('DRIVER')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get wallet details", description = "Returns the authenticated driver's wallet information.")
     public ResponseEntity<DriverWallet> getWallet(@RequestHeader("Authorization") String token) {
         Long driverId = extractUserIdFromToken(token);
         User driver = userRepository.findById(driverId)
@@ -42,10 +54,15 @@ public class WalletController {
     }
 
     /**
-     * Get wallet balance
+     * Returns the authenticated driver's current wallet balance.
+     *
+     * @param token bearer token containing the authenticated driver identity
+     * @return the current wallet balance
      */
     @GetMapping("/my-wallet/balance")
     @PreAuthorize("hasRole('DRIVER')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get wallet balance", description = "Returns the current available wallet balance for the authenticated driver.")
     public ResponseEntity<BigDecimal> getBalance(@RequestHeader("Authorization") String token) {
         Long driverId = extractUserIdFromToken(token);
         User driver = userRepository.findById(driverId)
@@ -56,10 +73,15 @@ public class WalletController {
     }
 
     /**
-     * Get total earnings
+     * Returns the authenticated driver's total lifetime earnings.
+     *
+     * @param token bearer token containing the authenticated driver identity
+     * @return the total recorded earnings
      */
     @GetMapping("/my-wallet/total-earnings")
     @PreAuthorize("hasRole('DRIVER')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Get total earnings", description = "Returns the total earnings accumulated by the authenticated driver.")
     public ResponseEntity<BigDecimal> getTotalEarnings(@RequestHeader("Authorization") String token) {
         Long driverId = extractUserIdFromToken(token);
         User driver = userRepository.findById(driverId)
@@ -70,10 +92,16 @@ public class WalletController {
     }
 
     /**
-     * Request withdrawal
+     * Processes a driver withdrawal request.
+     *
+     * @param token bearer token containing the authenticated driver identity
+     * @param request withdrawal payload with the requested amount
+     * @return the withdrawal result including remaining balance
      */
     @PostMapping("/withdrawal")
     @PreAuthorize("hasRole('DRIVER')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(summary = "Request a withdrawal", description = "Attempts to withdraw funds from the authenticated driver's wallet.")
     public ResponseEntity<WithdrawalResponse> requestWithdrawal(
             @RequestHeader("Authorization") String token,
             @RequestBody WithdrawalRequest request) {
@@ -98,14 +126,19 @@ public class WalletController {
     }
 
     /**
-     * Extract user ID from JWT token
+     * Extracts a user identifier from a bearer token.
+     *
+     * @param token authorization header value
+     * @return the authenticated user identifier
      */
     private Long extractUserIdFromToken(String token) {
         String jwt = token.replace("Bearer ", "");
         return jwtTokenProvider.getUserIdFromToken(jwt);
     }
 
-    // DTOs
+    /**
+     * Request payload used when a driver requests a wallet withdrawal.
+     */
     public static class WithdrawalRequest {
         private BigDecimal amount;
 
@@ -118,6 +151,9 @@ public class WalletController {
         }
     }
 
+    /**
+     * Response payload returned after a wallet withdrawal attempt.
+     */
     public static class WithdrawalResponse {
         private String message;
         private BigDecimal amount;

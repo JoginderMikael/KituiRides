@@ -1,6 +1,8 @@
 package com.kituirides.api.common.controller;
 
 import com.kituirides.api.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,14 +20,22 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+/**
+ * Exposes file upload endpoints for client-provided assets and documents.
+ */
 @RestController
 @RequestMapping("/api/upload")
+@Tag(name = "Files", description = "Multipart file upload endpoints")
 public class FileController {
 
     @Value("${file.upload.dir:uploads}")
     private String uploadDir;
 
     @PostMapping
+    @Operation(
+        summary = "Upload a file",
+        description = "Stores an uploaded file and returns both the public URL and the absolute file path."
+    )
     public ResponseEntity<ApiResponse<?>> uploadFile(@RequestParam("file") MultipartFile file) {
         if (file.isEmpty()) {
             return ResponseEntity.badRequest().body(ApiResponse.fail("File is empty"));

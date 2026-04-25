@@ -1,3 +1,6 @@
+/**
+ * @fileoverview API helper module for support api.
+ */
 import { apiClient, unwrap } from "../../lib/apiClient";
 
 export function createTicket(payload) {

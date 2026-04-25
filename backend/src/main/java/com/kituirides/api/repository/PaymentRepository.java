@@ -8,6 +8,9 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+/**
+ * Provides persistence access for payment.
+ */
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
     Optional<Payment> findByRide(Ride ride);
     Optional<Payment> findByTransactionRef(String transactionRef);

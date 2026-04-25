@@ -1,3 +1,6 @@
+/**
+ * @fileoverview API helper module for auth api.
+ */
 import { apiClient, unwrap } from "../../lib/apiClient";
 
 export function login(payload) {

@@ -9,6 +9,9 @@ import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 
+/**
+ * Coordinates ride lifecycle state transitions.
+ */
 @Component
 public class RideStateMachine {
 

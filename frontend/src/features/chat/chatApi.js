@@ -1,3 +1,6 @@
+/**
+ * @fileoverview API helper module for chat api.
+ */
 import { apiClient, unwrap } from "../../lib/apiClient";
 
 function normalizeParams(params = {}) {

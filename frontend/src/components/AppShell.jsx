@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for app shell.
+ */
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { FiChevronDown, FiLogOut, FiUser } from "react-icons/fi";

@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for chat box.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getChatMessages, markConversationRead, sendChatMessage } from "../features/chat/chatApi";

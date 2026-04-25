@@ -21,6 +21,9 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Handles support workflows.
+ */
 @Service
 @RequiredArgsConstructor
 public class SupportService {

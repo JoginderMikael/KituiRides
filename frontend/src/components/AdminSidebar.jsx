@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for admin sidebar.
+ */
 import { useMemo } from "react";
 import { FiChevronLeft, FiChevronRight, FiX } from "react-icons/fi";
 import { Avatar } from "./UIComponents";

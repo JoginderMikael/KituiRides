@@ -5,6 +5,9 @@ import com.kituirides.api.domain.enums.PaymentType;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Response payload for payment.
+ */
 public record PaymentResponse(
     Long id,
     Long rideId,

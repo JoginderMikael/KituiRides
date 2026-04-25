@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for payment method selector.
+ */
 import { useEffect, useState } from "react";
 import { FiDollarSign, FiSmartphone } from "react-icons/fi";
 import { PaymentMethodCard } from "./RideAppPrimitives";

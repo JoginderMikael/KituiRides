@@ -1,3 +1,6 @@
+/**
+ * @fileoverview UI component module for ride mapbox.
+ */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { loadGoogleMaps } from "../lib/googleMaps";
 

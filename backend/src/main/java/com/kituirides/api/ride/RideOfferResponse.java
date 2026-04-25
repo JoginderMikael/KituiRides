@@ -5,6 +5,9 @@ import com.kituirides.api.domain.enums.VehicleType;
 import java.math.BigDecimal;
 import java.time.Instant;
 
+/**
+ * Response payload for ride offer.
+ */
 public record RideOfferResponse(
     Long id,
     Long rideId,

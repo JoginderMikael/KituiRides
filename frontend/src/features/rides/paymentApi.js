@@ -1,3 +1,6 @@
+/**
+ * @fileoverview API helper module for payment api.
+ */
 import { apiClient, unwrap } from "../../lib/apiClient";
 
 export function initiateMpesaPayment(payload) {

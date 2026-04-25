@@ -5,6 +5,9 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+/**
+ * Enumerates admin setting key values.
+ */
 public enum AdminSettingKey {
     BASE_FARE(
         "pricing",

@@ -2,6 +2,9 @@ package com.kituirides.api.common;
 
 import org.springframework.http.HttpStatus;
 
+/**
+ * Exception type used for API-specific failures.
+ */
 public class ApiException extends RuntimeException {
 
     private final HttpStatus status;

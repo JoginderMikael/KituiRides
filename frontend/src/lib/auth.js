@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Authentication helpers for token and session handling.
+ */
 const TOKEN_KEY = "kituirides_token";
 const USER_KEY = "kituirides_user";
 

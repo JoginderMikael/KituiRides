@@ -5,6 +5,9 @@ import com.kituirides.api.domain.enums.TicketType;
 import java.time.Instant;
 import java.util.List;
 
+/**
+ * Response payload for ticket.
+ */
 public record TicketResponse(
     Long id,
     Long createdByUserId,

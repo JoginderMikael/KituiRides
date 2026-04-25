@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Ride status helpers shared across frontend features.
+ */
 export const ACTIVE_RIDE_STATUSES = [
   "REQUESTED",
   "DRIVER_ASSIGNED",

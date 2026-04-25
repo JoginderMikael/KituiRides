@@ -4,6 +4,9 @@ import java.math.BigDecimal;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+/**
+ * Request payload for initiate payment.
+ */
 public record InitiatePaymentRequest(
     @NotNull Long rideId,
     @NotBlank String phoneNumber,

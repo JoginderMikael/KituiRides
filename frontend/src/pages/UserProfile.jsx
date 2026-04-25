@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Page component for user profile.
+ */
 import { useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useAuth } from "../hooks/useAuth";

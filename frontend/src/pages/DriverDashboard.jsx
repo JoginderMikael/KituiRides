@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Page component for driver dashboard.
+ */
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";

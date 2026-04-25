@@ -12,6 +12,9 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+/**
+ * Entity representing admin config.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

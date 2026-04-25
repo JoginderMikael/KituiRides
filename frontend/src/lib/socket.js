@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Realtime socket helpers used by chat and ride features.
+ */
 import { Client } from "@stomp/stompjs";
 import SockJS from "sockjs-client/dist/sockjs.js";
 

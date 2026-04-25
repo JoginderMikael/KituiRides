@@ -1,3 +1,6 @@
+/**
+ * @fileoverview Shared utility module for admin navigation.
+ */
 import {
   FiAlertTriangle,
   FiBarChart2,
