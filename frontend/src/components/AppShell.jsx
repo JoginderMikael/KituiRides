@@ -16,7 +16,7 @@ export default function AppShell() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
   const isAdmin = role === "ADMIN";
-  const useImmersiveShell = role === "CUSTOMER" || role === "DRIVER";
+  const useImmersiveShell = role === "CUSTOMER" || role === "DRIVER" || role === "SUPPORT_AGENT";
 
   function onLogout() {
     setShowUserMenu(false);
