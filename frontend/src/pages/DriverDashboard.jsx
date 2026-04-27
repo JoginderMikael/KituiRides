@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
-  FiBell,
+  FiArrowLeft,
+  FiCheckCircle,
   FiClock,
+  FiCreditCard,
   FiDollarSign,
+  FiGrid,
   FiHome,
   FiHelpCircle,
   FiLogOut,
@@ -15,6 +18,7 @@ import {
   FiMenu,
   FiNavigation,
   FiPhone,
+  FiTrendingUp,
   FiUser
 } from "react-icons/fi";
 import RideMapbox from "../components/RideMapbox";
@@ -58,20 +62,20 @@ import { connectRealtimeSocket } from "../lib/socket";
 import { isActiveRide, isCompletedRide, rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
 
 const DRIVER_NAV_ITEMS = [
-  { value: "work", label: "Dashboard", icon: FiHome },
+  { value: "work", label: "Dashboard", icon: FiGrid },
   { value: "offers", label: "Incoming Offers", icon: FiMapPin },
   { value: "trips", label: "My Trips", icon: FiClock },
   { value: "earnings", label: "Earnings", icon: FiDollarSign },
-  { value: "wallet", label: "Wallet", icon: FiDollarSign },
+  { value: "wallet", label: "Wallet", icon: FiCreditCard },
   { value: "support", label: "Support", icon: FiHelpCircle },
   { value: "profile", label: "Profile", icon: FiUser }
 ];
 
 const DRIVER_MOBILE_NAV_ITEMS = [
-  { value: "work", label: "Dashboard", icon: FiHome },
+  { value: "work", label: "Dashboard", icon: FiGrid },
   { value: "trips", label: "Trips", icon: FiClock },
   { value: "earnings", label: "Earnings", icon: FiDollarSign },
-  { value: "wallet", label: "Wallet", icon: FiDollarSign },
+  { value: "wallet", label: "Wallet", icon: FiCreditCard },
   { value: "profile", label: "Profile", icon: FiUser }
 ];
 
@@ -105,6 +109,53 @@ function DetailRow({ label, value, emphasis = false }) {
     <div className="flex items-center justify-between gap-3 text-sm">
       <span className="text-slate-500">{label}</span>
       <span className={emphasis ? "font-semibold text-slate-950" : "font-medium text-slate-700"}>{value}</span>
+    </div>
+  );
+}
+
+function formatOfferDistanceAway(offer) {
+  const distance = offer.distanceToPickupKm ?? offer.estimatedDistanceKm;
+  return distance ? `${Number(distance).toFixed(1)} km away` : "Nearby request";
+}
+
+function formatOfferCountdown(expiresAt) {
+  if (!expiresAt) {
+    return "Live";
+  }
+
+  const seconds = Math.round((new Date(expiresAt).getTime() - Date.now()) / 1000);
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "Live";
+  }
+
+  return `${seconds} sec`;
+}
+
+function VehicleThumbnail({ className = "", imageClassName = "" }) {
+  return (
+    <div className={`flex items-center justify-center overflow-hidden rounded-[18px] bg-slate-100 ${className}`}>
+      <img
+        src="/driver/vehicle-front.avif"
+        alt="Driver vehicle"
+        className={`h-full w-full object-contain ${imageClassName}`}
+      />
+    </div>
+  );
+}
+
+function RoutePoint({ label, value, tone = "pickup", compact = false }) {
+  const dotClass = tone === "pickup" ? "bg-emerald-500" : "bg-rose-500";
+
+  return (
+    <div className={`flex items-start gap-3 ${compact ? "" : ""}`}>
+      <div className="flex flex-col items-center">
+        <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${dotClass}`} />
+        {tone === "pickup" ? <span className="mt-1 h-7 w-px bg-slate-200" /> : null}
+      </div>
+      <div className="min-w-0">
+        <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-slate-400">{label}</p>
+        <p className={`mt-1 ${compact ? "text-sm" : "text-[0.95rem]"} font-semibold text-slate-950`}>{value}</p>
+      </div>
     </div>
   );
 }
@@ -206,7 +257,8 @@ function IncomingOffersPanel({
   isError,
   errorMessage,
   acceptMutation,
-  rejectMutation
+  rejectMutation,
+  compact = false
 }) {
   if (isLoading) {
     return (
@@ -237,38 +289,56 @@ function IncomingOffersPanel({
   return (
     <div className="space-y-3">
       {offers.map((offer) => (
-        <div key={offer.id} className="rounded-[24px] border border-slate-200 bg-white p-4">
-          <div className="flex items-start justify-between gap-3">
+        <div
+          key={offer.id}
+          className={`rounded-[24px] border border-slate-200 bg-white ${
+            compact ? "p-3.5" : "p-4"
+          } shadow-[0_18px_34px_-30px_rgba(15,23,42,0.22)]`}
+        >
+          <div className="flex items-center justify-between gap-3">
+            <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700">
+              {formatOfferDistanceAway(offer)}
+            </span>
+            <span className="inline-flex h-11 min-w-[2.9rem] items-center justify-center rounded-full border border-slate-200 bg-white px-2 text-[11px] font-semibold text-slate-600">
+              {formatOfferCountdown(offer.expiresAt)}
+            </span>
+          </div>
+
+          <p className="mt-3 text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+            Ride #{offer.rideId}
+          </p>
+
+          <div className="mt-3 space-y-3">
+            <RoutePoint label="Pickup" value={offer.pickupAddress} compact={compact} />
+            <RoutePoint label="Dropoff" value={offer.dropoffAddress} tone="dropoff" compact={compact} />
+          </div>
+
+          <div className={`mt-4 grid gap-3 ${compact ? "grid-cols-2" : "grid-cols-2"} text-sm`}>
             <div>
-              <p className="font-semibold text-slate-950">Ride #{offer.rideId}</p>
-              <p className="text-sm text-slate-600">{offer.pickupAddress}</p>
-              <p className="text-sm text-slate-500">to {offer.dropoffAddress}</p>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Fare</p>
+              <p className="mt-1 font-semibold text-slate-950">{formatMoney(offer.estimatedFare)}</p>
             </div>
-            <StatusPill label={formatMoney(offer.estimatedFare)} tone="accent" />
+            <div>
+              <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Distance</p>
+              <p className="mt-1 font-semibold text-slate-950">{formatDistance(offer.estimatedDistanceKm)}</p>
+            </div>
           </div>
 
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-            <DetailRow label="Customer" value={offer.customerName} />
-            <DetailRow label="Phone" value={offer.customerPhone} />
-            <DetailRow label="Vehicle" value={offer.vehicleType} />
-            <DetailRow label="Trip distance" value={formatDistance(offer.estimatedDistanceKm)} emphasis />
-          </div>
-
-          <div className="mt-4 flex gap-3">
+          <div className={`mt-4 flex ${compact ? "gap-2.5" : "gap-3"}`}>
             <Button
-              className="flex-1 rounded-2xl"
-              onClick={() => acceptMutation.mutate(offer.rideId)}
-              loading={acceptMutation.isPending}
-            >
-              Accept
-            </Button>
-            <Button
-              className="flex-1 rounded-2xl"
+              className="flex-1 rounded-2xl bg-white text-rose-600 shadow-[inset_0_0_0_1px_rgba(251,113,133,0.35)] hover:bg-rose-50"
               variant="secondary"
               onClick={() => rejectMutation.mutate(offer.rideId)}
               loading={rejectMutation.isPending}
             >
               Reject
+            </Button>
+            <Button
+              className="flex-1 rounded-2xl bg-[#169b45] hover:bg-[#11803a]"
+              onClick={() => acceptMutation.mutate(offer.rideId)}
+              loading={acceptMutation.isPending}
+            >
+              Accept
             </Button>
           </div>
         </div>
@@ -277,12 +347,12 @@ function IncomingOffersPanel({
   );
 }
 
-function DriverTripsPanel({ rides }) {
+function DriverTripsPanel({ rides, compact = false, title = "Completed trips" }) {
   return (
     <SectionCard>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h3 className="text-lg font-semibold text-slate-950">Completed trips</h3>
+          <h3 className="text-lg font-semibold text-slate-950">{title}</h3>
           <p className="text-sm text-slate-500">Recent finished rides and earnings snapshots.</p>
         </div>
         <Badge label={`${rides.length}`} size="sm" variant="success" />
@@ -297,17 +367,25 @@ function DriverTripsPanel({ rides }) {
       ) : (
         <div className="mt-4 space-y-3">
           {rides.map((ride) => (
-            <div key={ride.id} className="rounded-[24px] border border-emerald-200 bg-emerald-50 p-4">
+            <div
+              key={ride.id}
+              className={`rounded-[24px] border border-slate-200 bg-white ${
+                compact ? "p-3.5" : "p-4"
+              } shadow-[0_16px_30px_-30px_rgba(15,23,42,0.18)]`}
+            >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="font-semibold text-slate-950">{ride.pickupAddress}</p>
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                    {formatTimestamp(ride.completedAt).split(",")[0]}
+                  </p>
+                  <p className="mt-1 font-semibold text-slate-950">{ride.pickupAddress}</p>
                   <p className="text-sm text-slate-500">to {ride.dropoffAddress}</p>
                 </div>
                 <Badge label="Completed" variant="success" size="sm" />
               </div>
-              <div className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
-                <DetailRow label="Fare" value={formatMoney(ride.finalFare)} emphasis />
-                <DetailRow label="Completed" value={formatTimestamp(ride.completedAt)} />
+              <div className="mt-3 flex items-center justify-between gap-3 text-sm">
+                <span className="font-semibold text-slate-950">{formatMoney(ride.finalFare)}</span>
+                <span className="text-slate-500">{formatDistance(ride.chargeableDistanceKm || ride.estimatedDistanceKm || 0)}</span>
               </div>
             </div>
           ))}
@@ -328,6 +406,7 @@ export default function DriverDashboard() {
   const [manualDistance, setManualDistance] = useState("");
   const [tripActionStatus, setTripActionStatus] = useState("");
   const [activeTab, setActiveTab] = useState("work");
+  const [earningsRange, setEarningsRange] = useState("today");
   const [menuOpen, setMenuOpen] = useState(false);
 
   const dashboardQuery = useQuery({
@@ -666,6 +745,17 @@ export default function DriverDashboard() {
   const driverName = user
     ? `${user.firstName} ${user.lastName}`
     : dashboard?.fullName || session?.email || "Driver";
+  const vehicleName = dashboard?.vehicle
+    ? `${dashboard.vehicle.make} ${dashboard.vehicle.model}`
+    : "Vehicle pending";
+  const vehicleMeta = dashboard?.vehicle
+    ? `${dashboard.vehicle.plateNumber} • ${dashboard.vehicle.engineSize}cc`
+    : "Vehicle details unavailable";
+  const earningsRangeLabel = {
+    today: "Today",
+    week: "This Week",
+    month: "This Month"
+  }[earningsRange];
 
   const availabilityCard = (
     <SectionCard className="space-y-4">
@@ -690,14 +780,13 @@ export default function DriverDashboard() {
       </PrimaryActionButton>
 
       {dashboard?.vehicle ? (
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Vehicle summary</p>
-          <p className="mt-2 font-semibold text-slate-950">
-            {dashboard.vehicle.make} {dashboard.vehicle.model}
-          </p>
-          <p className="text-sm text-slate-500">
-            {dashboard.vehicle.plateNumber} • {dashboard.vehicle.engineSize}cc
-          </p>
+        <div className="flex items-center gap-3 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <VehicleThumbnail className="h-16 w-24 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-sm text-slate-500">Vehicle summary</p>
+            <p className="mt-1 font-semibold text-slate-950">{vehicleName}</p>
+            <p className="text-sm text-slate-500">{vehicleMeta}</p>
+          </div>
         </div>
       ) : null}
     </SectionCard>
@@ -705,19 +794,22 @@ export default function DriverDashboard() {
 
   const walletSummaryCard = (
     <SectionCard className="space-y-4">
-      <div>
-        <h2 className="text-lg font-semibold text-slate-950">Wallet summary</h2>
-        <p className="text-sm text-slate-500">Keep balance and outstanding commission visible, but compact.</p>
+      <div className="rounded-[26px] bg-[#169b45] p-5 text-white shadow-[0_22px_38px_-26px_rgba(22,155,69,0.8)]">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-emerald-50">{earningsRangeLabel}</p>
+            <p className="mt-1 text-3xl font-semibold">{formatMoney(dashboard?.wallet?.balance)}</p>
+          </div>
+          <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-white/14">
+            <FiTrendingUp className="text-xl" />
+          </span>
+        </div>
       </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Wallet balance</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.balance)}</p>
-        </div>
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm text-slate-500">Outstanding commission</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.outstandingCommission)}</p>
-        </div>
+
+      <div className="space-y-3 rounded-[24px] border border-slate-200 bg-white p-4">
+        <DetailRow label="Trips completed" value={String(completedRides.length)} />
+        <DetailRow label="Online time" value={dashboard?.online ? "On duty" : "Offline"} />
+        <DetailRow label="Outstanding commission" value={formatMoney(dashboard?.wallet?.outstandingCommission)} emphasis />
       </div>
     </SectionCard>
   );
@@ -788,7 +880,7 @@ export default function DriverDashboard() {
         </Button>
       </div>
 
-      <div className="overflow-hidden rounded-[18px] border border-slate-200">
+      <div className="overflow-hidden rounded-[18px] border border-slate-200 bg-slate-50">
         <RideMapbox
           pickup={activeRide
             ? { lat: activeRide.pickupLat, lng: activeRide.pickupLng }
@@ -837,40 +929,50 @@ export default function DriverDashboard() {
     <SectionCard className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-semibold text-slate-950">{activeRide ? "Current trip" : "Current trip"}</h2>
+          <h2 className="text-xl font-semibold text-slate-950">Current Trip</h2>
           <p className="text-sm text-slate-500">The active trip stays front and center while you work.</p>
         </div>
         {supportPhone ? (
-          <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-teal-700 transition hover:text-teal-800">
+          <a href={`tel:${supportPhone}`} className="text-sm font-semibold text-emerald-700 transition hover:text-emerald-800">
             Call support
           </a>
         ) : null}
       </div>
 
       {!activeRide ? (
-        <EmptyState
-          icon="🚘"
-          title="No active trip"
-          description="Accept an incoming offer to begin a ride."
-        />
+        <div className="flex min-h-[20rem] flex-col items-center justify-center rounded-[24px] border border-slate-200 bg-slate-50 p-6 text-center">
+          <VehicleThumbnail className="h-28 w-52" imageClassName="scale-[1.05]" />
+          <p className="mt-6 text-2xl font-semibold text-slate-950">No active trip</p>
+          <p className="mt-2 max-w-xs text-sm text-slate-500">Accept an offer to start a trip.</p>
+          <Button
+            variant="secondary"
+            className="mt-6 rounded-2xl px-6"
+            onClick={() => setActiveTab("offers")}
+          >
+            View Offers
+          </Button>
+        </div>
       ) : (
         <div className="space-y-4">
-          <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+          <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.18)]">
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-sm text-slate-500">Ride #{activeRide.id}</p>
-                <p className="font-semibold text-slate-950">{activeRide.pickupAddress}</p>
-                <p className="text-sm text-slate-500">to {activeRide.dropoffAddress}</p>
+                <p className="mt-1 font-semibold text-slate-950">{activeRide.customerName}</p>
               </div>
               <Badge label={rideStatusLabel(activeRide.status)} variant={rideStatusVariant(activeRide.status)} size="sm" />
             </div>
-            <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
-              <DetailRow label="Customer" value={activeRide.customerName} />
-              <DetailRow label="Phone" value={activeRide.customerPhone} />
+
+            <div className="mt-4 space-y-3">
+              <RoutePoint label="Pickup" value={activeRide.pickupAddress} />
+              <RoutePoint label="Dropoff" value={activeRide.dropoffAddress} tone="dropoff" />
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-sm sm:grid-cols-2">
               <DetailRow label="Fare" value={formatMoney(activeRide.finalFare)} emphasis />
-              <DetailRow label="Payment" value={activeRide.paymentType} />
               <DetailRow label="Distance" value={formatDistance(activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0)} />
-              <DetailRow label="Source" value={activeRide.distanceSource} />
+              <DetailRow label="Phone" value={activeRide.customerPhone} />
+              <DetailRow label="Payment" value={activeRide.paymentType} />
             </div>
           </div>
 
@@ -910,7 +1012,7 @@ export default function DriverDashboard() {
           ) : null}
 
           {currentActionCard ? (
-            <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_16px_30px_-30px_rgba(15,23,42,0.18)]">
               <p className="font-semibold text-slate-950">{currentActionCard.title}</p>
               <p className="mt-1 text-sm text-slate-500">{currentActionCard.description}</p>
               {currentActionCard.action ? <div className="mt-4">{currentActionCard.action}</div> : null}
@@ -952,10 +1054,12 @@ export default function DriverDashboard() {
     <SectionCard>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-semibold text-slate-950">Incoming offers</h2>
+          <h2 className="text-lg font-semibold text-slate-950">Incoming Offers</h2>
           <p className="text-sm text-slate-500">Large, touch-friendly accept and reject actions.</p>
         </div>
-        <StatusPill label={`${(offersQuery.data || []).length} offers`} tone={(offersQuery.data || []).length ? "accent" : "muted"} />
+        <span className="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-slate-100 px-2 text-sm font-semibold text-slate-600">
+          {(offersQuery.data || []).length}
+        </span>
       </div>
       <div className="mt-4">
         <IncomingOffersPanel
@@ -970,44 +1074,48 @@ export default function DriverDashboard() {
     </SectionCard>
   );
 
-  const workView = (
+  const workView = isTabletUp ? (
     <div className="space-y-4">
       {!activeRide ? (
         <>
-          <div className="grid gap-4 xl:grid-cols-4">
-            <SectionCard className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
+          <div className="grid gap-4 xl:grid-cols-[1.15fr,1.15fr,0.9fr,1fr]">
+            <SectionCard className="flex items-center justify-between gap-4 py-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+                  <FiCheckCircle className="text-2xl" />
+                </span>
                 <div>
                   <p className="text-sm font-semibold text-emerald-700">You are {dashboard?.online ? "Online" : "Offline"}</p>
-                  <p className="mt-1 text-sm text-slate-500">{dashboard?.verified ? "Online" : "Awaiting verification"}</p>
+                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                    <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                    <span>{dashboard?.online ? "Online" : "Offline"}</span>
+                  </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => statusMutation.mutate(!dashboard?.online)}
-                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
-                  aria-label={dashboard?.online ? "Go offline" : "Go online"}
-                >
-                  <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
-                </button>
+              </div>
+              <button
+                type="button"
+                onClick={() => statusMutation.mutate(!dashboard?.online)}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
+                aria-label={dashboard?.online ? "Go offline" : "Go online"}
+              >
+                <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
+              </button>
+            </SectionCard>
+
+            <SectionCard className="flex items-center gap-4 py-4">
+              <VehicleThumbnail className="h-16 w-28 shrink-0" />
+              <div className="min-w-0">
+                <p className="text-lg font-semibold text-slate-950">{vehicleName}</p>
+                <p className="mt-1 text-sm text-slate-500">{vehicleMeta}</p>
               </div>
             </SectionCard>
 
-            <SectionCard className="space-y-3">
-              <p className="text-sm font-medium text-slate-500">Vehicle</p>
-              <p className="text-lg font-semibold text-slate-950">
-                {dashboard?.vehicle ? `${dashboard.vehicle.make} ${dashboard.vehicle.model}` : "No vehicle"}
-              </p>
-              <p className="text-sm text-slate-500">
-                {dashboard?.vehicle ? `${dashboard.vehicle.plateNumber} • ${dashboard.vehicle.engineSize}cc` : "Vehicle details unavailable"}
-              </p>
-            </SectionCard>
-
-            <SectionCard className="space-y-3">
+            <SectionCard className="space-y-2 py-4">
               <p className="text-sm font-medium text-slate-500">Wallet Balance</p>
               <p className="text-3xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.balance)}</p>
             </SectionCard>
 
-            <SectionCard className="space-y-3">
+            <SectionCard className="space-y-2 py-4">
               <p className="text-sm font-medium text-slate-500">Outstanding Commission</p>
               <p className="text-3xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.outstandingCommission)}</p>
             </SectionCard>
@@ -1054,7 +1162,7 @@ export default function DriverDashboard() {
                 lng: Number(driverMapLocation.longitude),
                 label: "You"
               } : undefined}
-              heightClassName="h-[18rem] md:h-[26rem]"
+              heightClassName="h-[19rem] md:h-[27rem]"
               helperText="Keep your location updated so the customer can see you approaching and moving."
             />
             <div className="grid gap-4 border-t border-slate-200 px-5 py-4 sm:grid-cols-2">
@@ -1070,11 +1178,210 @@ export default function DriverDashboard() {
         </div>
       )}
     </div>
+  ) : (
+    <div className="space-y-4">
+      {!activeRide ? (
+        <>
+          <div className="flex items-center justify-between rounded-[24px] border border-slate-200 bg-white px-4 py-3.5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.22)]">
+            <button
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+              aria-label="Open menu"
+            >
+              <FiMenu className="text-lg" />
+            </button>
+            <div className="min-w-0 flex-1 px-3">
+              <p className="text-sm font-semibold text-emerald-700">You are {dashboard?.online ? "Online" : "Offline"}</p>
+              <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+                <span className={`h-2 w-2 rounded-full ${dashboard?.online ? "bg-emerald-500" : "bg-slate-300"}`} />
+                <span>{dashboard?.online ? "Online" : "Offline"}</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => statusMutation.mutate(!dashboard?.online)}
+              className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
+              aria-label={dashboard?.online ? "Go offline" : "Go online"}
+            >
+              <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
+            </button>
+          </div>
+
+          <SectionCard className="flex items-center gap-4 py-4">
+            <div className="min-w-0 flex-1">
+              <p className="text-lg font-semibold text-slate-950">{vehicleName}</p>
+              <p className="mt-1 text-sm text-slate-500">{vehicleMeta}</p>
+            </div>
+            <VehicleThumbnail className="h-16 w-28 shrink-0" />
+          </SectionCard>
+
+          <SectionCard>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Incoming Offers</h2>
+              </div>
+              <span className="inline-flex h-8 min-w-[2rem] items-center justify-center rounded-full bg-slate-100 px-2 text-sm font-semibold text-slate-600">
+                {(offersQuery.data || []).length}
+              </span>
+            </div>
+            <div className="mt-4">
+              <IncomingOffersPanel
+                offers={offersQuery.data || []}
+                isLoading={offersQuery.isLoading}
+                isError={offersQuery.isError}
+                errorMessage={offersErrorMessage}
+                acceptMutation={acceptMutation}
+                rejectMutation={rejectMutation}
+                compact
+              />
+            </div>
+          </SectionCard>
+        </>
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3 rounded-[24px] border border-slate-200 bg-white px-4 py-3.5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.22)]">
+            <button
+              type="button"
+              onClick={() => setActiveTab("work")}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+              aria-label="Current trip"
+            >
+              <FiArrowLeft className="text-lg" />
+            </button>
+            <div className="flex-1">
+              <p className="text-base font-semibold text-slate-950">Current Trip</p>
+            </div>
+            <StatusPill label={rideStatusLabel(activeRide.status)} tone="accent" />
+          </div>
+
+          <SectionCard className="space-y-4 p-0 overflow-hidden">
+            <div className="space-y-4 px-4 pt-4">
+              <div className="space-y-3">
+                <RoutePoint label="Pickup" value={activeRide.pickupAddress} compact />
+                <RoutePoint label="Dropoff" value={activeRide.dropoffAddress} tone="dropoff" compact />
+              </div>
+            </div>
+
+            <RideMapbox
+              pickup={{ lat: activeRide.pickupLat, lng: activeRide.pickupLng }}
+              dropoff={{ lat: activeRide.dropoffLat, lng: activeRide.dropoffLng }}
+              customerLocation={{
+                lat: activeRide.pickupLat,
+                lng: activeRide.pickupLng,
+                label: activeRide.customerName
+              }}
+              driverLocation={driverMapLocation ? {
+                lat: Number(driverMapLocation.latitude),
+                lng: Number(driverMapLocation.longitude),
+                label: "You"
+              } : undefined}
+              heightClassName="h-[16rem]"
+              helperText="Keep moving with your live route visible."
+            />
+
+            <div className="grid grid-cols-2 gap-4 border-t border-slate-200 px-4 py-4">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Fare</p>
+                <p className="mt-1 font-semibold text-slate-950">{formatMoney(activeRide.finalFare)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium uppercase tracking-[0.14em] text-slate-400">Distance</p>
+                <p className="mt-1 font-semibold text-slate-950">{formatDistance(activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0)}</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 px-4 pb-4">
+              {showManualDistanceForm ? (
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3.5">
+                  <Input
+                    label="Manual KM"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    value={manualDistance}
+                    onChange={(event) => setManualDistance(event.target.value)}
+                  />
+                  <Button
+                    variant="secondary"
+                    className="mt-3 min-h-[3rem] w-full rounded-2xl"
+                    onClick={() => distanceMutation.mutate({ rideId: activeRide.id, distanceKm: Number(manualDistance) })}
+                    loading={distanceMutation.isPending}
+                    disabled={!manualDistance}
+                  >
+                    Save Distance
+                  </Button>
+                </div>
+              ) : null}
+
+              {tripActionStatus ? (
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-3.5 text-sm text-slate-600">
+                  {tripActionStatus}
+                </div>
+              ) : null}
+
+              {currentActionCard?.action ? <div>{currentActionCard.action}</div> : null}
+
+              <div className="flex gap-3">
+                {["DRIVER_ACCEPTED", "DRIVER_ARRIVED", "TRIP_STARTED"].includes(activeRide.status) ? (
+                  <Button
+                    variant="outline"
+                    className="flex-1 rounded-2xl border-rose-300 text-rose-600 hover:bg-rose-50"
+                    onClick={() => {
+                      const reason = window.prompt("Why are you cancelling this trip? Support will review the reason.");
+                      if (reason?.trim()) {
+                        cancelMutation.mutate({ rideId: activeRide.id, reason: reason.trim() });
+                      }
+                    }}
+                    loading={cancelMutation.isPending}
+                  >
+                    Cancel Trip
+                  </Button>
+                ) : (
+                  <Button
+                    variant="secondary"
+                    className="flex-1 rounded-2xl"
+                    onClick={() => setSelectedRide(activeRide)}
+                  >
+                    View Details
+                  </Button>
+                )}
+                <a
+                  href={`tel:${activeRide.customerPhone || supportPhone || ""}`}
+                  className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-white text-emerald-700"
+                >
+                  <FiPhone className="text-lg" />
+                </a>
+              </div>
+            </div>
+          </SectionCard>
+        </>
+      )}
+    </div>
   );
 
-  const tripsView = <DriverTripsPanel rides={completedRides} />;
+  const tripsView = isTabletUp ? (
+    <DriverTripsPanel rides={completedRides} />
+  ) : (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-[24px] border border-slate-200 bg-white px-4 py-3.5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.22)]">
+        <button
+          type="button"
+          onClick={() => setActiveTab("work")}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+          aria-label="Back to dashboard"
+        >
+          <FiArrowLeft className="text-lg" />
+        </button>
+        <div>
+          <p className="text-base font-semibold text-slate-950">My Trips</p>
+        </div>
+      </div>
+      <DriverTripsPanel rides={completedRides} compact title="Completed" />
+    </div>
+  );
 
-  const walletView = (
+  const walletView = isTabletUp ? (
     <div className="grid gap-5 xl:grid-cols-[1fr,0.9fr]">
       {walletSummaryCard}
       <SectionCard className="space-y-4">
@@ -1095,6 +1402,60 @@ export default function DriverDashboard() {
           </div>
         </div>
         {availabilityCard}
+      </SectionCard>
+    </div>
+  ) : (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 rounded-[24px] border border-slate-200 bg-white px-4 py-3.5 shadow-[0_18px_34px_-30px_rgba(15,23,42,0.22)]">
+        <button
+          type="button"
+          onClick={() => setActiveTab("work")}
+          className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+          aria-label="Back to dashboard"
+        >
+          <FiArrowLeft className="text-lg" />
+        </button>
+        <div>
+          <p className="text-base font-semibold text-slate-950">{activeTab === "earnings" ? "Earnings" : "Wallet"}</p>
+        </div>
+      </div>
+
+      <SectionCard className="space-y-4">
+        <div className="grid grid-cols-3 gap-2 rounded-[18px] bg-slate-50 p-1">
+          {[
+            { value: "today", label: "Today" },
+            { value: "week", label: "This Week" },
+            { value: "month", label: "This Month" }
+          ].map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setEarningsRange(option.value)}
+              className={`rounded-2xl px-3 py-2 text-xs font-semibold transition ${
+                earningsRange === option.value
+                  ? "bg-white text-emerald-700 shadow-sm"
+                  : "text-slate-500"
+              }`}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="rounded-[26px] bg-[#169b45] p-5 text-white shadow-[0_22px_38px_-26px_rgba(22,155,69,0.8)]">
+          <p className="text-sm font-medium text-emerald-50">{activeTab === "earnings" ? "Today's Earnings" : "Wallet Balance"}</p>
+          <p className="mt-3 text-4xl font-semibold">{formatMoney(dashboard?.wallet?.balance)}</p>
+        </div>
+
+        <div className="space-y-4 rounded-[24px] border border-slate-200 bg-white p-4">
+          <DetailRow label="Trips Completed" value={String(completedRides.length)} />
+          <DetailRow label="Online Time" value={dashboard?.online ? "On duty" : "Offline"} />
+          <DetailRow label="Outstanding Commission" value={formatMoney(dashboard?.wallet?.outstandingCommission)} emphasis />
+        </div>
+
+        <Button variant="secondary" className="w-full rounded-2xl">
+          View Earnings History
+        </Button>
       </SectionCard>
     </div>
   );
@@ -1195,61 +1556,7 @@ export default function DriverDashboard() {
         ) : null}
 
         <div className="min-w-0 px-3 pb-28 pt-3 md:flex md:min-h-0 md:flex-col md:px-0 md:pb-0 md:pt-0">
-          {!isTabletUp ? (
-            <div className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.18)]">
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
-                aria-label="Open menu"
-              >
-                <FiMenu className="text-lg" />
-              </button>
-              <WorkspaceBrand subtitle="Driver" />
-              <button
-                type="button"
-                onClick={() => statusMutation.mutate(!dashboard?.online)}
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
-                aria-label={dashboard?.online ? "Go offline" : "Go online"}
-              >
-                <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
-              </button>
-            </div>
-          ) : null}
-
-          {isTabletUp ? (
-            <div className="md:flex md:items-center md:justify-between md:gap-4 md:rounded-[24px] md:border md:border-slate-200 md:bg-white md:px-5 md:py-4 md:shadow-[0_18px_34px_-28px_rgba(15,23,42,0.22)]">
-              <button
-                type="button"
-                onClick={() => setMenuOpen(true)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300"
-                aria-label="Open menu"
-              >
-                <FiMenu className="text-lg" />
-              </button>
-
-              <div className="flex items-center gap-3">
-                <StatusPill
-                  label={dashboard?.online ? "Online" : "Offline"}
-                  tone={dashboard?.online ? "accent" : "muted"}
-                  hint={dashboard?.verified ? "Verified" : "Pending approval"}
-                />
-                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
-                  <FiBell className="text-lg" />
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setMenuOpen(true)}
-                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300"
-                >
-                  <Avatar name={driverName} size="sm" />
-                  <span className="text-sm font-semibold text-slate-900">{driverName}</span>
-                </button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="mt-4 min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
+          <div className="min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
             {workspaceTab === "work" ? workView : null}
             {workspaceTab === "trips" ? tripsView : null}
             {workspaceTab === "wallet" ? walletView : null}
@@ -1292,7 +1599,9 @@ export default function DriverDashboard() {
         }}
       />
 
-      {!isTabletUp ? <MobileBottomNav items={DRIVER_MOBILE_NAV_ITEMS} value={activeTab} onChange={handleNavChange} /> : null}
+      {!isTabletUp && !(workspaceTab === "work" && activeRide)
+        ? <MobileBottomNav items={DRIVER_MOBILE_NAV_ITEMS} value={activeTab} onChange={handleNavChange} />
+        : null}
 
       {selectedRide ? (
         <Modal isOpen={Boolean(selectedRide)} title={`Ride #${selectedRide.id}`} onClose={() => setSelectedRide(null)}>

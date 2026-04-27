@@ -11,7 +11,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     server: {
-      port: 5173,
+      // Keep Docker on 5173 and local Vite dev on 5174 to avoid port collisions.
+      port: 5174,
+      strictPort: true,
       proxy: {
         "/api": {
           target: backendOrigin,

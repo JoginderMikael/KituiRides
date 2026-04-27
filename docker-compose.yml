@@ -77,7 +77,10 @@ services:
           memory: 1G
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        BUILD_VITE_GOOGLE_MAPS_API_KEY: "${VITE_GOOGLE_MAPS_API_KEY:-}"
     container_name: kituirides-frontend
     depends_on:
       backend:

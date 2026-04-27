@@ -13,7 +13,7 @@ export function connectRealtimeSocket({
   onConversationUpdate,
   onChatInboxUpdate
 }) {
-  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5173";
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:5174";
   const base = (import.meta.env.VITE_WS_URL || browserOrigin).replace(/\/$/, "");
   const client = new Client({
     webSocketFactory: () => new SockJS(`${base}/ws`),

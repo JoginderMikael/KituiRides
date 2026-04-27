@@ -135,6 +135,9 @@ mvn spring-boot:run
 cd ../frontend
 npm install
 npm run dev
+
+# local Vite dev runs on:
+# http://localhost:5174
 ```
 
 ### Frontend Environment
@@ -147,6 +150,14 @@ VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
 # optional when the frontend is not reverse-proxied to the backend
 VITE_API_URL=http://localhost:8080/api
+```
+
+For Docker builds, the frontend needs the Google Maps key at build time. The current setup supports either of these:
+
+```bash
+# Option 1: keep the key in frontend/.env.local
+# Option 2: export it in your shell or root .env before docker compose build
+VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
 
 ## 6) Key API Prefixes

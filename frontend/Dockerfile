@@ -1,9 +1,13 @@
 FROM node:20-alpine AS build
 WORKDIR /app
+ARG BUILD_VITE_GOOGLE_MAPS_API_KEY
 COPY package*.json ./
 RUN npm install
 COPY . .
-RUN npm run build
+RUN if [ -n "$BUILD_VITE_GOOGLE_MAPS_API_KEY" ]; then \
+      export VITE_GOOGLE_MAPS_API_KEY="$BUILD_VITE_GOOGLE_MAPS_API_KEY"; \
+    fi && \
+    npm run build
 
 FROM nginx:stable-alpine
 RUN apk add --no-cache curl
