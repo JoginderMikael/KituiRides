@@ -3,10 +3,12 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import SupportPage from "./SupportPage";
 
 const mockUseAuth = vi.fn();
+const mockLogout = vi.fn();
 const mockSupportTickets = vi.fn();
 const mockGetSupportRide = vi.fn();
 const mockGetRidePayment = vi.fn();
@@ -47,7 +49,9 @@ function renderPage() {
 
   return render(
     <QueryClientProvider client={queryClient}>
-      <SupportPage />
+      <MemoryRouter>
+        <SupportPage />
+      </MemoryRouter>
     </QueryClientProvider>
   );
 }
@@ -145,7 +149,8 @@ describe("SupportPage", () => {
     vi.clearAllMocks();
     mockUseAuth.mockReturnValue({
       session: { userId: 7, role: "SUPPORT_AGENT" },
-      user: { id: 7, firstName: "Grace", lastName: "Support" }
+      user: { id: 7, firstName: "Grace", lastName: "Support" },
+      logout: mockLogout
     });
     mockGetChatUnreadSummary.mockResolvedValue({
       totalUnread: 3,
@@ -173,6 +178,38 @@ describe("SupportPage", () => {
     fireEvent.click(within(workspaceNav).getByRole("button", { name: /case workspace/i }));
 
     expect(await screen.findByText(/reply thread/i)).toBeTruthy();
+  });
+
+  it("replaces the hotline panel with a logout button", async () => {
+    renderPage();
+
+    await findWorkspaceNav();
+    expect(screen.queryByText(/need help/i)).toBeNull();
+    expect(screen.queryByText(/\+254 797 753 625/i)).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /logout/i }));
+
+    expect(mockLogout).toHaveBeenCalledOnce();
+  });
+
+  it("loads additional tickets only when requested", async () => {
+    mockSupportTickets.mockResolvedValue(
+      Array.from({ length: 7 }, (_, index) => buildTicket({
+        id: 21 + index,
+        subject: `Ticket page item ${index + 1}`,
+        createdAt: `2026-04-27T10:0${index}:00Z`
+      }))
+    );
+
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: /ticket page item 1/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /ticket page item 7/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /load more tickets/i }));
+
+    expect(await screen.findByRole("button", { name: /ticket page item 7/i })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /load more tickets/i })).toBeNull();
   });
 
   it("shows M-Pesa intervention actions for mpesa rides", async () => {

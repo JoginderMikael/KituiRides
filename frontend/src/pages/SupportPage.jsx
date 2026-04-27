@@ -3,6 +3,7 @@
  */
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router-dom";
 import {
   FiAlertCircle,
   FiArchive,
@@ -14,8 +15,8 @@ import {
   FiChevronDown,
   FiCreditCard,
   FiGrid,
-  FiHeadphones,
   FiInbox,
+  FiLogOut,
   FiMapPin,
   FiMenu,
   FiMessageCircle,
@@ -54,6 +55,7 @@ import { rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
 
 const TICKET_STATUS_OPTIONS = ["OPEN", "IN_PROGRESS", "RESOLVED"];
 const QUEUE_FILTERS = ["ALL", "OPEN", "IN_PROGRESS", "RESOLVED"];
+const TICKET_PAGE_SIZE = 6;
 
 const selectClassName =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100";
@@ -333,7 +335,8 @@ function MessageBubble({ align = "left", children, time, muted }) {
 
 export default function SupportPage() {
   const queryClient = useQueryClient();
-  const { session, user } = useAuth();
+  const navigate = useNavigate();
+  const { session, user, logout } = useAuth();
   const [activeView, setActiveView] = useState("dashboard");
   const [queueFilter, setQueueFilter] = useState("ALL");
   const [queueSearch, setQueueSearch] = useState("");
@@ -343,6 +346,7 @@ export default function SupportPage() {
   const [ticketReply, setTicketReply] = useState("");
   const [ticketStatus, setTicketStatus] = useState("OPEN");
   const [ticketResolutionNotes, setTicketResolutionNotes] = useState("");
+  const [visibleTicketCount, setVisibleTicketCount] = useState(TICKET_PAGE_SIZE);
   const [distanceOverrideKm, setDistanceOverrideKm] = useState("");
   const [resolvedDistanceKm, setResolvedDistanceKm] = useState("");
   const [rideResolutionNotes, setRideResolutionNotes] = useState("");
@@ -392,6 +396,14 @@ export default function SupportPage() {
       return matchesFilter && matchesTicket(ticket, deferredQueueSearch.trim());
     })
   ), [deferredQueueSearch, queueFilter, tickets]);
+
+  const visibleTickets = filteredTickets.slice(0, visibleTicketCount);
+  const remainingTicketCount = Math.max(0, filteredTickets.length - visibleTickets.length);
+  const hasMoreTickets = remainingTicketCount > 0;
+
+  useEffect(() => {
+    setVisibleTicketCount(TICKET_PAGE_SIZE);
+  }, [deferredQueueSearch, queueFilter]);
 
   useEffect(() => {
     if (!filteredTickets.length) {
@@ -546,6 +558,11 @@ export default function SupportPage() {
     onError: (error) => setWorkspaceMessage("error", error?.response?.data?.message || "Unable to approve the cash settlement right now.")
   });
 
+  function handleLogout() {
+    logout();
+    navigate("/login");
+  }
+
   const supportNav = (
     <aside className="border-r border-slate-200 bg-white px-4 py-7 lg:sticky lg:top-0 lg:h-screen lg:w-[17rem] lg:overflow-y-auto lg:overscroll-contain">
       <SupportLogo />
@@ -565,23 +582,14 @@ export default function SupportPage() {
         <SidebarButton icon={FiSettings} label="Settings" onClick={() => setActiveView("case")} />
       </div>
 
-      <div className="mt-8 rounded-2xl border border-slate-200 p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <FiHeadphones />
-          </div>
-          <p className="font-semibold text-slate-950">Need Help?</p>
-        </div>
-        <p className="mt-4 text-sm text-slate-500">Call our support hotline</p>
-        <p className="mt-1 font-semibold text-emerald-600">+254 797 753 625</p>
-        <a
-          href="tel:+254797753625"
-          className="mt-5 inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl border border-slate-200 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50"
-        >
-          <FiPhone />
-          Call Now
-        </a>
-      </div>
+      <button
+        type="button"
+        onClick={handleLogout}
+        className="mt-8 inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 text-sm font-semibold text-red-600 transition hover:border-red-200 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
+      >
+        <FiLogOut aria-hidden="true" />
+        <span>Logout</span>
+      </button>
     </aside>
   );
 
@@ -631,7 +639,7 @@ export default function SupportPage() {
         </div>
       ) : (
         <div className="p-3">
-          {filteredTickets.map((ticket) => (
+          {visibleTickets.map((ticket) => (
             <TicketListItem
               key={ticket.id}
               ticket={ticket}
@@ -641,6 +649,18 @@ export default function SupportPage() {
               onSelect={() => openTicketWorkspace(ticket, "dashboard")}
             />
           ))}
+          {hasMoreTickets ? (
+            <button
+              type="button"
+              onClick={() => setVisibleTicketCount((count) => count + TICKET_PAGE_SIZE)}
+              className="mt-3 inline-flex min-h-[2.75rem] w-full items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            >
+              Load more tickets
+              <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                {remainingTicketCount}
+              </span>
+            </button>
+          ) : null}
         </div>
       )}
     </section>
