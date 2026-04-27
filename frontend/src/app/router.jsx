@@ -10,6 +10,7 @@ import { roleHomePath } from "../lib/auth";
 import AdminPanel from "../pages/AdminPanel";
 import CustomerDashboard from "../pages/CustomerDashboard";
 import DriverDashboard from "../pages/DriverDashboard";
+import LandingPage from "../pages/LandingPage";
 import LoginPage from "../pages/LoginPage";
 import RegisterPage from "../pages/RegisterPage";
 import SupportPage from "../pages/SupportPage";
@@ -33,6 +34,7 @@ function RoleHomeRedirect() {
 }
 
 export const router = createBrowserRouter([
+  { path: "/", element: <LandingPage />, errorElement: <RouterErrorFallback /> },
   { path: "/login", element: <LoginPage />, errorElement: <RouterErrorFallback /> },
   { path: "/register", element: <RegisterPage />, errorElement: <RouterErrorFallback /> },
   {
@@ -43,7 +45,7 @@ export const router = createBrowserRouter([
         element: <AppShell />,
         errorElement: <RouterErrorFallback />,
         children: [
-          { path: "/", element: <RoleHomeRedirect /> },
+          { path: "/app", element: <RoleHomeRedirect /> },
           { path: "/profile", element: <UserProfile /> },
           {
             element: <ProtectedRoute role="CUSTOMER" />,
@@ -65,5 +67,5 @@ export const router = createBrowserRouter([
       }
     ]
   },
-  { path: "*", element: <LoginPage />, errorElement: <RouterErrorFallback /> }
+  { path: "*", element: <Navigate to="/" replace />, errorElement: <RouterErrorFallback /> }
 ]);

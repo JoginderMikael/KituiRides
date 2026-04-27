@@ -3,7 +3,7 @@
  */
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { register } from "../features/auth/authApi";
 import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
@@ -13,7 +13,9 @@ import FileUpload from "../components/FileUpload";
 
 export default function RegisterPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login: setAuth } = useAuth();
+  const requestedRole = searchParams.get("role") === "DRIVER" ? "DRIVER" : "CUSTOMER";
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -21,7 +23,7 @@ export default function RegisterPage() {
     phoneNumber: "",
     password: "",
     confirmPassword: "",
-    role: "CUSTOMER",
+    role: requestedRole,
     idNumber: "",
     licenseNumber: "",
     profilePhotoUrl: "",
