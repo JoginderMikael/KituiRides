@@ -148,13 +148,13 @@ function HeroStat({ label, description, icon: Icon, last }) {
 
 function PhoneRideMockup() {
   return (
-    <div className="relative w-[296px] rounded-[3rem] bg-[#111111] p-[6px] shadow-[0_38px_90px_-34px_rgba(15,23,42,0.55)] sm:w-[340px] lg:w-[330px] xl:w-[352px]">
+    <div className="relative w-[274px] rounded-[3rem] bg-[#111111] p-[6px] shadow-[0_38px_90px_-34px_rgba(15,23,42,0.55)] sm:w-[314px] lg:w-[304px] xl:w-[324px]">
       <div className="overflow-hidden rounded-[2.65rem] border border-white/55 bg-[#f7f7f5]">
-        <div className="relative mx-auto mt-3 h-7 w-32 rounded-full bg-[#09090b]">
+        <div className="relative mx-auto mt-2.5 h-6.5 w-28 rounded-full bg-[#09090b]">
           <div className="absolute right-3 top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full bg-[#12253f]" />
         </div>
 
-        <div className="px-4 pb-5 pt-4 sm:px-5">
+        <div className="px-4 pb-4 pt-3 sm:px-[1.1rem]">
           <div className="flex items-center justify-between">
             <button
               type="button"
@@ -163,7 +163,7 @@ function PhoneRideMockup() {
             >
               <FiMenu />
             </button>
-            <p className="text-[1.45rem] font-semibold text-[#111827]">Where to?</p>
+            <p className="text-[1.28rem] font-semibold text-[#111827]">Where to?</p>
             <button
               type="button"
               className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-white/88 text-slate-500 shadow-sm"
@@ -174,7 +174,7 @@ function PhoneRideMockup() {
           </div>
 
           <div
-            className="relative mt-4 h-[250px] overflow-hidden rounded-[2rem] bg-[#efefec] sm:h-[285px]"
+            className="relative mt-3.5 h-[220px] overflow-hidden rounded-[1.8rem] bg-[#efefec] sm:h-[246px]"
             style={{
               backgroundImage: [
                 "linear-gradient(114deg, transparent 0%, transparent 38%, rgba(255,255,255,0.9) 38.8%, rgba(255,255,255,0.9) 40.4%, transparent 41.2%, transparent 100%)",
@@ -187,33 +187,33 @@ function PhoneRideMockup() {
             <svg viewBox="0 0 320 285" className="absolute inset-0 h-full w-full" aria-hidden="true">
               <path d="M267 63C249 73 240 80 218 87C183 98 155 108 142 129C131 147 131 159 122 169C104 189 91 193 84 216" fill="none" stroke="#18a44b" strokeWidth="4.5" strokeLinecap="round" />
             </svg>
-            <div className="absolute right-8 top-[3.65rem] h-5 w-5 rounded-full border-[3px] border-white bg-[#1ab14c]" />
-            <div className="absolute left-[4.25rem] top-[11rem] flex h-14 w-8 rotate-[14deg] items-center justify-center rounded-[0.9rem] bg-white shadow-[0_10px_20px_-10px_rgba(15,23,42,0.35)]">
-              <FaCarSide className="text-lg text-[#111827]" />
+            <div className="absolute right-7 top-[3.1rem] h-4.5 w-4.5 rounded-full border-[3px] border-white bg-[#1ab14c]" />
+            <div className="absolute left-[3.8rem] top-[9.5rem] flex h-12 w-7 rotate-[14deg] items-center justify-center rounded-[0.85rem] bg-white shadow-[0_10px_20px_-10px_rgba(15,23,42,0.35)]">
+              <FaCarSide className="text-base text-[#111827]" />
             </div>
           </div>
 
-          <div className="mt-4 rounded-[1.85rem] bg-white/92 px-4 py-4 shadow-[0_24px_40px_-34px_rgba(15,23,42,0.4)] backdrop-blur">
+          <div className="mt-3.5 rounded-[1.65rem] bg-white/92 px-4 py-3.5 shadow-[0_24px_40px_-34px_rgba(15,23,42,0.4)] backdrop-blur">
             <div className="flex items-start gap-3">
               <span className="mt-1 h-3 w-3 rounded-full bg-[#19a44a]" />
               <div>
                 <p className="text-sm text-slate-500">Pickup location</p>
-                <p className="mt-1 text-[1.08rem] text-slate-700">Enter pickup location</p>
+                <p className="mt-1 text-base text-slate-700">Enter pickup location</p>
               </div>
             </div>
 
-            <div className="my-4 h-px bg-slate-200" />
+            <div className="my-3.5 h-px bg-slate-200" />
 
             <div className="flex items-start gap-3">
               <span className="mt-1 h-3 w-3 rounded-full bg-[#ff7a1a]" />
               <div>
                 <p className="text-sm text-slate-500">Dropoff location</p>
-                <p className="mt-1 text-[1.08rem] text-slate-700">Where are you going?</p>
+                <p className="mt-1 text-base text-slate-700">Where are you going?</p>
               </div>
             </div>
           </div>
 
-          <div className="mt-4 rounded-[1.85rem] bg-white px-4 py-4 shadow-[0_24px_40px_-34px_rgba(15,23,42,0.4)]">
+          <div className="mt-3.5 rounded-[1.65rem] bg-white px-4 py-3.5 shadow-[0_24px_40px_-34px_rgba(15,23,42,0.4)]">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <FaCarSide className="text-lg text-[#111827]" />
@@ -225,7 +225,7 @@ function PhoneRideMockup() {
               <p className="text-sm font-medium text-slate-600">KES 200-350</p>
             </div>
 
-            <div className="my-4 h-px bg-slate-200" />
+            <div className="my-3.5 h-px bg-slate-200" />
 
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -240,7 +240,7 @@ function PhoneRideMockup() {
 
             <button
               type="button"
-              className="mt-5 flex w-full items-center justify-center rounded-2xl bg-[#21a84c] px-4 py-3.5 text-xl font-semibold text-white shadow-[0_18px_35px_-26px_rgba(33,168,76,0.95)]"
+              className="mt-4 flex w-full items-center justify-center rounded-2xl bg-[#21a84c] px-4 py-3 text-lg font-semibold text-white shadow-[0_18px_35px_-26px_rgba(33,168,76,0.95)]"
             >
               Find Ride
             </button>

@@ -65,7 +65,7 @@ export function LoadingSpinner({ size = 'md' }) {
   return (
     <div className="flex justify-center items-center">
       <div
-        className={`${sizeClass} border-4 border-teal-100 border-t-teal-600 rounded-full animate-spin`}
+        className={`${sizeClass} border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin`}
       />
     </div>
   );
@@ -226,12 +226,12 @@ export function Button({
   const baseClass = 'font-semibold rounded-lg transition-colors duration-200 flex items-center gap-2 justify-center';
 
   const variantClass = {
-    primary: 'bg-teal-600 text-white hover:bg-teal-700 disabled:bg-teal-300',
+    primary: 'bg-emerald-600 text-white hover:bg-emerald-700 disabled:bg-emerald-300',
     secondary: 'bg-gray-200 text-gray-800 hover:bg-gray-300 disabled:bg-gray-100',
     danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
     success: 'bg-green-600 text-white hover:bg-green-700 disabled:bg-green-300',
     orange: 'bg-orange-500 text-white hover:bg-orange-600 disabled:bg-orange-300',
-    outline: 'border-2 border-teal-600 text-teal-600 hover:bg-teal-50 disabled:border-teal-300',
+    outline: 'border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-50 disabled:border-emerald-300',
   }[variant];
 
   const sizeClass = {

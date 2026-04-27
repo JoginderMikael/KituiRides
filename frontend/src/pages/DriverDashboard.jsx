@@ -5,9 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import {
+  FiBell,
   FiClock,
   FiDollarSign,
+  FiHome,
   FiHelpCircle,
+  FiLogOut,
   FiMapPin,
   FiMenu,
   FiNavigation,
@@ -17,9 +20,7 @@ import {
 import RideMapbox from "../components/RideMapbox";
 import RideChatLauncher from "../components/RideChatLauncher";
 import {
-  AppHeader,
   CompactStatCard,
-  MapPanel,
   MobileBottomNav,
   PrimaryActionButton,
   SectionCard,
@@ -52,14 +53,25 @@ import { getChatConversations } from "../features/chat/chatApi";
 import { approveCashPayment, promptCustomerMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { connectRealtimeSocket } from "../lib/socket";
 import { isActiveRide, isCompletedRide, rideStatusLabel, rideStatusVariant } from "../lib/rideStatus";
 
 const DRIVER_NAV_ITEMS = [
-  { value: "work", label: "Work", icon: FiMapPin },
-  { value: "trips", label: "Trips", icon: FiClock },
+  { value: "work", label: "Dashboard", icon: FiHome },
+  { value: "offers", label: "Incoming Offers", icon: FiMapPin },
+  { value: "trips", label: "My Trips", icon: FiClock },
+  { value: "earnings", label: "Earnings", icon: FiDollarSign },
   { value: "wallet", label: "Wallet", icon: FiDollarSign },
   { value: "support", label: "Support", icon: FiHelpCircle },
+  { value: "profile", label: "Profile", icon: FiUser }
+];
+
+const DRIVER_MOBILE_NAV_ITEMS = [
+  { value: "work", label: "Dashboard", icon: FiHome },
+  { value: "trips", label: "Trips", icon: FiClock },
+  { value: "earnings", label: "Earnings", icon: FiDollarSign },
+  { value: "wallet", label: "Wallet", icon: FiDollarSign },
   { value: "profile", label: "Profile", icon: FiUser }
 ];
 
@@ -94,6 +106,42 @@ function DetailRow({ label, value, emphasis = false }) {
       <span className="text-slate-500">{label}</span>
       <span className={emphasis ? "font-semibold text-slate-950" : "font-medium text-slate-700"}>{value}</span>
     </div>
+  );
+}
+
+function WorkspaceBrand({ subtitle = "Driver" }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-[0_18px_35px_-24px_rgba(22,155,69,0.75)]">
+        <FiMapPin className="text-xl" />
+      </div>
+      <div>
+        <div className="flex items-baseline gap-0.5 text-[1.95rem] font-semibold leading-none">
+          <span className="text-slate-950">Kitui</span>
+          <span className="text-emerald-600">Rides</span>
+        </div>
+        <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function SidebarNavButton({ item, active, onClick }) {
+  const Icon = item.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-[3rem] w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+        active
+          ? "bg-emerald-50 text-emerald-700 shadow-[inset_0_0_0_1px_rgba(22,155,69,0.16)]"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      }`}
+    >
+      <Icon className={`text-lg ${active ? "text-emerald-600" : "text-slate-400"}`} />
+      <span>{item.label}</span>
+    </button>
   );
 }
 
@@ -273,6 +321,7 @@ export default function DriverDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { session, user, logout } = useAuth();
+  const isTabletUp = useMediaQuery("(min-width: 768px)");
   const [selectedRide, setSelectedRide] = useState(null);
   const [currentLocation, setCurrentLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("");
@@ -600,6 +649,12 @@ export default function DriverDashboard() {
     setActiveTab(nextTab);
   }
 
+  const workspaceTab = activeTab === "offers"
+    ? "work"
+    : activeTab === "earnings"
+      ? "wallet"
+      : activeTab;
+
   if (dashboardQuery.isLoading) {
     return (
       <div className="flex h-96 items-center justify-center">
@@ -711,13 +766,17 @@ export default function DriverDashboard() {
 
   const highlightedOffer = (offersQuery.data || [])[0] || null;
 
-  const workMapPanel = (
-    <MapPanel
-      title={activeRide ? "Trip map" : "Driver map"}
-      subtitle={activeRide
-        ? "Keep your route and location in view while the trip is active."
-        : "Stay online, refresh your location, and watch for nearby requests."}
-      controls={(
+  const locationPreviewCard = (
+    <SectionCard className="space-y-4 overflow-hidden">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h3 className="text-lg font-semibold text-slate-950">Location</h3>
+          <p className="text-sm text-slate-500">
+            {dashboard?.locationUpdatedAt
+              ? `Last updated: ${formatTimestamp(dashboard.locationUpdatedAt)}`
+              : "Keep your latest position visible to nearby riders."}
+          </p>
+        </div>
         <Button
           size="sm"
           className="rounded-2xl"
@@ -725,27 +784,14 @@ export default function DriverDashboard() {
           loading={locationMutation.isPending}
         >
           <FiNavigation />
-          Update Location
+          Update
         </Button>
-      )}
-      footer={(
-        <div className="flex flex-wrap items-center gap-3">
-          <StatusPill label={dashboard?.online ? "Online" : "Offline"} tone={dashboard?.online ? "accent" : "muted"} />
-          <StatusPill
-            label={`${(offersQuery.data || []).length} offers`}
-            tone={(offersQuery.data || []).length ? "info" : "muted"}
-          />
-          {locationStatus ? (
-            <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-              {locationStatus}
-            </div>
-          ) : null}
-        </div>
-      )}
-    >
-      <RideMapbox
-        pickup={activeRide
-          ? { lat: activeRide.pickupLat, lng: activeRide.pickupLng }
+      </div>
+
+      <div className="overflow-hidden rounded-[18px] border border-slate-200">
+        <RideMapbox
+          pickup={activeRide
+            ? { lat: activeRide.pickupLat, lng: activeRide.pickupLng }
           : highlightedOffer
             ? { lat: highlightedOffer.pickupLat, lng: highlightedOffer.pickupLng }
             : undefined}
@@ -767,19 +813,24 @@ export default function DriverDashboard() {
               label: highlightedOffer.customerName
             }
             : undefined}
-        driverLocation={driverMapLocation ? {
-          lat: Number(driverMapLocation.latitude),
-          lng: Number(driverMapLocation.longitude),
-          label: "You"
-        } : undefined}
-        heightClassName="h-[22rem] md:h-[28rem]"
-        helperText={activeRide
-          ? "Keep your location updated so the customer can see you approaching and moving."
-          : highlightedOffer
-            ? "Your latest location and the top incoming request are highlighted here."
-            : "Update your location to appear to nearby customers and center the map on you."}
-      />
-    </MapPanel>
+          driverLocation={driverMapLocation ? {
+            lat: Number(driverMapLocation.latitude),
+            lng: Number(driverMapLocation.longitude),
+            label: "You"
+          } : undefined}
+          heightClassName="h-[10rem] md:h-[12rem]"
+          helperText={activeRide
+            ? "Your route stays visible while this trip is active."
+            : highlightedOffer
+              ? "Your latest location and the top incoming request are highlighted here."
+              : "Update your location to appear to nearby customers and center the map on you."}
+        />
+      </div>
+
+      <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+        {locationStatus}
+      </div>
+    </SectionCard>
   );
 
   const currentTripCard = (
@@ -920,34 +971,104 @@ export default function DriverDashboard() {
   );
 
   const workView = (
-    <div className="space-y-5">
-      {workMapPanel}
+    <div className="space-y-4">
+      {!activeRide ? (
+        <>
+          <div className="grid gap-4 xl:grid-cols-4">
+            <SectionCard className="space-y-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-700">You are {dashboard?.online ? "Online" : "Offline"}</p>
+                  <p className="mt-1 text-sm text-slate-500">{dashboard?.verified ? "Online" : "Awaiting verification"}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => statusMutation.mutate(!dashboard?.online)}
+                  className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
+                  aria-label={dashboard?.online ? "Go offline" : "Go online"}
+                >
+                  <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
+                </button>
+              </div>
+            </SectionCard>
 
-      <div className="grid gap-5 xl:grid-cols-[1.12fr,0.88fr]">
-        <div className="space-y-5">
-          {activeRide ? currentTripCard : offersCard}
-        </div>
+            <SectionCard className="space-y-3">
+              <p className="text-sm font-medium text-slate-500">Vehicle</p>
+              <p className="text-lg font-semibold text-slate-950">
+                {dashboard?.vehicle ? `${dashboard.vehicle.make} ${dashboard.vehicle.model}` : "No vehicle"}
+              </p>
+              <p className="text-sm text-slate-500">
+                {dashboard?.vehicle ? `${dashboard.vehicle.plateNumber} • ${dashboard.vehicle.engineSize}cc` : "Vehicle details unavailable"}
+              </p>
+            </SectionCard>
 
-        <div className="space-y-5">
-          <SectionCard className="space-y-4">
-            <div>
-              <h2 className="text-lg font-semibold text-slate-950">Location refresh</h2>
-              <p className="text-sm text-slate-500">One tap keeps you visible to nearby customers and keeps the map current.</p>
+            <SectionCard className="space-y-3">
+              <p className="text-sm font-medium text-slate-500">Wallet Balance</p>
+              <p className="text-3xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.balance)}</p>
+            </SectionCard>
+
+            <SectionCard className="space-y-3">
+              <p className="text-sm font-medium text-slate-500">Outstanding Commission</p>
+              <p className="text-3xl font-semibold text-slate-950">{formatMoney(dashboard?.wallet?.outstandingCommission)}</p>
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-[1.08fr,0.92fr,0.78fr]">
+            {offersCard}
+            {currentTripCard}
+            <div className="space-y-4">
+              {locationPreviewCard}
+              <SectionCard className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold text-slate-950">Today's Summary</h3>
+                  <p className="text-sm text-slate-500">A compact snapshot of the day so far.</p>
+                </div>
+                <div className="space-y-3">
+                  <DetailRow label="Trips Completed" value={String(completedRides.length)} />
+                  <DetailRow label="Earnings" value={formatMoney(dashboard?.wallet?.balance)} emphasis />
+                  <DetailRow label="Online Time" value={dashboard?.online ? "On duty" : "Offline"} />
+                </div>
+              </SectionCard>
             </div>
-            <Button
-              className="w-full rounded-2xl"
-              onClick={updateExactLocation}
-              loading={locationMutation.isPending}
-            >
-              <FiNavigation />
-              Update My Location
-            </Button>
-            <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
-              {locationStatus}
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-4 xl:grid-cols-[1.02fr,0.98fr]">
+          <SectionCard className="overflow-hidden p-0">
+            <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-950">Current Trip</h2>
+                <p className="mt-1 text-sm text-slate-500">{rideStatusLabel(activeRide.status)}</p>
+              </div>
+            </div>
+            <RideMapbox
+              pickup={{ lat: activeRide.pickupLat, lng: activeRide.pickupLng }}
+              dropoff={{ lat: activeRide.dropoffLat, lng: activeRide.dropoffLng }}
+              customerLocation={{
+                lat: activeRide.pickupLat,
+                lng: activeRide.pickupLng,
+                label: activeRide.customerName
+              }}
+              driverLocation={driverMapLocation ? {
+                lat: Number(driverMapLocation.latitude),
+                lng: Number(driverMapLocation.longitude),
+                label: "You"
+              } : undefined}
+              heightClassName="h-[18rem] md:h-[26rem]"
+              helperText="Keep your location updated so the customer can see you approaching and moving."
+            />
+            <div className="grid gap-4 border-t border-slate-200 px-5 py-4 sm:grid-cols-2">
+              <DetailRow label="Fare" value={formatMoney(activeRide.finalFare)} emphasis />
+              <DetailRow label="Distance" value={formatDistance(activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0)} />
             </div>
           </SectionCard>
+
+          <div className="space-y-4">
+            {currentTripCard}
+            {locationPreviewCard}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 
@@ -1040,59 +1161,102 @@ export default function DriverDashboard() {
   );
 
   return (
-    <div className="space-y-5 pb-28 md:pb-8">
-      <AppHeader
-        eyebrow="KituiRides Driver"
-        title={activeRide ? "Active trip in progress" : "Ready for the next request?"}
-        subtitle={activeRide
-          ? "Your current trip, customer details, and trip controls stay focused on the main screen."
-          : "Go online, keep your location fresh, and wait for nearby ride offers to appear."}
-        status={(
-          <StatusPill
-            label={dashboard?.online ? "Online" : "Offline"}
-            tone={dashboard?.online ? "accent" : "muted"}
-            hint={dashboard?.verified ? "Verified" : "Pending approval"}
-          />
-        )}
-        trailing={(
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            aria-label="Open menu"
-          >
-            <FiMenu className="text-xl" />
-          </button>
-        )}
-      />
+    <div className="min-h-screen bg-[#f7f8fb] md:p-4">
+      <div className="md:grid md:min-h-[calc(100vh-2rem)] md:grid-cols-[15rem,minmax(0,1fr)] md:gap-4">
+        {isTabletUp ? (
+          <aside className="md:flex md:flex-col md:rounded-[24px] md:border md:border-slate-200 md:bg-white md:p-5 md:shadow-[0_18px_34px_-28px_rgba(15,23,42,0.22)]">
+            <WorkspaceBrand subtitle="Driver" />
 
-      <div className="hidden md:flex md:flex-wrap md:items-center md:gap-3">
-        {DRIVER_NAV_ITEMS.map((item) => {
-          const active = activeTab === item.value;
-          const Icon = item.icon;
+            <div className="mt-8 space-y-1.5">
+              {DRIVER_NAV_ITEMS.map((item) => (
+                <SidebarNavButton
+                  key={item.value}
+                  item={item}
+                  active={activeTab === item.value}
+                  onClick={() => handleNavChange(item.value)}
+                />
+              ))}
+            </div>
 
-          return (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => handleNavChange(item.value)}
-              className={`inline-flex min-h-[3rem] items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                active
-                  ? "border-teal-500 bg-teal-50 text-teal-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-              }`}
-            >
-              <Icon />
-              {item.label}
-            </button>
-          );
-        })}
+            <div className="mt-auto pt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+                className="flex min-h-[3rem] w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+              >
+                <FiLogOut className="text-lg text-slate-400" />
+                <span>Log out</span>
+              </button>
+            </div>
+          </aside>
+        ) : null}
+
+        <div className="min-w-0 px-3 pb-28 pt-3 md:flex md:min-h-0 md:flex-col md:px-0 md:pb-0 md:pt-0">
+          {!isTabletUp ? (
+            <div className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.18)]">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+                aria-label="Open menu"
+              >
+                <FiMenu className="text-lg" />
+              </button>
+              <WorkspaceBrand subtitle="Driver" />
+              <button
+                type="button"
+                onClick={() => statusMutation.mutate(!dashboard?.online)}
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${dashboard?.online ? "bg-emerald-500" : "bg-slate-200"}`}
+                aria-label={dashboard?.online ? "Go offline" : "Go online"}
+              >
+                <span className={`inline-flex h-6 w-6 rounded-full bg-white shadow transition ${dashboard?.online ? "translate-x-7" : "translate-x-1"}`} />
+              </button>
+            </div>
+          ) : null}
+
+          {isTabletUp ? (
+            <div className="md:flex md:items-center md:justify-between md:gap-4 md:rounded-[24px] md:border md:border-slate-200 md:bg-white md:px-5 md:py-4 md:shadow-[0_18px_34px_-28px_rgba(15,23,42,0.22)]">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300"
+                aria-label="Open menu"
+              >
+                <FiMenu className="text-lg" />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <StatusPill
+                  label={dashboard?.online ? "Online" : "Offline"}
+                  tone={dashboard?.online ? "accent" : "muted"}
+                  hint={dashboard?.verified ? "Verified" : "Pending approval"}
+                />
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                  <FiBell className="text-lg" />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300"
+                >
+                  <Avatar name={driverName} size="sm" />
+                  <span className="text-sm font-semibold text-slate-900">{driverName}</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
+            {workspaceTab === "work" ? workView : null}
+            {workspaceTab === "trips" ? tripsView : null}
+            {workspaceTab === "wallet" ? walletView : null}
+            {workspaceTab === "support" ? supportView : null}
+          </div>
+        </div>
       </div>
-
-      {activeTab === "work" ? workView : null}
-      {activeTab === "trips" ? tripsView : null}
-      {activeTab === "wallet" ? walletView : null}
-      {activeTab === "support" ? supportView : null}
 
       <DriverMenuModal
         isOpen={menuOpen}
@@ -1128,7 +1292,7 @@ export default function DriverDashboard() {
         }}
       />
 
-      <MobileBottomNav items={DRIVER_NAV_ITEMS} value={activeTab} onChange={handleNavChange} />
+      {!isTabletUp ? <MobileBottomNav items={DRIVER_MOBILE_NAV_ITEMS} value={activeTab} onChange={handleNavChange} /> : null}
 
       {selectedRide ? (
         <Modal isOpen={Boolean(selectedRide)} title={`Ride #${selectedRide.id}`} onClose={() => setSelectedRide(null)}>

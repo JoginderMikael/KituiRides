@@ -4,15 +4,24 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
-import { FiClock, FiCreditCard, FiHelpCircle, FiMapPin, FiMenu, FiPhone, FiUser } from "react-icons/fi";
+import {
+  FiBell,
+  FiClock,
+  FiCreditCard,
+  FiHelpCircle,
+  FiHome,
+  FiLogOut,
+  FiMapPin,
+  FiMenu,
+  FiPhone,
+  FiPlus,
+  FiUser
+} from "react-icons/fi";
 import PaymentMethodSelector from "../components/PaymentMethodSelector";
 import RideMapbox from "../components/RideMapbox";
 import RideChatLauncher from "../components/RideChatLauncher";
 import {
-  AppHeader,
-  BottomSheet,
   CompactStatCard,
-  MapPanel,
   MobileBottomNav,
   PrimaryActionButton,
   SectionCard,
@@ -39,6 +48,7 @@ import { getChatConversations } from "../features/chat/chatApi";
 import { initiateMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
+import { useMediaQuery } from "../hooks/useMediaQuery";
 import { apiClient, unwrap } from "../lib/apiClient";
 import { geocodeAddress, reverseGeocode } from "../lib/googleMaps";
 import { connectRealtimeSocket } from "../lib/socket";
@@ -62,7 +72,7 @@ const DEFAULT_FORM = {
 };
 
 const CUSTOMER_NAV_ITEMS = [
-  { value: "ride", label: "Ride", icon: FiMapPin },
+  { value: "ride", label: "Home", icon: FiHome },
   { value: "trips", label: "Trips", icon: FiClock },
   { value: "payments", label: "Payments", icon: FiCreditCard },
   { value: "support", label: "Support", icon: FiHelpCircle },
@@ -114,6 +124,60 @@ function DetailRow({ label, value, emphasis = false }) {
       <span className="text-slate-500">{label}</span>
       <span className={emphasis ? "font-semibold text-slate-950" : "font-medium text-slate-700"}>{value}</span>
     </div>
+  );
+}
+
+function WorkspaceBrand({ subtitle = "Customer" }) {
+  return (
+    <div className="flex items-center gap-3">
+      <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-[0_18px_35px_-24px_rgba(22,155,69,0.75)]">
+        <FiMapPin className="text-xl" />
+      </div>
+      <div>
+        <div className="flex items-baseline gap-0.5 text-[1.95rem] font-semibold leading-none">
+          <span className="text-slate-950">Kitui</span>
+          <span className="text-emerald-600">Rides</span>
+        </div>
+        <p className="mt-1 text-xs font-medium uppercase tracking-[0.18em] text-slate-400">{subtitle}</p>
+      </div>
+    </div>
+  );
+}
+
+function SidebarNavButton({ item, active, onClick }) {
+  const Icon = item.icon;
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex min-h-[3rem] w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium transition ${
+        active
+          ? "bg-emerald-50 text-emerald-700 shadow-[inset_0_0_0_1px_rgba(22,155,69,0.16)]"
+          : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+      }`}
+    >
+      <Icon className={`text-lg ${active ? "text-emerald-600" : "text-slate-400"}`} />
+      <span>{item.label}</span>
+    </button>
+  );
+}
+
+function CompactLocationField({ label, value, accentClass, onFocus, onChange, placeholder }) {
+  return (
+    <label className="flex min-h-[4.4rem] items-start gap-3 rounded-[18px] border border-slate-200 bg-white px-4 py-3 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.28)]">
+      <span className={`mt-1.5 h-2.5 w-2.5 rounded-full ${accentClass}`} />
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{label}</span>
+        <input
+          value={value}
+          onFocus={onFocus}
+          onChange={onChange}
+          placeholder={placeholder}
+          className="mt-1.5 w-full border-0 bg-transparent p-0 text-sm font-semibold text-slate-950 outline-none placeholder:text-slate-400"
+        />
+      </span>
+    </label>
   );
 }
 
@@ -370,6 +434,8 @@ export default function CustomerDashboard() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user, session, logout } = useAuth();
+  const isTabletUp = useMediaQuery("(min-width: 768px)");
+  const isLargeScreen = useMediaQuery("(min-width: 1024px)");
   const [form, setForm] = useState(DEFAULT_FORM);
   const [mapMode, setMapMode] = useState("pickup");
   const [activeTab, setActiveTab] = useState("ride");
@@ -689,78 +755,160 @@ export default function CustomerDashboard() {
     setActiveTab(nextTab);
   }
 
-  const plannerForm = (
-    <div className="space-y-4">
-      <div className="grid gap-4 md:grid-cols-2">
-        <Input
-          label="Pickup address"
-          value={form.pickupAddress}
-          onFocus={() => setMapMode("pickup")}
-          onChange={(event) => setForm((current) => ({ ...current, pickupAddress: event.target.value }))}
-          required
-        />
-        <Input
-          label="Dropoff address"
-          value={form.dropoffAddress}
-          onFocus={() => setMapMode("dropoff")}
-          onChange={(event) => setForm((current) => ({ ...current, dropoffAddress: event.target.value }))}
-          required
-        />
-      </div>
+  const fareLabel = estimateQuery.isFetching
+    ? "Calculating..."
+    : hasBackendEstimate
+      ? formatMoney(estimatedFare)
+      : "Unavailable";
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-medium text-slate-700">Vehicle type</label>
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { value: "CAR", label: "Car" },
-              { value: "MOTORCYCLE", label: "Motorbike" }
-            ].map((option) => {
-              const active = form.vehicleType === option.value;
-              return (
-                <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setForm((current) => ({ ...current, vehicleType: option.value }))}
-                  className={`rounded-[22px] border px-4 py-3 text-sm font-semibold transition ${
-                    active
-                      ? "border-teal-500 bg-teal-50 text-teal-700"
-                      : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-                  }`}
-                >
-                  {option.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-medium text-slate-500">Best available fare</p>
-          <p className="mt-2 text-2xl font-semibold text-slate-950">
-            {estimateQuery.isFetching
-              ? "Calculating..."
-              : hasBackendEstimate
-                ? formatMoney(estimatedFare)
-                : "Unavailable"}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            {hasBackendEstimate
-              ? `${formatDistance(estimatedTripDistanceKm)} estimated trip distance`
-              : "Your fare quote will appear as soon as the backend responds."}
-          </p>
-        </div>
-      </div>
-
-      <PaymentMethodSelector
-        value={form.paymentType}
-        estimatedFare={hasBackendEstimate ? Number(estimatedFare) : null}
-        estimatePending={estimateQuery.isFetching}
-        onSelect={(paymentType) => setForm((current) => ({ ...current, paymentType }))}
+  const locationEditors = (
+    <div className="grid gap-3">
+      <CompactLocationField
+        label="Pickup"
+        value={form.pickupAddress}
+        onFocus={() => setMapMode("pickup")}
+        onChange={(event) => setForm((current) => ({ ...current, pickupAddress: event.target.value }))}
+        placeholder="Current location"
+        accentClass="bg-emerald-500"
       />
+      <CompactLocationField
+        label="Dropoff"
+        value={form.dropoffAddress}
+        onFocus={() => setMapMode("dropoff")}
+        onChange={(event) => setForm((current) => ({ ...current, dropoffAddress: event.target.value }))}
+        placeholder="Where to?"
+        accentClass="bg-rose-500"
+      />
+    </div>
+  );
+
+  const desktopLocationStrip = (
+    <div className="hidden gap-3 lg:grid lg:grid-cols-[1fr,1fr,3.2rem]">
+      <CompactLocationField
+        label="Pickup"
+        value={form.pickupAddress}
+        onFocus={() => setMapMode("pickup")}
+        onChange={(event) => setForm((current) => ({ ...current, pickupAddress: event.target.value }))}
+        placeholder="Current location"
+        accentClass="bg-emerald-500"
+      />
+      <CompactLocationField
+        label="Dropoff"
+        value={form.dropoffAddress}
+        onFocus={() => setMapMode("dropoff")}
+        onChange={(event) => setForm((current) => ({ ...current, dropoffAddress: event.target.value }))}
+        placeholder="Kalundu, Kitui"
+        accentClass="bg-rose-500"
+      />
+      <button
+        type="button"
+        onClick={() => setMapMode((current) => (current === "pickup" ? "dropoff" : "pickup"))}
+        className="inline-flex min-h-[4.4rem] items-center justify-center rounded-[18px] border border-slate-200 bg-white text-slate-700 shadow-[0_12px_28px_-26px_rgba(15,23,42,0.28)] transition hover:border-slate-300"
+        aria-label="Toggle map selection focus"
+      >
+        <FiPlus className="text-xl" />
+      </button>
+    </div>
+  );
+
+  const plannerControls = (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-xl font-semibold text-slate-950">Plan Your Ride</h2>
+        <p className="mt-1 text-sm leading-6 text-slate-500">Choose a vehicle and request a ride.</p>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-slate-900">Vehicle Type</p>
+        <div className="mt-3 grid gap-3">
+          {[
+            { value: "CAR", label: "Car", helper: "4 seats" },
+            { value: "MOTORCYCLE", label: "Motorcycle", helper: "1 seat" }
+          ].map((option) => {
+            const active = form.vehicleType === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, vehicleType: option.value }))}
+                className={`flex items-center justify-between rounded-[18px] border px-4 py-3 transition ${
+                  active
+                    ? "border-emerald-500 bg-emerald-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <span>
+                  <span className={`block text-sm font-semibold ${active ? "text-emerald-700" : "text-slate-900"}`}>{option.label}</span>
+                  <span className="mt-1 block text-xs text-slate-500">{option.helper}</span>
+                </span>
+                <span className={`inline-flex h-5 w-5 items-center justify-center rounded-full border ${active ? "border-emerald-600 bg-emerald-600 text-white" : "border-slate-300"}`}>
+                  {active ? "✓" : ""}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div>
+        <p className="text-sm font-semibold text-slate-900">Payment Method</p>
+        <div className="mt-3 grid gap-3">
+          {[
+            { value: "MPESA", label: "M-Pesa", helper: "Recommended" },
+            { value: "CASH", label: "Cash", helper: "Pay directly" }
+          ].map((option) => {
+            const active = form.paymentType === option.value;
+
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setForm((current) => ({ ...current, paymentType: option.value }))}
+                className={`flex items-center justify-between rounded-[18px] border px-4 py-3 transition ${
+                  active
+                    ? "border-emerald-500 bg-emerald-50"
+                    : "border-slate-200 bg-white hover:border-slate-300"
+                }`}
+              >
+                <span className="flex items-center gap-3">
+                  <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${active ? "bg-white text-emerald-700" : "bg-slate-100 text-slate-600"}`}>
+                    {option.value === "MPESA" ? <FiCreditCard /> : <FiMapPin className="rotate-90" />}
+                  </span>
+                  <span>
+                    <span className={`block text-sm font-semibold ${active ? "text-emerald-700" : "text-slate-900"}`}>{option.label}</span>
+                    <span className="mt-1 block text-xs text-slate-500">{option.helper}</span>
+                  </span>
+                </span>
+                <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${option.value === "MPESA" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                  {option.helper}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3.5">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-medium text-slate-500">Estimated Fare</span>
+          <span className="text-lg font-semibold text-slate-950">{fareLabel}</span>
+        </div>
+        <p className="mt-2 text-xs leading-5 text-slate-500">
+          {hasBackendEstimate
+            ? `${formatDistance(estimatedTripDistanceKm)} estimated distance`
+            : "Your fare quote will appear as soon as the backend responds."}
+        </p>
+      </div>
+
+      {quoteWarning ? (
+        <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {quoteWarning}
+        </div>
+      ) : null}
 
       {!canRequestRide ? (
-        <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+        <div className="rounded-[18px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
           You already have an active ride. Complete, resolve, or cancel it before requesting another one.
         </div>
       ) : null}
@@ -771,7 +919,7 @@ export default function CustomerDashboard() {
         disabled={!canRequestRide}
         loading={requestRideMutation.isPending && requestingDriverId == null}
       >
-        {canRequestRide ? "Find Ride" : "Ride in Progress"}
+        {canRequestRide ? "Request Ride" : "Ride in Progress"}
       </PrimaryActionButton>
     </div>
   );
@@ -779,44 +927,129 @@ export default function CustomerDashboard() {
   const customerName = user ? `${user.firstName} ${user.lastName}` : session?.email || "Customer";
 
   const rideHomeView = (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      {!activeRide && isLargeScreen ? desktopLocationStrip : null}
+
       {activeRide ? (
-        <SectionCard className="space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <p className="text-sm text-slate-500">Live ride</p>
-              <h2 className="text-xl font-semibold text-slate-950">{activeRide.pickupAddress}</h2>
-              <p className="text-sm text-slate-500">to {activeRide.dropoffAddress}</p>
-            </div>
-            <Badge label={rideStatusLabel(activeRide.status)} variant={rideStatusVariant(activeRide.status)} size="sm" />
+        <div className="grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
+          <div className="space-y-4">
+            <SectionCard className="overflow-hidden p-0">
+              <div className="border-b border-slate-200 px-5 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">Live Ride</p>
+                    <p className="mt-1 text-sm text-slate-500">{rideStatusLabel(activeRide.status)}</p>
+                  </div>
+                  <Badge label={rideStatusLabel(activeRide.status)} variant={rideStatusVariant(activeRide.status)} size="sm" />
+                </div>
+              </div>
+              <div className="p-0">
+                <RideMapbox
+                  pickup={{ lat: Number(activeRide.pickupLat), lng: Number(activeRide.pickupLng) }}
+                  dropoff={{ lat: Number(activeRide.dropoffLat), lng: Number(activeRide.dropoffLng) }}
+                  nearbyDrivers={[]}
+                  driverLocation={activeRide.riderLat != null && activeRide.riderLng != null ? {
+                    lat: activeRide.riderLat,
+                    lng: activeRide.riderLng,
+                    label: activeRide.riderName
+                  } : undefined}
+                  heightClassName="h-[15.5rem] md:h-[22rem]"
+                  helperText="Your assigned driver's latest location is shown on the route map."
+                />
+              </div>
+            </SectionCard>
+
+            {!isLargeScreen ? (
+              <SectionCard className="space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={activeRide.riderName || "Driver"} size="md" />
+                    <div>
+                      <p className="font-semibold text-slate-950">{activeRide.riderName || "Matching driver"}</p>
+                      <p className="text-sm text-slate-500">{activeRide.riderPhone || "Driver details will appear here"}</p>
+                    </div>
+                  </div>
+                  <Badge label={activeRide.paymentType} variant="teal" size="sm" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {activeRide.riderPhone ? (
+                    <a
+                      href={`tel:${activeRide.riderPhone}`}
+                      className="inline-flex min-h-[3rem] items-center justify-center rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700"
+                    >
+                      Call
+                    </a>
+                  ) : null}
+                  <Button variant="secondary" className="rounded-2xl" onClick={() => window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" })}>
+                    Message
+                  </Button>
+                </div>
+
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">Trip Details</p>
+                  <div className="mt-4 space-y-3">
+                    <DetailRow label="Pickup" value={activeRide.pickupAddress} />
+                    <DetailRow label="Dropoff" value={activeRide.dropoffAddress} />
+                    <DetailRow label="Fare" value={formatMoney(activeRide.finalFare)} emphasis />
+                  </div>
+                </div>
+
+                {["TRIP_STARTED", "PAYMENT_PENDING"].includes(activeRide.status) && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
+                  <PrimaryActionButton className="w-full" onClick={() => setPaymentRide(activeRide)}>
+                    Pay via M-Pesa
+                  </PrimaryActionButton>
+                ) : (
+                  <Button
+                    variant="outline"
+                    className="w-full rounded-2xl border-rose-300 text-rose-600 hover:bg-rose-50"
+                    onClick={() => {
+                      if (window.confirm("Cancel this ride?")) {
+                        cancelRideMutation.mutate(activeRide.id);
+                      }
+                    }}
+                    loading={cancelRideMutation.isPending}
+                  >
+                    Cancel Ride
+                  </Button>
+                )}
+              </SectionCard>
+            ) : null}
           </div>
 
-          <div className="grid gap-4 lg:grid-cols-[1.05fr,0.95fr]">
-            <div className="space-y-4">
+          {isLargeScreen ? (
+            <SectionCard className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm text-slate-500">Live ride</p>
+                  <h2 className="mt-1 text-xl font-semibold text-slate-950">{activeRide.pickupAddress}</h2>
+                  <p className="text-sm text-slate-500">to {activeRide.dropoffAddress}</p>
+                </div>
+                <Badge label={activeRide.paymentType} variant="teal" size="sm" />
+              </div>
+
               {activeRide.riderName ? (
-                <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-                  <p className="text-sm text-slate-500">Driver info</p>
+                <div className="rounded-[18px] border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm text-slate-500">Driver Info</p>
                   <p className="mt-2 font-semibold text-slate-950">{activeRide.riderName}</p>
                   <p className="text-sm text-slate-500">{activeRide.riderPhone}</p>
                 </div>
               ) : (
-                <div className="rounded-[24px] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
                   We are still matching you with a driver.
                 </div>
               )}
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[24px] border border-slate-200 bg-white p-4">
+                <div className="rounded-[18px] border border-slate-200 bg-white p-4">
                   <p className="text-sm text-slate-500">Payment</p>
                   <p className="mt-2 font-semibold text-slate-950">{activeRide.paymentType}</p>
                   <p className="text-sm text-slate-500">{activeRide.paymentStatus}</p>
                 </div>
-                <div className="rounded-[24px] border border-slate-200 bg-white p-4">
-                  <p className="text-sm text-slate-500">Trip total</p>
+                <div className="rounded-[18px] border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Trip Total</p>
                   <p className="mt-2 font-semibold text-slate-950">{formatMoney(activeRide.finalFare)}</p>
-                  <p className="text-sm text-slate-500">
-                    {formatDistance(activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0)}
-                  </p>
+                  <p className="text-sm text-slate-500">{formatDistance(activeRide.chargeableDistanceKm || activeRide.estimatedDistanceKm || 0)}</p>
                 </div>
               </div>
 
@@ -827,37 +1060,36 @@ export default function CustomerDashboard() {
               ) : null}
 
               {paymentActionStatus ? (
-                <div className="rounded-[24px] border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
+                <div className="rounded-[18px] border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
                   {paymentActionStatus}
                 </div>
               ) : null}
 
               {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "CASH" ? (
-                <div className="rounded-[24px] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
+                <div className="rounded-[18px] border border-sky-200 bg-sky-50 p-4 text-sm text-sky-900">
                   Pay cash to the driver. The trip moves forward after the driver confirms the payment.
                 </div>
               ) : null}
 
               {activeRide.manualDistanceRequired ? (
-                <div className="rounded-[24px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                <div className="rounded-[18px] border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
                   GPS distance was incomplete. The driver or support must confirm final distance before payment can continue.
                 </div>
               ) : null}
 
-              <div className="flex flex-wrap gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
                 {activeRide.status === "PAYMENT_COMPLETED" ? (
-                  <Button
-                    variant="success"
-                    className="rounded-2xl"
+                  <PrimaryActionButton
+                    className="w-full"
                     onClick={() => completeRideMutation.mutate(activeRide.id)}
                     loading={completeRideMutation.isPending}
                   >
                     Complete Trip
-                  </Button>
+                  </PrimaryActionButton>
                 ) : null}
                 <Button
                   variant="outline"
-                  className="rounded-2xl"
+                  className="w-full rounded-2xl border-rose-300 text-rose-600 hover:bg-rose-50"
                   onClick={() => {
                     if (window.confirm("Cancel this ride?")) {
                       cancelRideMutation.mutate(activeRide.id);
@@ -869,7 +1101,7 @@ export default function CustomerDashboard() {
                 </Button>
                 <Button
                   variant="secondary"
-                  className="rounded-2xl"
+                  className="w-full rounded-2xl"
                   onClick={() => {
                     const reason = window.prompt("Describe the dispute reason");
                     if (reason) {
@@ -880,178 +1112,192 @@ export default function CustomerDashboard() {
                 >
                   Raise Dispute
                 </Button>
-                {supportPhone ? (
-                  <a
-                    href={`tel:${supportPhone}`}
-                    className="inline-flex min-h-[2.75rem] items-center justify-center rounded-2xl bg-slate-950 px-4 py-2 text-sm font-semibold text-white"
-                  >
-                    Call Support
-                  </a>
-                ) : null}
-                <Button variant="secondary" className="rounded-2xl" onClick={() => setSelectedRide(activeRide)}>
+                <Button variant="secondary" className="w-full rounded-2xl" onClick={() => setSelectedRide(activeRide)}>
                   View Details
                 </Button>
               </div>
-            </div>
 
-            <div className="space-y-4">
-              <div className="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
-                <p className="text-sm text-slate-500">Trip progress</p>
-                <p className="mt-2 font-semibold text-slate-950">{rideStatusLabel(activeRide.status)}</p>
-                <p className="text-sm text-slate-500">Ride #{activeRide.id}</p>
-              </div>
-            </div>
-          </div>
-        </SectionCard>
-      ) : null}
-
-      <div className={`grid gap-5 ${activeRide ? "" : "lg:grid-cols-[0.92fr,1.08fr] xl:grid-cols-[0.88fr,1.18fr,0.82fr]"}`}>
-        {!activeRide ? (
-          <div className="hidden space-y-5 lg:block">
-            <SectionCard>
-              <div className="mb-4">
-                <h2 className="text-lg font-semibold text-slate-950">Ride request</h2>
-                <p className="text-sm text-slate-500">Pickup, dropoff, vehicle, payment, then one clear request action.</p>
-              </div>
-              {plannerForm}
-            </SectionCard>
-            <FareSummaryCard
-              estimateQuery={estimateQuery}
-              estimatedFare={estimatedFare}
-              estimatedTripDistanceKm={estimatedTripDistanceKm}
-              directDistanceKm={directDistanceKm}
-              distanceBufferKm={distanceBufferKm}
-              distanceBufferPercent={distanceBufferPercent}
-              quoteWarning={quoteWarning}
-              hasBackendEstimate={hasBackendEstimate}
-              showDetails={showFareDetails}
-              onToggleDetails={() => setShowFareDetails((current) => !current)}
-            />
-          </div>
-        ) : null}
-
-        <div className="space-y-5">
-          <MapPanel
-            title={activeRide ? "Trip map" : "Plan your ride"}
-            subtitle={activeRide
-              ? "Your route, driver position, and trip focus stay centered here."
-              : "Pick on the map or type the addresses below."}
-            controls={(
-              <div className="flex items-center gap-2">
-                {!activeRide ? (
-                  <>
-                    <Button
-                      variant={mapMode === "pickup" ? "primary" : "secondary"}
-                      size="sm"
-                      className="rounded-2xl"
-                      onClick={() => setMapMode("pickup")}
-                    >
-                      Pickup
-                    </Button>
-                    <Button
-                      variant={mapMode === "dropoff" ? "orange" : "secondary"}
-                      size="sm"
-                      className="rounded-2xl"
-                      onClick={() => setMapMode("dropoff")}
-                    >
-                      Dropoff
-                    </Button>
-                  </>
-                ) : null}
-              </div>
-            )}
-            footer={(
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusPill
-                  label={`Nearby drivers: ${(driversQuery.data || []).length}`}
-                  tone={(driversQuery.data || []).length ? "accent" : "muted"}
-                />
-                {activeLocationStatus ? (
-                  <div className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-600">
-                    {activeLocationStatus}
-                  </div>
-                ) : null}
-              </div>
-            )}
-          >
-            <div className="relative">
-              <RideMapbox
-                pickup={{ lat: Number(activeRide?.pickupLat ?? form.pickupLat), lng: Number(activeRide?.pickupLng ?? form.pickupLng) }}
-                dropoff={{ lat: Number(activeRide?.dropoffLat ?? form.dropoffLat), lng: Number(activeRide?.dropoffLng ?? form.dropoffLng) }}
-                nearbyDrivers={activeRide ? [] : (driversQuery.data || [])}
-                driverLocation={activeRide?.riderLat != null && activeRide?.riderLng != null ? {
-                  lat: activeRide.riderLat,
-                  lng: activeRide.riderLng,
-                  label: activeRide.riderName
-                } : undefined}
-                activePoint={activeRide ? undefined : mapMode}
-                onPointSelect={activeRide ? undefined : updatePointFromMap}
-                heightClassName={activeRide ? "h-[24rem] md:h-[30rem]" : "h-[26rem] md:h-[32rem]"}
-                helperText={activeRide
-                  ? "Your assigned driver's latest location is shown on the route map."
-                  : "Switch between pickup and dropoff, then click the map or a place label."}
-              />
-
-              {!activeRide ? (
-                <div className="mt-4 lg:hidden">
-                  <BottomSheet
-                    title="Ride planning"
-                    subtitle="Pickup, dropoff, vehicle, payment, and one main action."
-                    summary={<StatusPill label={hasBackendEstimate ? formatMoney(estimatedFare) : "Quote pending"} tone="accent" />}
-                    isOpen={plannerOpen}
-                    onToggle={() => setPlannerOpen((current) => !current)}
-                  >
-                    {plannerForm}
-                    <FareSummaryCard
-                      estimateQuery={estimateQuery}
-                      estimatedFare={estimatedFare}
-                      estimatedTripDistanceKm={estimatedTripDistanceKm}
-                      directDistanceKm={directDistanceKm}
-                      distanceBufferKm={distanceBufferKm}
-                      distanceBufferPercent={distanceBufferPercent}
-                      quoteWarning={quoteWarning}
-                      hasBackendEstimate={hasBackendEstimate}
-                      showDetails={showFareDetails}
-                      onToggleDetails={() => setShowFareDetails((current) => !current)}
-                    />
-                  </BottomSheet>
-                </div>
+              {supportPhone ? (
+                <a
+                  href={`tel:${supportPhone}`}
+                  className="inline-flex min-h-[3rem] items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-semibold text-white"
+                >
+                  Call Support
+                </a>
               ) : null}
-            </div>
-          </MapPanel>
+            </SectionCard>
+          ) : null}
         </div>
+      ) : (
+        <>
+          <div className="grid gap-4 lg:grid-cols-[0.82fr,1.18fr,0.92fr]">
+            {isLargeScreen ? (
+              <SectionCard className="space-y-5">
+                {plannerControls}
+              </SectionCard>
+            ) : null}
 
-        {!activeRide ? (
-          <div className="space-y-5">
-            <div className="lg:hidden">
-              <BottomSheet
-                title="Nearby drivers"
-                subtitle={driversQuery.isError ? "We could not load nearby drivers." : "Drivers around your pickup appear here."}
-                summary={<StatusPill label={`${(driversQuery.data || []).length} found`} tone={(driversQuery.data || []).length ? "info" : "muted"} />}
-                isOpen={nearbySheetOpen}
-                onToggle={() => setNearbySheetOpen((current) => !current)}
-              >
-                <NearbyDriversPanel
-                  drivers={driversQuery.data || []}
-                  isLoading={driversQuery.isLoading}
-                  isError={driversQuery.isError}
-                  errorMessage={nearbyDriversError}
-                  canRequestRide={canRequestRide}
-                  requestRideMutation={requestRideMutation}
-                  requestingDriverId={requestingDriverId}
-                  onRequestDriver={requestDriver}
+            <SectionCard className="overflow-hidden p-0">
+              <div className="relative">
+                <div className="absolute left-4 top-4 z-10 hidden gap-2 md:flex">
+                  <Button
+                    variant={mapMode === "pickup" ? "primary" : "secondary"}
+                    size="sm"
+                    className="rounded-full px-4"
+                    onClick={() => setMapMode("pickup")}
+                  >
+                    Pickup
+                  </Button>
+                  <Button
+                    variant={mapMode === "dropoff" ? "orange" : "secondary"}
+                    size="sm"
+                    className="rounded-full px-4"
+                    onClick={() => setMapMode("dropoff")}
+                  >
+                    Dropoff
+                  </Button>
+                </div>
+
+                <RideMapbox
+                  pickup={{ lat: Number(form.pickupLat), lng: Number(form.pickupLng) }}
+                  dropoff={{ lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }}
+                  nearbyDrivers={driversQuery.data || []}
+                  activePoint={mapMode}
+                  onPointSelect={updatePointFromMap}
+                  heightClassName="h-[18rem] md:h-[28rem] lg:h-[30.5rem]"
+                  helperText="Switch between pickup and dropoff, then click the map or a place label."
                 />
-              </BottomSheet>
-            </div>
+              </div>
+            </SectionCard>
 
-            <div className="hidden lg:block">
+            {isLargeScreen ? (
+              <div className="space-y-4">
+                <SectionCard className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">Live Ride</h3>
+                      <p className="text-sm text-slate-500">Your trip details will appear here.</p>
+                    </div>
+                    <StatusPill label="No active ride" tone="muted" />
+                  </div>
+                  <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">
+                    You have no active ride right now.
+                  </div>
+                </SectionCard>
+
+                <SectionCard className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">Nearby Drivers</h3>
+                      <p className="text-sm text-slate-500">{(driversQuery.data || []).length} driver matches around you.</p>
+                    </div>
+                    <StatusPill label={`${(driversQuery.data || []).length}`} tone={(driversQuery.data || []).length ? "accent" : "muted"} />
+                  </div>
+
+                  {driversQuery.isLoading ? (
+                    <div className="py-6">
+                      <LoadingSpinner />
+                    </div>
+                  ) : driversQuery.isError ? (
+                    <div className="rounded-[18px] border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                      {nearbyDriversError}
+                    </div>
+                  ) : !(driversQuery.data || []).length ? (
+                    <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 p-4 text-sm text-slate-500">
+                      Drivers close to your pickup will appear here.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {(driversQuery.data || []).slice(0, 3).map((driver) => (
+                        <div key={driver.riderId} className="rounded-[18px] border border-slate-200 bg-slate-50 p-3.5">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                              <Avatar name={driver.driverName} size="md" />
+                              <div>
+                                <p className="font-semibold text-slate-950">{driver.driverName}</p>
+                                <p className="text-xs text-slate-500">{driver.vehicleModel} • {driver.plateNumber}</p>
+                              </div>
+                            </div>
+                            <p className="text-xs font-semibold text-slate-500">{driver.etaMinutes} min away</p>
+                          </div>
+                          <div className="mt-3 flex items-center justify-between gap-3">
+                            <div className="text-sm text-slate-500">{formatMoney(driver.estimatedPrice)}</div>
+                            <Button
+                              size="sm"
+                              className="rounded-xl px-4"
+                              disabled={!canRequestRide || requestRideMutation.isPending}
+                              loading={requestRideMutation.isPending && requestingDriverId === driver.riderId}
+                              onClick={() => requestDriver(driver.riderId)}
+                            >
+                              Request Driver
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+
+                <SectionCard className="space-y-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-lg font-semibold text-slate-950">Completed Trips</h3>
+                      <p className="text-sm text-slate-500">Recent completed ride activity.</p>
+                    </div>
+                    <StatusPill label={`${completedRides.length}`} tone={completedRides.length ? "success" : "muted"} />
+                  </div>
+
+                  {!completedRides.length ? (
+                    <div className="rounded-[18px] border border-dashed border-slate-300 bg-slate-50 p-5 text-center text-sm text-slate-500">
+                      No completed trips yet. Your trips will appear here.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {completedRides.slice(0, 2).map((ride) => (
+                        <button
+                          key={ride.id}
+                          type="button"
+                          onClick={() => setSelectedRide(ride)}
+                          className="w-full rounded-[18px] border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-slate-300"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-slate-950">{ride.pickupAddress}</p>
+                              <p className="text-sm text-slate-500">to {ride.dropoffAddress}</p>
+                            </div>
+                            <Badge label="Completed" variant="success" size="sm" />
+                          </div>
+                          <div className="mt-3 flex items-center justify-between gap-3 text-sm text-slate-500">
+                            <span>{formatMoney(ride.finalFare || ride.estimatedFare)}</span>
+                            <span>{formatTimestamp(ride.completedAt || ride.requestedAt)}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              </div>
+            ) : null}
+          </div>
+
+          {!isLargeScreen ? (
+            <div className="space-y-4">
+              <SectionCard className="space-y-5">
+                <div>
+                  <h2 className="text-xl font-semibold text-slate-950">Where to?</h2>
+                  <p className="mt-1 text-sm text-slate-500">Set pickup, dropoff, vehicle type, and payment method.</p>
+                </div>
+                {locationEditors}
+                {plannerControls}
+              </SectionCard>
+
               <SectionCard className="space-y-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-lg font-semibold text-slate-950">Nearby drivers</h3>
-                    <p className="text-sm text-slate-500">Compact list with live ETA and price estimate.</p>
+                    <h3 className="text-lg font-semibold text-slate-950">Nearby Drivers</h3>
+                    <p className="text-sm text-slate-500">Drivers around your pickup appear here.</p>
                   </div>
-                  <StatusPill label={`${(driversQuery.data || []).length} found`} tone={(driversQuery.data || []).length ? "info" : "muted"} />
+                  <StatusPill label={`${(driversQuery.data || []).length} found`} tone={(driversQuery.data || []).length ? "accent" : "muted"} />
                 </div>
                 <NearbyDriversPanel
                   drivers={driversQuery.data || []}
@@ -1065,9 +1311,9 @@ export default function CustomerDashboard() {
                 />
               </SectionCard>
             </div>
-          </div>
-        ) : null}
-      </div>
+          ) : null}
+        </>
+      )}
     </div>
   );
 
@@ -1198,59 +1444,97 @@ export default function CustomerDashboard() {
   );
 
   return (
-    <div className="space-y-5 pb-28 md:pb-8">
-      <AppHeader
-        eyebrow="KituiRides"
-        title={activeRide ? "Your ride is live" : "Ready to book a ride?"}
-        subtitle={activeRide
-          ? "Driver details, payment status, and ride progress stay on the main screen while your trip is active."
-          : (activeLocationStatus || "Use the map, then confirm pickup, dropoff, payment method, and request a ride.")}
-        status={(
-          <StatusPill
-            label={activeRide ? rideStatusLabel(activeRide.status) : "Kitui Town"}
-            tone={activeRide ? "accent" : "muted"}
-            hint={activeRide ? `Ride #${activeRide.id}` : `${(driversQuery.data || []).length} drivers nearby`}
-          />
-        )}
-        trailing={(
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-            aria-label="Open menu"
-          >
-            <FiMenu className="text-xl" />
-          </button>
-        )}
-      />
+    <div className="min-h-screen bg-[#f7f8fb] md:p-4">
+      <div className="md:grid md:min-h-[calc(100vh-2rem)] md:grid-cols-[15rem,minmax(0,1fr)] md:gap-4">
+        {isTabletUp ? (
+          <aside className="md:flex md:flex-col md:rounded-[24px] md:border md:border-slate-200 md:bg-white md:p-5 md:shadow-[0_18px_34px_-28px_rgba(15,23,42,0.22)]">
+            <WorkspaceBrand subtitle="Customer" />
 
-      <div className="hidden md:flex md:flex-wrap md:items-center md:gap-3">
-        {CUSTOMER_NAV_ITEMS.map((item) => {
-          const active = activeTab === item.value;
-          const Icon = item.icon;
+            <div className="mt-8 space-y-1.5">
+              {CUSTOMER_NAV_ITEMS.map((item) => (
+                <SidebarNavButton
+                  key={item.value}
+                  item={item}
+                  active={activeTab === item.value}
+                  onClick={() => handleNavChange(item.value)}
+                />
+              ))}
+            </div>
 
-          return (
-            <button
-              key={item.value}
-              type="button"
-              onClick={() => handleNavChange(item.value)}
-              className={`inline-flex min-h-[3rem] items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                active
-                  ? "border-teal-500 bg-teal-50 text-teal-700"
-                  : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
-              }`}
-            >
-              <Icon />
-              {item.label}
-            </button>
-          );
-        })}
+            <div className="mt-auto pt-6">
+              <button
+                type="button"
+                onClick={() => {
+                  logout();
+                  navigate("/login");
+                }}
+                className="flex min-h-[3rem] w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-medium text-slate-600 transition hover:bg-slate-50 hover:text-slate-900"
+              >
+                <FiLogOut className="text-lg text-slate-400" />
+                <span>Log out</span>
+              </button>
+            </div>
+          </aside>
+        ) : null}
+
+        <div className="min-w-0 px-3 pb-28 pt-3 md:flex md:min-h-0 md:flex-col md:px-0 md:pb-0 md:pt-0">
+          {!isTabletUp ? (
+            <div className="flex items-center justify-between gap-3 rounded-[22px] border border-slate-200 bg-white px-4 py-3 shadow-[0_16px_30px_-28px_rgba(15,23,42,0.18)]">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700"
+                aria-label="Open menu"
+              >
+                <FiMenu className="text-lg" />
+              </button>
+              <WorkspaceBrand subtitle="Customer" />
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                <FiBell className="text-lg" />
+              </span>
+            </div>
+          ) : null}
+
+          {isTabletUp ? (
+            <div className="md:flex md:items-center md:justify-between md:gap-4 md:rounded-[24px] md:border md:border-slate-200 md:bg-white md:px-5 md:py-4 md:shadow-[0_18px_34px_-28px_rgba(15,23,42,0.22)]">
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700 transition hover:border-slate-300"
+                aria-label="Open menu"
+              >
+                <FiMenu className="text-lg" />
+              </button>
+
+              <div className="flex items-center gap-3">
+                <StatusPill
+                  label={activeRide ? rideStatusLabel(activeRide.status) : "Kitui Town"}
+                  tone={activeRide ? "accent" : "muted"}
+                  hint={activeRide ? `Ride #${activeRide.id}` : `${(driversQuery.data || []).length} drivers nearby`}
+                />
+                <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-700">
+                  <FiBell className="text-lg" />
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setMenuOpen(true)}
+                  className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-slate-300"
+                >
+                  <Avatar name={customerName} size="sm" />
+                  <span className="text-sm font-semibold text-slate-900">{customerName}</span>
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          <div className="mt-4 min-h-0 md:flex-1 md:overflow-y-auto md:pr-1">
+            {activeTab === "ride" ? rideHomeView : null}
+            {activeTab === "trips" ? tripsView : null}
+            {activeTab === "payments" ? paymentsView : null}
+            {activeTab === "support" ? supportView : null}
+          </div>
+        </div>
       </div>
-
-      {activeTab === "ride" ? rideHomeView : null}
-      {activeTab === "trips" ? tripsView : null}
-      {activeTab === "payments" ? paymentsView : null}
-      {activeTab === "support" ? supportView : null}
 
       <CustomerMenuModal
         isOpen={menuOpen}
@@ -1289,7 +1573,7 @@ export default function CustomerDashboard() {
         }}
       />
 
-      <MobileBottomNav items={CUSTOMER_NAV_ITEMS} value={activeTab} onChange={handleNavChange} />
+      {!isTabletUp ? <MobileBottomNav items={CUSTOMER_NAV_ITEMS} value={activeTab} onChange={handleNavChange} /> : null}
 
       {selectedRide ? (
         <Modal
