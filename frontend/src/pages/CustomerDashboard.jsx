@@ -375,6 +375,7 @@ export default function CustomerDashboard() {
   const [activeTab, setActiveTab] = useState("ride");
   const [selectedRide, setSelectedRide] = useState(null);
   const [paymentRide, setPaymentRide] = useState(null);
+  const [paymentActionStatus, setPaymentActionStatus] = useState("");
   const [requestingDriverId, setRequestingDriverId] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState(toMpesaPhoneNumber(user?.phoneNumber || session?.phoneNumber || ""));
   const [locationStatus, setLocationStatus] = useState("");
@@ -508,8 +509,12 @@ export default function CustomerDashboard() {
   const mpesaMutation = useMutation({
     mutationFn: initiateMpesaPayment,
     onSuccess: () => {
+      setPaymentActionStatus("STK push sent. Confirm the payment on your phone.");
       queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
       setPaymentRide(null);
+    },
+    onError: (error) => {
+      setPaymentActionStatus(error?.response?.data?.message || "Unable to send the M-Pesa prompt right now.");
     }
   });
 
@@ -815,10 +820,16 @@ export default function CustomerDashboard() {
                 </div>
               </div>
 
-              {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
+              {["TRIP_STARTED", "PAYMENT_PENDING"].includes(activeRide.status) && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
                 <PrimaryActionButton className="w-full" onClick={() => setPaymentRide(activeRide)}>
                   Pay via M-Pesa
                 </PrimaryActionButton>
+              ) : null}
+
+              {paymentActionStatus ? (
+                <div className="rounded-[24px] border border-teal-200 bg-teal-50 p-4 text-sm text-teal-900">
+                  {paymentActionStatus}
+                </div>
               ) : null}
 
               {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "CASH" ? (
@@ -1116,7 +1127,7 @@ export default function CustomerDashboard() {
               <DetailRow label="Status" value={activeRide.paymentStatus} />
               <DetailRow label="Fare" value={formatMoney(activeRide.finalFare)} emphasis />
             </div>
-            {activeRide.status === "PAYMENT_PENDING" && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
+            {["TRIP_STARTED", "PAYMENT_PENDING"].includes(activeRide.status) && activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
               <PrimaryActionButton className="mt-4 w-full" onClick={() => setPaymentRide(activeRide)}>
                 Pay via M-Pesa
               </PrimaryActionButton>
@@ -1346,7 +1357,7 @@ export default function CustomerDashboard() {
         >
           <div className="space-y-4">
             <p className="text-sm text-slate-600">
-              We will trigger an STK Push to the number below. Trip completion stays locked until the callback succeeds.
+              Confirm the registered number below or enter the M-Pesa number you want to use. We will send an STK push, and the trip will close automatically after payment succeeds.
             </p>
             <Input
               label="M-Pesa phone number"

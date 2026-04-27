@@ -2,6 +2,7 @@ backend/target/
 frontend/node_modules/
 frontend/dist/
 frontend/.env.local
+.env
 .idea/
 .vscode/
 *.log

@@ -1,5 +1,6 @@
 package com.kituirides.api.payment;
 
+import jakarta.annotation.PostConstruct;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneId;
@@ -23,6 +24,7 @@ public class MpesaClient {
 
     private static final DateTimeFormatter TIMESTAMP_FORMATTER =
         DateTimeFormatter.ofPattern("yyyyMMddHHmmss").withZone(ZoneId.of("Africa/Nairobi"));
+    private static final String DEFAULT_TRANSACTION_DESCRIPTION = "Ride payment";
 
     private final RestClient restClient = RestClient.builder().build();
 
@@ -44,11 +46,34 @@ public class MpesaClient {
     @Value("${app.mpesa.consumer-secret}")
     private String consumerSecret;
 
+    @Value("${app.mpesa.transaction-type:CustomerPayBillOnline}")
+    private String transactionType;
+
     @Value("${app.mpesa.simulated:true}")
     private boolean simulated;
 
+    @PostConstruct
+    void validateConfiguration() {
+        if (simulated) {
+            return;
+        }
+
+        requireConfigured("app.mpesa.consumer-key", consumerKey);
+        requireConfigured("app.mpesa.consumer-secret", consumerSecret);
+        requireConfigured("app.mpesa.shortcode", shortcode);
+        requireConfigured("app.mpesa.passkey", passkey);
+        requireConfigured("app.mpesa.callback-url", callbackUrl);
+
+        if (!callbackUrl.startsWith("https://")) {
+            throw new IllegalStateException("app.mpesa.callback-url must use HTTPS when real M-Pesa calls are enabled");
+        }
+        if (callbackUrl.contains("example.com") || callbackUrl.contains("your-public-domain")) {
+            throw new IllegalStateException("app.mpesa.callback-url must be replaced with a real public callback URL");
+        }
+    }
+
     public MpesaStkPushResult initiateStkPush(String phoneNumber, String amount, String transactionRef) {
-        if (phoneNumber == null || !phoneNumber.startsWith("254") || amount == null || transactionRef == null) {
+        if (phoneNumber == null || !phoneNumber.matches("254\\d{9}") || amount == null || transactionRef == null) {
             return new MpesaStkPushResult(false, "400", "Invalid STK push request", null, null);
         }
 
@@ -71,14 +96,14 @@ public class MpesaClient {
             Map.entry("BusinessShortCode", shortcode),
             Map.entry("Password", password),
             Map.entry("Timestamp", timestamp),
-            Map.entry("TransactionType", "CustomerPayBillOnline"),
+            Map.entry("TransactionType", transactionType),
             Map.entry("Amount", amount),
             Map.entry("PartyA", phoneNumber),
             Map.entry("PartyB", shortcode),
             Map.entry("PhoneNumber", phoneNumber),
             Map.entry("CallBackURL", callbackUrl),
             Map.entry("AccountReference", transactionRef),
-            Map.entry("TransactionDesc", "KituiRides trip payment")
+            Map.entry("TransactionDesc", DEFAULT_TRANSACTION_DESCRIPTION)
         );
 
         Map<String, Object> response = restClient.post()
@@ -122,5 +147,11 @@ public class MpesaClient {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private void requireConfigured(String propertyName, String value) {
+        if (value == null || value.isBlank() || value.contains("replace-with-") || value.startsWith("sandbox-")) {
+            throw new IllegalStateException(propertyName + " must be configured before real M-Pesa calls are enabled");
+        }
     }
 }

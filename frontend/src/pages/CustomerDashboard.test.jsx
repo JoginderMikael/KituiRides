@@ -212,6 +212,22 @@ describe("CustomerDashboard", () => {
     expect(payButton).toBeTruthy();
   });
 
+  it("shows M-Pesa payment action while an MPESA trip is in progress", async () => {
+    mockGetCustomerRides.mockResolvedValue([
+      buildRide({
+        status: "TRIP_STARTED",
+        paymentType: "MPESA",
+        paymentApproved: false
+      })
+    ]);
+    mockNearbyDrivers.mockResolvedValue([]);
+
+    renderPage();
+
+    const payButton = await screen.findByRole("button", { name: /pay via m-pesa/i });
+    expect(payButton).toBeTruthy();
+  });
+
   it("shows the ride chat and complete action after payment is completed", async () => {
     mockGetCustomerRides.mockResolvedValue([
       buildRide({

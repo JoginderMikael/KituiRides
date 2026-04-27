@@ -42,7 +42,8 @@ vi.mock("../features/driver/driverApi", () => ({
 }));
 
 vi.mock("../features/rides/paymentApi", () => ({
-  approveCashPayment: vi.fn()
+  approveCashPayment: vi.fn(),
+  promptCustomerMpesaPayment: vi.fn()
 }));
 
 vi.mock("../features/support/supportApi", () => ({
@@ -187,6 +188,15 @@ describe("DriverDashboard", () => {
     const approveButton = await screen.findByRole("button", { name: /approve cash payment/i });
     expect(approveButton).toBeTruthy();
     expect(screen.getByLabelText(/manual km/i)).toBeTruthy();
+  });
+
+  it("shows the M-Pesa customer prompt action for M-Pesa trips in progress", async () => {
+    mockGetDriverRides.mockResolvedValue([buildRide({ status: "TRIP_STARTED", paymentType: "MPESA", paymentApproved: false })]);
+
+    renderPage();
+
+    const promptButton = await screen.findByRole("button", { name: /prompt customer to pay/i });
+    expect(promptButton).toBeTruthy();
   });
 
   it("shows the complete action when payment is already settled but the ride is still pending completion", async () => {

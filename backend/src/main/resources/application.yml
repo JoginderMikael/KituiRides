@@ -33,11 +33,14 @@ app:
     secret: replace-with-at-least-32-random-characters
     expiration-ms: 86400000
   mpesa:
-    shortcode: "174379"
-    passkey: "sandbox-passkey"
-    callback-url: "https://example.com/api/payments/mpesa/callback"
-    consumer-key: "sandbox-key"
-    consumer-secret: "sandbox-secret"
+    base-url: ${APP_MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
+    shortcode: ${APP_MPESA_SHORTCODE:174379}
+    passkey: ${APP_MPESA_PASSKEY:sandbox-passkey}
+    callback-url: ${APP_MPESA_CALLBACK_URL:https://example.com/api/payments/mpesa/callback}
+    consumer-key: ${APP_MPESA_CONSUMER_KEY:sandbox-key}
+    consumer-secret: ${APP_MPESA_CONSUMER_SECRET:sandbox-secret}
+    transaction-type: ${APP_MPESA_TRANSACTION_TYPE:CustomerPayBillOnline}
+    simulated: ${APP_MPESA_SIMULATED:true}
 
 logging:
   level:

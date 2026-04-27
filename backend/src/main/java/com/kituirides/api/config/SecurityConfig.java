@@ -42,6 +42,7 @@ public class SecurityConfig {
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/upload/**",
+                    "/api/payments/mpesa/callback",
                     "/uploads/**",
                     "/ws/**",
                     "/actuator/health",

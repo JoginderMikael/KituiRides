@@ -57,6 +57,20 @@ public class PaymentController {
         return ResponseEntity.ok(ApiResponse.ok(paymentService.getByRideId(rideId)));
     }
 
+    @PostMapping("/ride/{rideId}/mpesa-prompt")
+    @PreAuthorize("hasAnyRole('DRIVER', 'ADMIN', 'SUPPORT_AGENT')")
+    @SecurityRequirement(name = "bearerAuth")
+    @Operation(
+        summary = "Prompt customer for M-Pesa payment",
+        description = "Allows the assigned driver to send an STK push to the customer's registered phone number."
+    )
+    public ResponseEntity<ApiResponse<PaymentResponse>> promptCustomerMpesa(@PathVariable Long rideId) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            paymentService.promptCustomerMpesaPayment(rideId),
+            "M-Pesa prompt sent to customer"
+        ));
+    }
+
     @PostMapping("/ride/{rideId}/approve-cash")
     @PreAuthorize("hasAnyRole('DRIVER', 'ADMIN', 'SUPPORT_AGENT')")
     @SecurityRequirement(name = "bearerAuth")

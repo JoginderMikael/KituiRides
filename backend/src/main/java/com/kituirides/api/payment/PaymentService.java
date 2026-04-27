@@ -47,8 +47,29 @@ public class PaymentService {
             throw new ApiException(HttpStatus.FORBIDDEN, "Only the customer can initiate this payment");
         }
 
-        RideResponse preparedRide = rideService.prepareForPayment(request.rideId(), request.manualDistanceKm());
-        ride = rideService.getRideById(preparedRide.id());
+        return initiateMpesaPayment(request.rideId(), request.phoneNumber(), request.manualDistanceKm());
+    }
+
+    @Transactional
+    public PaymentResponse promptCustomerMpesaPayment(Long rideId) {
+        Ride ride = rideService.getRideById(rideId);
+        User actor = currentUserService.getCurrentUser();
+        boolean canPrompt = actor.getRole() == Role.ADMIN
+            || actor.getRole() == Role.SUPPORT_AGENT
+            || (ride.getRider() != null && ride.getRider().getId().equals(actor.getId()));
+        if (!canPrompt) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only the assigned driver can prompt this M-Pesa payment");
+        }
+        if (ride.getPaymentType() != PaymentType.MPESA) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Only M-Pesa rides can be prompted for STK payment");
+        }
+
+        return initiateMpesaPayment(rideId, ride.getCustomer().getPhoneNumber(), null);
+    }
+
+    private PaymentResponse initiateMpesaPayment(Long rideId, String phoneNumber, BigDecimal manualDistanceKm) {
+        RideResponse preparedRide = rideService.prepareForPayment(rideId, manualDistanceKm);
+        Ride ride = rideService.getRideById(preparedRide.id());
 
         Payment payment = paymentRepository.findByRide(ride).orElse(new Payment());
         if (payment.getId() != null && payment.getStatus() == PaymentStatus.SUCCESS) {
@@ -57,7 +78,7 @@ public class PaymentService {
 
         payment.setRide(ride);
         payment.setAmount(ride.getFinalFare());
-        payment.setPhoneNumber(request.phoneNumber());
+        payment.setPhoneNumber(normalizeMpesaPhoneNumber(phoneNumber));
         payment.setTransactionRef(payment.getTransactionRef() != null
             ? payment.getTransactionRef()
             : "MPESA-" + ride.getId() + "-" + Instant.now().toEpochMilli());
@@ -211,6 +232,23 @@ public class PaymentService {
         }
 
         rideService.markPaymentCompleted(ride.getId());
+        if (payment.getPaymentType() == PaymentType.MPESA) {
+            rideService.completeRideAfterPayment(ride.getId());
+        }
+    }
+
+    private String normalizeMpesaPhoneNumber(String phoneNumber) {
+        if (phoneNumber == null) {
+            return null;
+        }
+        String normalized = phoneNumber.trim().replaceAll("\\s+", "");
+        if (normalized.startsWith("+")) {
+            normalized = normalized.substring(1);
+        }
+        if (normalized.startsWith("0")) {
+            normalized = "254" + normalized.substring(1);
+        }
+        return normalized;
     }
 
     private BigDecimal companyCommissionRate() {

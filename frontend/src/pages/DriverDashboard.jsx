@@ -49,7 +49,7 @@ import {
   updateDriverStatus
 } from "../features/driver/driverApi";
 import { getChatConversations } from "../features/chat/chatApi";
-import { approveCashPayment } from "../features/rides/paymentApi";
+import { approveCashPayment, promptCustomerMpesaPayment } from "../features/rides/paymentApi";
 import { getSupportContact } from "../features/support/supportApi";
 import { useAuth } from "../hooks/useAuth";
 import { connectRealtimeSocket } from "../lib/socket";
@@ -362,6 +362,16 @@ export default function DriverDashboard() {
       setTripActionStatus(error?.response?.data?.message || "Cash payment approval failed. Please try again.");
     }
   });
+  const mpesaPromptMutation = useMutation({
+    mutationFn: promptCustomerMpesaPayment,
+    onSuccess: async () => {
+      setTripActionStatus("M-Pesa prompt sent. The trip will close automatically once the customer pays.");
+      await refresh();
+    },
+    onError: (error) => {
+      setTripActionStatus(error?.response?.data?.message || "Unable to prompt the customer for M-Pesa payment right now.");
+    }
+  });
   const completeMutation = useMutation({
     mutationFn: completeDriverRide,
     onSuccess: async () => {
@@ -482,7 +492,7 @@ export default function DriverDashboard() {
         title: "Trip in progress",
         description: activeRide.paymentType === "CASH"
           ? "Approve the cash payment once the customer pays you."
-          : "Wait for the customer to complete M-Pesa payment after the trip.",
+          : "Send an M-Pesa prompt to the customer when the trip is ready to settle.",
         action: activeRide.paymentType === "CASH" ? (
           <PrimaryActionButton
             className="w-full bg-emerald-600 hover:bg-emerald-700"
@@ -495,6 +505,14 @@ export default function DriverDashboard() {
             loading={cashMutation.isPending}
           >
             Approve Cash Payment
+          </PrimaryActionButton>
+        ) : activeRide.paymentType === "MPESA" ? (
+          <PrimaryActionButton
+            className="w-full bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => mpesaPromptMutation.mutate(activeRide.id)}
+            loading={mpesaPromptMutation.isPending}
+          >
+            Prompt Customer to Pay
           </PrimaryActionButton>
         ) : null
       };
@@ -514,7 +532,7 @@ export default function DriverDashboard() {
       return {
         title: "Payment pending",
         description: activeRide.paymentType === "MPESA"
-          ? "The customer must finish the M-Pesa flow before the trip can close."
+          ? "Prompt the customer again if they did not receive the M-Pesa request."
           : "Waiting for cash approval to finish settling the trip.",
         action: activeRide.paymentType === "CASH" && !activeRide.paymentApproved ? (
           <PrimaryActionButton
@@ -528,6 +546,14 @@ export default function DriverDashboard() {
             loading={cashMutation.isPending}
           >
             Approve Cash Payment
+          </PrimaryActionButton>
+        ) : activeRide.paymentType === "MPESA" && !activeRide.paymentApproved ? (
+          <PrimaryActionButton
+            className="w-full bg-emerald-600 hover:bg-emerald-700"
+            onClick={() => mpesaPromptMutation.mutate(activeRide.id)}
+            loading={mpesaPromptMutation.isPending}
+          >
+            Prompt Customer to Pay
           </PrimaryActionButton>
         ) : null
       };
@@ -561,6 +587,7 @@ export default function DriverDashboard() {
     cashMutation.isPending,
     completeMutation.isPending,
     manualDistance,
+    mpesaPromptMutation.isPending,
     startMutation.isPending,
     supportPhone
   ]);

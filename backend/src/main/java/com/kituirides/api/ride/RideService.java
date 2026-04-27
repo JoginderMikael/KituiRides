@@ -236,6 +236,16 @@ public class RideService {
     @Transactional
     public RideResponse completeRide(Long rideId) {
         Ride ride = getRideForCompletionParticipant(rideId);
+        return completeRideWithSettledPayment(ride);
+    }
+
+    @Transactional
+    public RideResponse completeRideAfterPayment(Long rideId) {
+        Ride ride = getRideById(rideId);
+        return completeRideWithSettledPayment(ride);
+    }
+
+    private RideResponse completeRideWithSettledPayment(Ride ride) {
         Payment payment = paymentRepository.findByRide(ride).orElse(null);
         boolean paymentSettled = Boolean.TRUE.equals(ride.getPaymentApproved())
             || (payment != null && payment.getStatus() == PaymentStatus.SUCCESS);

@@ -11,6 +11,10 @@ export function getRidePayment(rideId) {
   return unwrap(apiClient.get(`/payments/ride/${rideId}`));
 }
 
+export function promptCustomerMpesaPayment(rideId) {
+  return unwrap(apiClient.post(`/payments/ride/${rideId}/mpesa-prompt`));
+}
+
 export function approveCashPayment(rideId, payload = {}) {
   return unwrap(apiClient.post(`/payments/ride/${rideId}/approve-cash`, payload));
 }
