@@ -37,6 +37,9 @@ public class UserService {
     @Transactional
     public UserProfileResponse updateMyProfile(UpdateProfileRequest request) {
         User user = currentUserService.getCurrentUser();
+        if (user.getRole() != Role.CUSTOMER) {
+            throw new ApiException(HttpStatus.FORBIDDEN, "Only customers can update their own profile. Contact an administrator for account changes.");
+        }
         if (!user.getPhoneNumber().equals(request.phoneNumber()) &&
             userRepository.existsByPhoneNumber(request.phoneNumber())) {
             throw new ApiException(HttpStatus.CONFLICT, "Phone number already exists");

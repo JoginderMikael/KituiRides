@@ -580,6 +580,7 @@ export default function SupportPage() {
         <SidebarButton icon={FiBookOpen} label="Knowledge Base" onClick={() => setActiveView("case")} />
         <SidebarButton icon={FiBarChart2} label="Reports" onClick={() => setActiveView("queue")} />
         <SidebarButton icon={FiSettings} label="Settings" onClick={() => setActiveView("case")} />
+        <SidebarButton icon={FiUser} label="Profile" onClick={() => navigate("/profile")} />
       </div>
 
       <button
