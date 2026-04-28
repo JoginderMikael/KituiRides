@@ -31,6 +31,7 @@ import {
   FiSmile,
   FiUser,
   FiUsers,
+  FiX,
   FiZap
 } from "react-icons/fi";
 import { Badge, Button, EmptyState, Input, LoadingSpinner } from "../components/UIComponents";
@@ -352,6 +353,7 @@ export default function SupportPage() {
   const [rideResolutionNotes, setRideResolutionNotes] = useState("");
   const [paymentPhoneNumber, setPaymentPhoneNumber] = useState("");
   const [notice, setNotice] = useState(null);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const deferredQueueSearch = useDeferredValue(queueSearch);
 
   const ticketsQuery = useQuery({ queryKey: ["support-tickets"], queryFn: supportTickets });
@@ -438,6 +440,19 @@ export default function SupportPage() {
     }
   }, [ride?.id, ride?.customerPhone]);
 
+  useEffect(() => {
+    if (!mobileSidebarOpen || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileSidebarOpen]);
+
   const activeAgentName = user ? `${user.firstName} ${user.lastName}` : "Support Agent";
   const activeCustomer = selectedTicket ? customerLabel(selectedTicket, ride) : "Customer";
   const normalizedRideSearchId = rideSearchId.trim();
@@ -472,6 +487,16 @@ export default function SupportPage() {
 
   function setWorkspaceMessage(tone, message) {
     setNotice({ tone, message });
+  }
+
+  function openSupportView(view) {
+    setActiveView(view);
+    setMobileSidebarOpen(false);
+  }
+
+  function openProfile() {
+    setMobileSidebarOpen(false);
+    navigate("/profile");
   }
 
   async function refreshWorkspace(rideId = activeRideId) {
@@ -559,28 +584,29 @@ export default function SupportPage() {
   });
 
   function handleLogout() {
+    setMobileSidebarOpen(false);
     logout();
     navigate("/login");
   }
 
-  const supportNav = (
-    <aside className="border-r border-slate-200 bg-white px-4 py-7 lg:sticky lg:top-0 lg:h-screen lg:w-[17rem] lg:overflow-y-auto lg:overscroll-contain">
+  const renderSupportNav = (className = "") => (
+    <aside className={`overflow-y-auto overscroll-contain border-r border-slate-200 bg-white px-4 py-7 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}>
       <SupportLogo />
 
       <nav aria-label="Support workspace navigation" className="mt-8 space-y-2">
-        <SidebarButton icon={FiGrid} label="Dashboard" active={activeView === "dashboard"} onClick={() => setActiveView("dashboard")} />
-        <SidebarButton icon={FiInbox} label="Support Queue" active={activeView === "queue"} badge={stats.queue} onClick={() => setActiveView("queue")} />
-        <SidebarButton icon={FiShield} label="Case Workspace" active={activeView === "case"} badge={selectedTicket ? `#${selectedTicket.id}` : null} onClick={() => setActiveView("case")} />
-        <SidebarButton icon={FiMapPin} label="Ride Investigation" active={activeView === "ride"} badge={activeRideId ? `#${activeRideId}` : null} onClick={() => setActiveView("ride")} />
-        <SidebarButton icon={FiMessageCircle} label="Messaging" active={activeView === "messaging"} badge={unreadSummaryQuery.data?.totalUnread || 0} onClick={() => setActiveView("messaging")} />
+        <SidebarButton icon={FiGrid} label="Dashboard" active={activeView === "dashboard"} onClick={() => openSupportView("dashboard")} />
+        <SidebarButton icon={FiInbox} label="Support Queue" active={activeView === "queue"} badge={stats.queue} onClick={() => openSupportView("queue")} />
+        <SidebarButton icon={FiShield} label="Case Workspace" active={activeView === "case"} badge={selectedTicket ? `#${selectedTicket.id}` : null} onClick={() => openSupportView("case")} />
+        <SidebarButton icon={FiMapPin} label="Ride Investigation" active={activeView === "ride"} badge={activeRideId ? `#${activeRideId}` : null} onClick={() => openSupportView("ride")} />
+        <SidebarButton icon={FiMessageCircle} label="Messaging" active={activeView === "messaging"} badge={unreadSummaryQuery.data?.totalUnread || 0} onClick={() => openSupportView("messaging")} />
       </nav>
 
       <div className="mt-8 space-y-2 border-t border-slate-100 pt-6">
-        <SidebarButton icon={FiUsers} label="Contacts" onClick={() => setActiveView("messaging")} />
-        <SidebarButton icon={FiBookOpen} label="Knowledge Base" onClick={() => setActiveView("case")} />
-        <SidebarButton icon={FiBarChart2} label="Reports" onClick={() => setActiveView("queue")} />
-        <SidebarButton icon={FiSettings} label="Settings" onClick={() => setActiveView("case")} />
-        <SidebarButton icon={FiUser} label="Profile" onClick={() => navigate("/profile")} />
+        <SidebarButton icon={FiUsers} label="Contacts" onClick={() => openSupportView("messaging")} />
+        <SidebarButton icon={FiBookOpen} label="Knowledge Base" onClick={() => openSupportView("case")} />
+        <SidebarButton icon={FiBarChart2} label="Reports" onClick={() => openSupportView("queue")} />
+        <SidebarButton icon={FiSettings} label="Settings" onClick={() => openSupportView("case")} />
+        <SidebarButton icon={FiUser} label="Profile" onClick={openProfile} />
       </div>
 
       <button
@@ -1147,14 +1173,46 @@ export default function SupportPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 lg:flex">
-      {supportNav}
+      {renderSupportNav("hidden lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[17rem]")}
+
+      {mobileSidebarOpen ? (
+        <div className="fixed inset-0 z-[80] lg:hidden">
+          <button
+            type="button"
+            aria-label="Close support navigation"
+            className="absolute inset-0 bg-slate-950/45"
+            onClick={() => setMobileSidebarOpen(false)}
+          />
+          <div className="relative h-full w-[min(20rem,86vw)] overflow-hidden bg-white shadow-2xl">
+            <button
+              type="button"
+              aria-label="Close support navigation"
+              onClick={() => setMobileSidebarOpen(false)}
+              className="absolute right-4 top-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+            >
+              <FiX aria-hidden="true" />
+            </button>
+            {renderSupportNav("h-full w-full border-r-0")}
+          </div>
+        </div>
+      ) : null}
 
       <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Support Dashboard</h1>
-            <p className="mt-1 text-sm text-slate-500">Manage customer inquiries and provide excellent support</p>
-            <p className="sr-only">Operational Shortcuts</p>
+          <div className="flex items-start gap-3">
+            <button
+              type="button"
+              aria-label="Open support navigation"
+              onClick={() => setMobileSidebarOpen(true)}
+              className="mt-0.5 flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100 lg:hidden"
+            >
+              <FiMenu className="text-xl" aria-hidden="true" />
+            </button>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight text-slate-950">Support Dashboard</h1>
+              <p className="mt-1 text-sm text-slate-500">Manage customer inquiries and provide excellent support</p>
+              <p className="sr-only">Operational Shortcuts</p>
+            </div>
           </div>
 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
