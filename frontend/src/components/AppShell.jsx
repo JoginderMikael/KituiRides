@@ -16,7 +16,7 @@ export default function AppShell() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const userMenuRef = useRef(null);
   const isAdmin = role === "ADMIN";
-  const useImmersiveShell = role === "CUSTOMER" || role === "DRIVER" || role === "SUPPORT_AGENT";
+  const useImmersiveShell = isAdmin || role === "CUSTOMER" || role === "DRIVER" || role === "SUPPORT_AGENT";
 
   function onLogout() {
     setShowUserMenu(false);
@@ -142,7 +142,7 @@ export default function AppShell() {
         </div>
       </header>
 
-      <main className={isAdmin ? "relative z-0 min-h-[calc(100vh-81px)]" : useImmersiveShell ? "relative z-0 w-full" : "mx-auto w-full max-w-6xl px-4 py-6"}>
+      <main className={isAdmin ? "relative z-0 min-h-screen" : useImmersiveShell ? "relative z-0 w-full" : "mx-auto w-full max-w-6xl px-4 py-6"}>
         <Outlet />
       </main>
       <SupportChatLaunchers />

@@ -590,33 +590,37 @@ export default function SupportPage() {
   }
 
   const renderSupportNav = (className = "") => (
-    <aside className={`overflow-y-auto overscroll-contain border-r border-slate-200 bg-white px-4 py-7 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${className}`}>
-      <SupportLogo />
-
-      <nav aria-label="Support workspace navigation" className="mt-8 space-y-2">
-        <SidebarButton icon={FiGrid} label="Dashboard" active={activeView === "dashboard"} onClick={() => openSupportView("dashboard")} />
-        <SidebarButton icon={FiInbox} label="Support Queue" active={activeView === "queue"} badge={stats.queue} onClick={() => openSupportView("queue")} />
-        <SidebarButton icon={FiShield} label="Case Workspace" active={activeView === "case"} badge={selectedTicket ? `#${selectedTicket.id}` : null} onClick={() => openSupportView("case")} />
-        <SidebarButton icon={FiMapPin} label="Ride Investigation" active={activeView === "ride"} badge={activeRideId ? `#${activeRideId}` : null} onClick={() => openSupportView("ride")} />
-        <SidebarButton icon={FiMessageCircle} label="Messaging" active={activeView === "messaging"} badge={unreadSummaryQuery.data?.totalUnread || 0} onClick={() => openSupportView("messaging")} />
-      </nav>
-
-      <div className="mt-8 space-y-2 border-t border-slate-100 pt-6">
-        <SidebarButton icon={FiUsers} label="Contacts" onClick={() => openSupportView("messaging")} />
-        <SidebarButton icon={FiBookOpen} label="Knowledge Base" onClick={() => openSupportView("case")} />
-        <SidebarButton icon={FiBarChart2} label="Reports" onClick={() => openSupportView("queue")} />
-        <SidebarButton icon={FiSettings} label="Settings" onClick={() => openSupportView("case")} />
-        <SidebarButton icon={FiUser} label="Profile" onClick={openProfile} />
+    <aside className={`flex flex-col overflow-hidden border-r border-slate-200 bg-white px-4 py-7 ${className}`}>
+      <div className="shrink-0">
+        <SupportLogo />
       </div>
 
-      <button
-        type="button"
-        onClick={handleLogout}
-        className="mt-8 inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 text-sm font-semibold text-red-600 transition hover:border-red-200 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
-      >
-        <FiLogOut aria-hidden="true" />
-        <span>Logout</span>
-      </button>
+      <div className="mt-8 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <nav aria-label="Support workspace navigation" className="space-y-2">
+          <SidebarButton icon={FiGrid} label="Dashboard" active={activeView === "dashboard"} onClick={() => openSupportView("dashboard")} />
+          <SidebarButton icon={FiInbox} label="Support Queue" active={activeView === "queue"} badge={stats.queue} onClick={() => openSupportView("queue")} />
+          <SidebarButton icon={FiShield} label="Case Workspace" active={activeView === "case"} badge={selectedTicket ? `#${selectedTicket.id}` : null} onClick={() => openSupportView("case")} />
+          <SidebarButton icon={FiMapPin} label="Ride Investigation" active={activeView === "ride"} badge={activeRideId ? `#${activeRideId}` : null} onClick={() => openSupportView("ride")} />
+          <SidebarButton icon={FiMessageCircle} label="Messaging" active={activeView === "messaging"} badge={unreadSummaryQuery.data?.totalUnread || 0} onClick={() => openSupportView("messaging")} />
+        </nav>
+
+        <div className="mt-8 space-y-2 border-t border-slate-100 pt-6">
+          <SidebarButton icon={FiUsers} label="Contacts" onClick={() => openSupportView("messaging")} />
+          <SidebarButton icon={FiBookOpen} label="Knowledge Base" onClick={() => openSupportView("case")} />
+          <SidebarButton icon={FiBarChart2} label="Reports" onClick={() => openSupportView("queue")} />
+          <SidebarButton icon={FiSettings} label="Settings" onClick={() => openSupportView("case")} />
+          <SidebarButton icon={FiUser} label="Profile" onClick={openProfile} />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-8 inline-flex min-h-[2.75rem] w-full items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 text-sm font-semibold text-red-600 transition hover:border-red-200 hover:bg-red-100 focus:outline-none focus:ring-4 focus:ring-red-100"
+        >
+          <FiLogOut aria-hidden="true" />
+          <span>Logout</span>
+        </button>
+      </div>
     </aside>
   );
 
@@ -1173,7 +1177,7 @@ export default function SupportPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafc] text-slate-900 lg:flex">
-      {renderSupportNav("hidden lg:sticky lg:top-0 lg:block lg:h-screen lg:w-[17rem]")}
+      {renderSupportNav("hidden lg:sticky lg:top-0 lg:flex lg:h-screen lg:w-[17rem]")}
 
       {mobileSidebarOpen ? (
         <div className="fixed inset-0 z-[80] lg:hidden">

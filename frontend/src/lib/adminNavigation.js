@@ -34,7 +34,7 @@ export const ADMIN_NAVIGATION_GROUPS = [
       },
       {
         id: "reports",
-        label: "Reports & Analytics",
+        label: "Reports",
         icon: FiBarChart2,
         permissions: ["admin.reports.read"]
       }
@@ -46,19 +46,19 @@ export const ADMIN_NAVIGATION_GROUPS = [
     items: [
       {
         id: "riders",
-        label: "Riders Management",
+        label: "Users",
         icon: FiUsers,
         permissions: ["admin.users.read"]
       },
       {
         id: "drivers",
-        label: "Drivers Management",
+        label: "Drivers",
         icon: FiTruck,
         permissions: ["admin.drivers.read"]
       },
       {
         id: "trips",
-        label: "Trips Management",
+        label: "Rides",
         icon: FiMapPin,
         permissions: ["admin.trips.read"]
       },
@@ -76,7 +76,7 @@ export const ADMIN_NAVIGATION_GROUPS = [
       },
       {
         id: "disputes",
-        label: "Disputes / Issue Resolution",
+        label: "Issue Resolution",
         icon: FiAlertTriangle,
         permissions: ["admin.disputes.read"]
       }
@@ -100,7 +100,7 @@ export const ADMIN_NAVIGATION_GROUPS = [
       },
       {
         id: "promotions",
-        label: "Promotions / Coupons",
+        label: "Promotions",
         icon: FiGift,
         permissions: ["admin.promotions.read"]
       }
@@ -112,13 +112,13 @@ export const ADMIN_NAVIGATION_GROUPS = [
     items: [
       {
         id: "settings",
-        label: "System Settings",
+        label: "Settings",
         icon: FiSettings,
         permissions: ["admin.settings.read"]
       },
       {
         id: "staff",
-        label: "Admin Users / Staff Management",
+        label: "Admin Staff",
         icon: FiUserPlus,
         permissions: ["admin.staff.read"]
       },
@@ -154,8 +154,8 @@ export const ADMIN_NAVIGATION_GROUPS = [
 export const ADMIN_VIEW_META = {
   dashboard: {
     eyebrow: "Executive View",
-    title: "Admin Dashboard",
-    description: "A premium control room for live operations, service quality, and transport platform health."
+    title: "Dashboard",
+    description: "Overview of KituiRides platform"
   },
   riders: {
     eyebrow: "Rider Accounts",

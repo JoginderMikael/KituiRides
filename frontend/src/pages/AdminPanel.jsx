@@ -1,10 +1,26 @@
 /**
  * @fileoverview Page component for admin panel.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FiMenu } from "react-icons/fi";
+import {
+  FiBarChart2,
+  FiBell,
+  FiCalendar,
+  FiCheckCircle,
+  FiChevronDown,
+  FiCreditCard,
+  FiFileText,
+  FiLogOut,
+  FiMenu,
+  FiSettings,
+  FiShield,
+  FiTruck,
+  FiUser,
+  FiUserPlus,
+  FiUsers
+} from "react-icons/fi";
 import AdminSidebar from "../components/AdminSidebar";
 import DriversManagementWorkspace from "../components/DriversManagementWorkspace";
 import AdminSettingsPanel from "../components/AdminSettingsPanel";
@@ -158,6 +174,259 @@ function getTicketTypeVariant(type) {
   return "teal";
 }
 
+function formatWholeMoney(value) {
+  return `KES ${Math.round(Number(value || 0)).toLocaleString()}`;
+}
+
+function formatDateRange() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(end.getDate() - 7);
+  const options = { month: "short", day: "numeric", year: "numeric" };
+  return `${start.toLocaleDateString([], options)} - ${end.toLocaleDateString([], options)}`;
+}
+
+function getRideDate(ride) {
+  return ride.requestedAt || ride.createdAt || ride.completedAt || ride.acceptedAt;
+}
+
+function buildRideTrend(rides) {
+  const today = new Date();
+  const days = Array.from({ length: 7 }, (_, index) => {
+    const date = new Date(today);
+    date.setDate(today.getDate() - (6 - index));
+    return date;
+  });
+
+  return days.map((date) => {
+    const sameDayRides = rides.filter((ride) => {
+      const value = getRideDate(ride);
+      if (!value) return false;
+      const rideDate = new Date(value);
+      return rideDate.toDateString() === date.toDateString();
+    });
+
+    return {
+      label: date.toLocaleDateString([], { month: "short", day: "numeric" }),
+      completed: sameDayRides.filter((ride) => ride.status === "TRIP_COMPLETED" || ride.status === "COMPLETED").length,
+      cancelled: sameDayRides.filter((ride) => String(ride.status || "").includes("CANCEL")).length
+    };
+  });
+}
+
+function chartPoints(values, maxValue) {
+  return values.map((value, index) => {
+    const x = values.length === 1 ? 50 : (index / (values.length - 1)) * 100;
+    const y = 88 - (value / maxValue) * 68;
+    return `${x},${y}`;
+  }).join(" ");
+}
+
+function AdminMetricCard({ icon: Icon, label, value, trend, tone = "emerald" }) {
+  const tones = {
+    emerald: "bg-emerald-50 text-emerald-600",
+    orange: "bg-orange-50 text-orange-500",
+    violet: "bg-violet-50 text-violet-600",
+    sky: "bg-sky-50 text-sky-600"
+  };
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <div className="flex items-center gap-4">
+        <div className={`flex h-14 w-14 items-center justify-center rounded-full ${tones[tone] || tones.emerald}`}>
+          <Icon className="text-2xl" aria-hidden="true" />
+        </div>
+        <div>
+          <p className="text-sm text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+        </div>
+      </div>
+      <p className="mt-5 flex items-center gap-2 text-sm text-slate-500">
+        <span className="font-semibold text-emerald-600">up {trend}</span>
+        from current data
+      </p>
+    </div>
+  );
+}
+
+function RidesOverviewPanel({ rides }) {
+  const trend = buildRideTrend(rides);
+  const completedValues = trend.map((item) => item.completed);
+  const cancelledValues = trend.map((item) => item.cancelled);
+  const maxValue = Math.max(1, ...completedValues, ...cancelledValues);
+  const completedPoints = chartPoints(completedValues, maxValue);
+  const cancelledPoints = chartPoints(cancelledValues, maxValue);
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-slate-950">Rides Overview</h2>
+        <button type="button" className="inline-flex min-h-[2.5rem] items-center gap-2 rounded-xl border border-slate-200 px-4 text-sm text-slate-700 hover:bg-slate-50">
+          Daily
+          <FiChevronDown aria-hidden="true" />
+        </button>
+      </div>
+      <div className="mt-5 flex flex-wrap gap-5 text-sm text-slate-600">
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-emerald-600" />Completed Rides</span>
+        <span className="inline-flex items-center gap-2"><span className="h-3 w-3 rounded-full bg-slate-400" />Cancelled Rides</span>
+      </div>
+      <div className="mt-6 h-64 rounded-xl bg-slate-50 p-4">
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full overflow-visible">
+          {[20, 37, 54, 71, 88].map((y) => (
+            <line key={y} x1="0" x2="100" y1={y} y2={y} stroke="#e2e8f0" strokeWidth="0.35" />
+          ))}
+          <polyline points={cancelledPoints} fill="none" stroke="#94a3b8" strokeWidth="1.4" vectorEffect="non-scaling-stroke" />
+          <polyline points={completedPoints} fill="none" stroke="#16a34a" strokeWidth="1.7" vectorEffect="non-scaling-stroke" />
+          {trend.map((item, index) => {
+            const x = trend.length === 1 ? 50 : (index / (trend.length - 1)) * 100;
+            const completedY = 88 - (item.completed / maxValue) * 68;
+            return <circle key={item.label} cx={x} cy={completedY} r="1.2" fill="#ffffff" stroke="#16a34a" strokeWidth="0.7" vectorEffect="non-scaling-stroke" />;
+          })}
+        </svg>
+      </div>
+      <div className="mt-3 grid grid-cols-7 gap-1 text-center text-xs text-slate-500">
+        {trend.map((item) => <span key={item.label}>{item.label}</span>)}
+      </div>
+    </section>
+  );
+}
+
+function RecentRidesPanel({ rides, onViewAll, onViewRide }) {
+  const rows = rides.slice(0, 5);
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-slate-950">Recent Rides</h2>
+        <button type="button" onClick={onViewAll} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">View All</button>
+      </div>
+      <div className="mt-5 divide-y divide-slate-100">
+        {rows.length ? rows.map((ride) => (
+          <button key={ride.id} type="button" onClick={() => onViewRide(ride)} className="flex w-full items-center justify-between gap-4 py-3 text-left">
+            <div className="flex min-w-0 items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700">
+                #{ride.id}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-950">{ride.customerName || ride.riderName || `Ride ${ride.id}`}</p>
+                <p className="truncate text-xs text-slate-500">{ride.pickupAddress || "Pickup"} {" -> "} {ride.dropoffAddress || "Dropoff"}</p>
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-sm font-semibold text-emerald-600">{formatMoney(ride.finalFare)}</p>
+              <Badge label={rideStatusLabel(ride.status)} variant={rideStatusVariant(ride.status)} size="sm" />
+            </div>
+          </button>
+        )) : (
+          <div className="py-10 text-center text-sm text-slate-500">Recent rides will appear here.</div>
+        )}
+      </div>
+      <button type="button" onClick={onViewAll} className="mt-4 inline-flex w-full justify-center text-sm font-semibold text-emerald-600 hover:text-emerald-700">
+        View All Rides
+      </button>
+    </section>
+  );
+}
+
+function SystemOverviewPanel({ health, paymentStats, openTickets }) {
+  const statusRows = [
+    { label: "Server Status", value: "Operational" },
+    { label: "Payment Gateway", value: paymentStats.pending ? `${paymentStats.pending} pending` : "Operational" },
+    { label: "Push Notifications", value: openTickets ? `${openTickets} alerts` : "Operational" }
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <h2 className="text-lg font-semibold text-slate-950">System Overview</h2>
+      <div className="mt-7 flex justify-center">
+        <div className="flex h-40 w-40 items-center justify-center rounded-full" style={{ background: `conic-gradient(#16a34a ${health * 3.6}deg, #e8f1ec 0deg)` }}>
+          <div className="flex h-28 w-28 flex-col items-center justify-center rounded-full bg-white shadow-inner">
+            <p className="text-3xl font-bold text-slate-950">{health}%</p>
+            <p className="mt-1 text-xs text-slate-500">System Health</p>
+          </div>
+        </div>
+      </div>
+      <div className="mt-7 space-y-3">
+        {statusRows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between rounded-xl border border-slate-200 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-800">{row.label}</p>
+              <p className="text-xs text-emerald-600">{row.value}</p>
+            </div>
+            <FiCheckCircle className="text-emerald-600" aria-hidden="true" />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function PendingApprovalsPanel({ pendingDrivers, openTickets, onDrivers, onTickets }) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-lg font-semibold text-slate-950">Pending Approvals</h2>
+        <button type="button" onClick={onDrivers} className="text-sm font-semibold text-emerald-600 hover:text-emerald-700">View All</button>
+      </div>
+      <div className="mt-5 grid gap-4 md:grid-cols-3">
+        <div className="rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-600">Driver Verifications</p>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600"><FiUsers /></span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{pendingDrivers}</p>
+          <p className="text-sm text-slate-500">Pending</p>
+          <button type="button" onClick={onDrivers} className="mt-4 min-h-[2.25rem] w-full rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">Review Drivers</button>
+        </div>
+        <div className="rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-600">Documents</p>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-orange-500"><FiFileText /></span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{pendingDrivers}</p>
+          <p className="text-sm text-slate-500">Pending</p>
+          <button type="button" onClick={onDrivers} className="mt-4 min-h-[2.25rem] w-full rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">Review Documents</button>
+        </div>
+        <div className="rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-slate-600">Support Tickets</p>
+            <span className="flex h-12 w-12 items-center justify-center rounded-full bg-violet-50 text-violet-600"><FiBell /></span>
+          </div>
+          <p className="mt-2 text-3xl font-semibold text-slate-950">{openTickets}</p>
+          <p className="text-sm text-slate-500">Open</p>
+          <button type="button" onClick={onTickets} className="mt-4 min-h-[2.25rem] w-full rounded-lg border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50">View Tickets</button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function QuickActionsPanel({ onAddAdmin, onDrivers, onReports, onSettings }) {
+  const actions = [
+    { label: "Add Admin", icon: FiUserPlus, onClick: onAddAdmin },
+    { label: "Approve Drivers", icon: FiShield, onClick: onDrivers },
+    { label: "View Reports", icon: FiBarChart2, onClick: onReports },
+    { label: "System Settings", icon: FiSettings, onClick: onSettings }
+  ];
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_20px_45px_-35px_rgba(15,23,42,0.5)]">
+      <h2 className="text-lg font-semibold text-slate-950">Quick Actions</h2>
+      <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-2 2xl:grid-cols-4">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          return (
+            <button key={action.label} type="button" onClick={action.onClick} className="flex min-h-[7rem] flex-col items-center justify-center rounded-xl border border-slate-200 bg-white p-3 text-center text-sm font-semibold text-slate-800 transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700">
+              <Icon className="mb-3 text-2xl" aria-hidden="true" />
+              {action.label}
+            </button>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function renderWorkspacePlaceholder({ title, description, statCards, bodyTitle, bodyText, footerText }) {
   return (
     <div className="space-y-6">
@@ -204,6 +473,7 @@ export default function AdminPanel() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { user: currentUser, logout } = useAuth();
+  const adminMenuRef = useRef(null);
   const [activeView, setActiveView] = useState("dashboard");
   const [userSearch, setUserSearch] = useState("");
   const [filterRole, setFilterRole] = useState("DRIVER");
@@ -216,6 +486,7 @@ export default function AdminPanel() {
   const [replyByTicketId, setReplyByTicketId] = useState({});
   const [ticketNotesById, setTicketNotesById] = useState({});
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [adminMenuOpen, setAdminMenuOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
     if (typeof window === "undefined") {
       return false;
@@ -347,6 +618,43 @@ export default function AdminPanel() {
   }, [activeView]);
 
   useEffect(() => {
+    function handlePointerDown(event) {
+      if (!adminMenuRef.current?.contains(event.target)) {
+        setAdminMenuOpen(false);
+      }
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape") {
+        setAdminMenuOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("touchstart", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("touchstart", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!mobileSidebarOpen || typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
     if (activeView === "riders") {
       setFilterRole("CUSTOMER");
     } else if (activeView === "drivers") {
@@ -476,11 +784,23 @@ export default function AdminPanel() {
 
   const handleSidebarSelect = (item) => {
     if (item.kind === "action" && item.id === "logout") {
+      setAdminMenuOpen(false);
       logout();
       navigate("/login");
       return;
     }
     setActiveView(item.id);
+  };
+
+  const handleAdminProfile = () => {
+    setAdminMenuOpen(false);
+    navigate("/profile");
+  };
+
+  const handleAdminLogout = () => {
+    setAdminMenuOpen(false);
+    logout();
+    navigate("/login");
   };
 
   const openDriverEditForm = (user) => {
@@ -562,69 +882,38 @@ export default function AdminPanel() {
   };
 
   const renderDashboardView = () => {
+    const activeDrivers = driverUsers.filter((driver) => driver.active !== false && driver.verified).length;
+    const revenue = rides.reduce((sum, ride) => sum + Number(ride.finalFare || ride.estimatedFare || 0), 0);
+    const healthScore = Math.max(82, Math.min(99, 99 - pendingDrivers.length - Math.ceil(openTickets.length / 5)));
+
     return (
       <div className="space-y-6">
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          <StatCard label="Total Users" value={dashboardQuery.data?.totalUsers ?? 0} icon="👥" />
-          <StatCard label="Total Rides" value={dashboardQuery.data?.totalRides ?? 0} icon="🚕" />
-          <StatCard label="Active Requests" value={dashboardQuery.data?.activeRideRequests ?? 0} icon="📡" />
-          <StatCard label="Pending Drivers" value={pendingDrivers.length} icon="🪪" />
-          <StatCard label="Open Tickets" value={openTickets.length} icon="🎫" />
+        <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-4">
+          <AdminMetricCard icon={FiUsers} label="Total Users" value={(dashboardQuery.data?.totalUsers ?? users.length).toLocaleString()} trend="12.5%" tone="emerald" />
+          <AdminMetricCard icon={FiTruck} label="Active Drivers" value={activeDrivers.toLocaleString()} trend="8.2%" tone="emerald" />
+          <AdminMetricCard icon={FiTruck} label="Total Rides" value={(dashboardQuery.data?.totalRides ?? rides.length).toLocaleString()} trend="15.7%" tone="orange" />
+          <AdminMetricCard icon={FiCreditCard} label="Total Revenue" value={formatWholeMoney(revenue)} trend="18.6%" tone="violet" />
         </div>
 
-        <div className="grid gap-6 xl:grid-cols-[1.15fr,0.85fr]">
-          <Card className="rounded-[30px] border border-white/70 bg-white/95 shadow-[0_32px_70px_-46px_rgba(15,23,42,0.5)]">
-            <div className="max-w-2xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.22em] text-teal-700">Command Overview</p>
-              <h2 className="mt-3 text-2xl font-bold text-slate-950">Today’s Operational Picture</h2>
-              <p className="mt-3 text-sm leading-7 text-slate-600">
-                The admin home stays intentionally summary-first. Use the premium sidebar to move into the exact workspace you need without flooding the first screen with rows and controls.
-              </p>
-            </div>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.15fr),minmax(22rem,0.9fr),minmax(18rem,0.75fr)]">
+          <RidesOverviewPanel rides={rides} />
+          <RecentRidesPanel rides={rides} onViewAll={() => setActiveView("trips")} onViewRide={setSelectedRide} />
+          <SystemOverviewPanel health={healthScore} paymentStats={paymentStats} openTickets={openTickets.length} />
+        </div>
 
-            <div className="mt-8 grid gap-4 lg:grid-cols-2">
-              {ADMIN_NAVIGATION_GROUPS.filter((group) => group.id !== "session").slice(0, 4).map((group) => (
-                <div key={group.id} className="rounded-[24px] border border-slate-200 bg-slate-50/90 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">{group.label}</p>
-                  <div className="mt-4 space-y-3">
-                    {group.items.slice(0, 3).map((item) => (
-                      <div key={item.id} className="flex items-center justify-between rounded-2xl bg-white px-4 py-3 shadow-sm">
-                        <p className="text-sm font-semibold text-slate-900">{item.label}</p>
-                        {sidebarBadges[item.id] ? (
-                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                            {sidebarBadges[item.id]}
-                          </span>
-                        ) : (
-                          <span className="text-xs font-medium text-slate-400">Ready</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-
-          <Card className="rounded-[30px] border border-white/70 bg-[linear-gradient(160deg,rgba(15,118,110,0.1),rgba(249,115,22,0.08),rgba(255,255,255,0.96))] shadow-[0_32px_70px_-46px_rgba(15,23,42,0.5)]">
-            <p className="text-sm font-semibold uppercase tracking-[0.22em] text-slate-500">Priority Queues</p>
-            <div className="mt-5 space-y-4">
-              <div className="rounded-[24px] border border-amber-200 bg-white/90 p-5">
-                <p className="text-sm font-semibold text-amber-900">Driver approvals waiting</p>
-                <p className="mt-3 text-3xl font-bold text-amber-700">{pendingDrivers.length}</p>
-                <p className="mt-2 text-sm text-amber-900/80">Go to `Drivers Management` when it is time to verify new applicants.</p>
-              </div>
-              <div className="rounded-[24px] border border-blue-200 bg-white/90 p-5">
-                <p className="text-sm font-semibold text-blue-900">Open support queue</p>
-                <p className="mt-3 text-3xl font-bold text-blue-700">{openTickets.length}</p>
-                <p className="mt-2 text-sm text-blue-900/80">Use `Support Tickets` or `Disputes / Issue Resolution` for active intervention.</p>
-              </div>
-              <div className="rounded-[24px] border border-teal-200 bg-white/90 p-5">
-                <p className="text-sm font-semibold text-teal-900">Payment follow-ups</p>
-                <p className="mt-3 text-3xl font-bold text-teal-700">{paymentStats.pending}</p>
-                <p className="mt-2 text-sm text-teal-900/80">`Payments` and `Mpesa Transactions` are kept separate for clean finance workflows.</p>
-              </div>
-            </div>
-          </Card>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr),minmax(22rem,0.55fr)]">
+          <PendingApprovalsPanel
+            pendingDrivers={pendingDrivers.length}
+            openTickets={openTickets.length}
+            onDrivers={() => setActiveView("drivers")}
+            onTickets={() => setActiveView("supportTickets")}
+          />
+          <QuickActionsPanel
+            onAddAdmin={() => setShowSupportModal(true)}
+            onDrivers={() => setActiveView("drivers")}
+            onReports={() => setActiveView("reports")}
+            onSettings={() => setActiveView("settings")}
+          />
         </div>
       </div>
     );
@@ -1156,15 +1445,9 @@ export default function AdminPanel() {
 
   return (
     <div
-      className="relative min-h-[calc(100vh-81px)] overflow-hidden bg-[linear-gradient(180deg,#f8fafc,#eef4f7)] px-4 py-4 lg:pr-6 lg:pt-6 lg:pl-[var(--admin-sidebar-offset)]"
-      style={{ "--admin-sidebar-offset": `${sidebarCollapsed ? 136 : 344}px` }}
+      className="relative min-h-screen bg-[#f7f8fb] px-4 py-5 lg:pr-8 lg:pt-7 lg:pl-[var(--admin-sidebar-offset)]"
+      style={{ "--admin-sidebar-offset": `${sidebarCollapsed ? 128 : 302}px` }}
     >
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-20 top-10 h-64 w-64 rounded-full bg-teal-300/20 blur-3xl" />
-        <div className="absolute right-0 top-0 h-72 w-72 rounded-full bg-orange-300/20 blur-3xl" />
-        <div className="absolute bottom-12 left-1/3 h-52 w-52 rounded-full bg-sky-300/20 blur-3xl" />
-      </div>
-
       <AdminSidebar
         groups={ADMIN_NAVIGATION_GROUPS}
         activeItem={activeView}
@@ -1178,34 +1461,97 @@ export default function AdminPanel() {
       />
 
       <div className="relative z-10 space-y-6">
-        <div className="rounded-[32px] border border-white/70 bg-white/80 px-5 py-5 shadow-[0_28px_70px_-46px_rgba(15,23,42,0.5)] backdrop-blur-xl lg:px-7">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="flex min-w-0 items-start gap-3">
+        <header className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setMobileSidebarOpen(true)}
-                className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:border-teal-200 hover:bg-teal-50 hover:text-teal-700 lg:hidden"
+                className="inline-flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 shadow-sm transition hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 lg:hidden"
                 aria-label="Open admin navigation"
               >
                 <FiMenu className="text-xl" />
               </button>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold uppercase tracking-[0.22em] text-teal-700">{activeSection.eyebrow}</p>
-                <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">{activeSection.title}</h1>
-                <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-600">{activeSection.description}</p>
-              </div>
+              <button
+                type="button"
+                onClick={() => setSidebarCollapsed((current) => !current)}
+                className="hidden h-12 w-12 items-center justify-center rounded-xl bg-slate-100 text-slate-800 transition hover:bg-emerald-50 hover:text-emerald-700 lg:inline-flex"
+                aria-label={sidebarCollapsed ? "Expand admin sidebar" : "Collapse admin sidebar"}
+              >
+                <FiMenu className="text-xl" />
+              </button>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Admin Workspace
-              </span>
-              <span className="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700">
-                {dashboardQuery.data?.activeRideRequests ?? 0} active requests
-              </span>
+            <div className="min-w-0">
+              <h1 className="text-2xl font-semibold text-slate-950">{activeSection.title}</h1>
+              <p className="mt-1 max-w-3xl text-sm text-slate-500">{activeSection.description}</p>
             </div>
           </div>
-        </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              className="inline-flex min-h-[3rem] items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 text-sm text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <FiCalendar aria-hidden="true" />
+              {formatDateRange()}
+              <FiChevronDown aria-hidden="true" />
+            </button>
+            <button type="button" className="relative flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-800 shadow-sm transition hover:bg-slate-50" aria-label="Notifications">
+              <FiBell className="text-xl" aria-hidden="true" />
+              <span className="absolute right-2 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 px-1 text-xs font-bold text-white">
+                {Math.min(99, openTickets.length)}
+              </span>
+            </button>
+            <div ref={adminMenuRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setAdminMenuOpen((open) => !open)}
+                className="flex min-h-[3rem] items-center gap-3 rounded-xl bg-white px-3 text-left shadow-sm transition hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-emerald-100"
+                aria-haspopup="menu"
+                aria-expanded={adminMenuOpen}
+                aria-controls="admin-profile-menu"
+              >
+                <Avatar name={adminProfile.name} size="md" />
+                <div className="hidden min-w-0 sm:block">
+                  <p className="truncate text-sm font-semibold text-slate-950">Admin</p>
+                  <p className="truncate text-xs text-slate-500">Super Admin</p>
+                </div>
+                <FiChevronDown className={`text-slate-500 transition-transform ${adminMenuOpen ? "rotate-180" : ""}`} aria-hidden="true" />
+              </button>
+
+              {adminMenuOpen ? (
+                <div
+                  id="admin-profile-menu"
+                  role="menu"
+                  className="absolute right-0 z-50 mt-3 w-60 overflow-hidden rounded-2xl border border-slate-200 bg-white p-1.5 shadow-[0_24px_65px_-28px_rgba(15,23,42,0.45)]"
+                >
+                  <div className="px-3 py-2">
+                    <p className="truncate text-sm font-semibold text-slate-950">{adminProfile.name}</p>
+                    <p className="truncate text-xs text-slate-500">{adminProfile.email}</p>
+                  </div>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleAdminProfile}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700"
+                  >
+                    <FiUser aria-hidden="true" />
+                    <span>Profile</span>
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={handleAdminLogout}
+                    className="flex w-full items-center gap-3 rounded-xl border-t border-slate-100 px-3 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-red-50 hover:text-red-600"
+                  >
+                    <FiLogOut aria-hidden="true" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </header>
 
         {renderContent()}
       </div>
