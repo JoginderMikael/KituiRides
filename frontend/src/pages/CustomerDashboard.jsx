@@ -1139,25 +1139,6 @@ export default function CustomerDashboard() {
 
             <SectionCard className="overflow-hidden p-0">
               <div className="relative">
-                <div className="absolute left-4 top-4 z-10 hidden gap-2 md:flex">
-                  <Button
-                    variant={mapMode === "pickup" ? "primary" : "secondary"}
-                    size="sm"
-                    className="rounded-full px-4"
-                    onClick={() => setMapMode("pickup")}
-                  >
-                    Pickup
-                  </Button>
-                  <Button
-                    variant={mapMode === "dropoff" ? "orange" : "secondary"}
-                    size="sm"
-                    className="rounded-full px-4"
-                    onClick={() => setMapMode("dropoff")}
-                  >
-                    Dropoff
-                  </Button>
-                </div>
-
                 <RideMapbox
                   pickup={{ lat: Number(form.pickupLat), lng: Number(form.pickupLng) }}
                   dropoff={{ lat: Number(form.dropoffLat), lng: Number(form.dropoffLng) }}
@@ -1165,7 +1146,7 @@ export default function CustomerDashboard() {
                   activePoint={mapMode}
                   onPointSelect={updatePointFromMap}
                   heightClassName="h-[18rem] md:h-[28rem] lg:h-[30.5rem]"
-                  helperText="Switch between pickup and dropoff, then click the map or a place label."
+                  helperText={`Setting ${mapMode === "pickup" ? "pickup" : "dropoff"} location. Click the map or a place label to adjust it.`}
                 />
               </div>
             </SectionCard>
