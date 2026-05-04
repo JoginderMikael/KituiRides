@@ -4,16 +4,25 @@
 import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { FiChevronDown, FiMail, FiShield } from "react-icons/fi";
 import { login } from "../features/auth/authApi";
 import { roleHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
-import { Button, Input, Card } from "../components/UIComponents";
+import {
+  AuthCardLayout,
+  AuthInputField,
+  AuthPrimaryButton,
+  AuthRoadScene,
+  BrandMark,
+  PasswordField
+} from "../components/AuthUI";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login: setAuth } = useAuth();
   const [form, setForm] = useState({ email: "admin@example.com", password: "replace-with-a-strong-temporary-password" });
   const [showPassword, setShowPassword] = useState(false);
+  const [showAdminSetup, setShowAdminSetup] = useState(false);
 
   const mutation = useMutation({
     mutationFn: login,
@@ -24,109 +33,104 @@ export default function LoginPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-600 via-teal-500 to-orange-400 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 bg-white rounded-lg shadow-lg mb-4">
-            <span className="text-3xl font-bold bg-gradient-to-r from-teal-600 to-orange-500 bg-clip-text text-transparent">
-              KR
-            </span>
+    <AuthCardLayout
+      aside={<AuthRoadScene title="KituiRides" subtitle="Move around Kitui with trusted rides, clear fares, and support when you need it." />}
+    >
+      <section className="w-full max-w-[27rem] rounded-2xl bg-white p-5 shadow-[0_22px_55px_-36px_rgba(15,23,42,0.45)] ring-1 ring-slate-200 sm:p-7">
+        <div className="mb-8 flex flex-col items-center text-center lg:items-start lg:text-left">
+          <div className="lg:hidden">
+            <BrandMark />
+            <img
+              src="/landing/kituirides-hero-scene.png"
+              alt=""
+              className="mx-auto mt-5 h-28 w-full object-contain"
+            />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-2">KituiRides</h1>
-          <p className="text-teal-100">Your trusted ride-sharing platform</p>
+          <div className="mt-8 w-full lg:mt-0">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-950">Welcome Back</h1>
+            <p className="mt-2 text-sm font-medium text-slate-500">Sign in to continue to your account</p>
+          </div>
         </div>
 
-        {/* Login Card */}
-        <Card className="shadow-2xl">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Welcome Back</h2>
-
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              mutation.mutate(form);
-            }}
-          >
-            {/* Email Input */}
-            <Input
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            mutation.mutate(form);
+          }}
+        >
+          <div className="relative">
+            <AuthInputField
               label="Email Address"
               type="email"
-              placeholder="you@example.com"
+              placeholder="admin@example.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
             />
-
-            {/* Password Input */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="••••••••"
-                  value={form.password}
-                  onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  required
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-gray-600 hover:text-gray-800"
-                >
-                  {showPassword ? "👁️" : "👁️‍🗨️"}
-                </button>
-              </div>
-            </div>
-
-            {/* Error Message */}
-            {mutation.isError && (
-              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-                {mutation.error?.response?.data?.message || "Login failed. Please check your credentials."}
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full"
-              size="lg"
-              loading={mutation.isPending}
-            >
-              Sign In
-            </Button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-300"></div>
-            </div>
-            <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">New to KituiRides?</span>
-            </div>
+            <FiMail className="pointer-events-none absolute right-4 top-9 text-slate-400" />
           </div>
 
-          {/* Register Link */}
-          <Link
-            to="/register"
-            className="block w-full text-center px-4 py-2 border-2 border-teal-600 text-teal-600 font-semibold rounded-lg hover:bg-teal-50 transition"
-          >
+          <PasswordField
+            label="Password"
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            showPassword={showPassword}
+            onToggle={() => setShowPassword(!showPassword)}
+            required
+          />
+
+          <div className="flex items-center justify-between gap-3 text-xs font-semibold">
+            <label className="flex items-center gap-2 text-slate-600">
+              <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500" />
+              Remember me
+            </label>
+            <button type="button" className="text-emerald-700 transition hover:text-emerald-800">
+              Forgot Password?
+            </button>
+          </div>
+
+          {mutation.isError && (
+            <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
+              {mutation.error?.response?.data?.message || "Login failed. Please check your credentials."}
+            </div>
+          )}
+
+          <AuthPrimaryButton type="submit" loading={mutation.isPending}>
+            Sign In
+          </AuthPrimaryButton>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          New to KituiRides?{" "}
+          <Link to="/register" className="font-bold text-emerald-700 transition hover:text-emerald-800">
             Create Account
           </Link>
-        </Card>
+        </p>
 
-        {/* Bootstrap Note */}
-        <div className="mt-6 rounded-lg bg-white/20 p-4 text-sm text-white backdrop-blur">
-          <p className="font-semibold mb-2">Initial Admin Bootstrap</p>
-          <p>Admin email: admin@example.com</p>
-          <p>Admin password: replace-with-a-strong-temporary-password</p>
-          <p className="mt-2 text-teal-100">Register customer and driver accounts through the app, then approve drivers from the admin dashboard.</p>
+        <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/70">
+          <button
+            type="button"
+            onClick={() => setShowAdminSetup((current) => !current)}
+            className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left"
+          >
+            <span className="flex items-center gap-3 text-sm font-bold text-slate-900">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-emerald-700">
+                <FiShield />
+              </span>
+              Initial Admin Setup
+            </span>
+            <FiChevronDown className={`text-slate-500 transition ${showAdminSetup ? "rotate-180" : ""}`} />
+          </button>
+          {showAdminSetup ? (
+            <div className="border-t border-emerald-100 px-4 pb-4 pt-3 text-xs leading-6 text-slate-600">
+              <p>Admin email: admin@example.com</p>
+              <p>Admin password: replace-with-a-strong-temporary-password</p>
+              <p className="mt-2 text-slate-500">Register customer and driver accounts through the app, then approve drivers from the admin dashboard.</p>
+            </div>
+          ) : null}
         </div>
-      </div>
-    </div>
+      </section>
+    </AuthCardLayout>
   );
 }
