@@ -91,7 +91,7 @@ public class MatchingService {
                     latestPing.get().getLongitude()
                 );
                 if (distanceToPickupKm > MATCH_RADIUS_KM) {
-                    log.info(
+                    log.debug(
                         "Driver {} rejected for pickup match: distanceToPickup={}km exceeds radius={}km",
                         profile.getUser().getId(),
                         BigDecimal.valueOf(distanceToPickupKm).setScale(2, RoundingMode.HALF_UP),
@@ -127,7 +127,7 @@ public class MatchingService {
             .limit(MAX_MATCHES)
             .toList();
 
-        log.info(
+        log.debug(
             "Driver match summary: pickup=({}, {}), vehicleType={}, matched={}, rejectedUnverified={}, rejectedOffline={}, rejectedNoVehicle={}, rejectedVehicleType={}, rejectedActiveRide={}, rejectedNoFreshLocation={}",
             pickupLat,
             pickupLng,

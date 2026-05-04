@@ -90,18 +90,13 @@ public class LocationService {
                 match.estimatedPrice()
             ))
             .toList();
-        log.info(
+        log.debug(
             "Nearby drivers response: pickup=({}, {}), vehicleType={}, count={}",
             pickupLat,
             pickupLng,
             vehicleType,
             nearby.size()
         );
-        try {
-            realtimePublisher.publishNearbyDrivers(nearby);
-        } catch (RuntimeException exception) {
-            log.warn("Failed to publish nearby drivers update", exception);
-        }
         return nearby;
     }
 }

@@ -454,6 +454,7 @@ export default function CustomerDashboard() {
   const lastGeocodedPickupRef = useRef("");
   const lastGeocodedDropoffRef = useRef("");
   const lastNearbyCountRef = useRef(0);
+  const lastNearbyInvalidationAtRef = useRef(0);
   const googleMapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
   useEffect(() => {
@@ -506,25 +507,32 @@ export default function CustomerDashboard() {
     [form.dropoffLat, form.dropoffLng, form.pickupLat, form.pickupLng, form.vehicleType]
   );
 
+  const nearbyParamsValid = Object.values(nearbyDriverParams).every((value) => (
+    typeof value === "string" ? value.length > 0 : Number.isFinite(value)
+  ));
   const ridesQuery = useQuery({ queryKey: ["customer-rides"], queryFn: getCustomerRides });
+  const rides = ridesQuery.data || [];
+  const activeRide = rides.find((ride) => isActiveRide(ride.status)) || null;
+  const activeRideId = activeRide?.id || null;
   const driversQuery = useQuery({
     queryKey: ["nearby-drivers", nearbyDriverParams],
-    queryFn: () => nearbyDrivers(nearbyDriverParams)
+    queryFn: () => nearbyDrivers(nearbyDriverParams),
+    enabled: nearbyParamsValid && !activeRide,
+    staleTime: 15000,
+    refetchOnWindowFocus: false
   });
   const estimateQuery = useQuery({
     queryKey: ["ride-estimate", nearbyDriverParams],
     queryFn: () => estimateRide(nearbyDriverParams),
-    enabled: Object.values(nearbyDriverParams).every((value) => (
-      typeof value === "string" ? value.length > 0 : Number.isFinite(value)
-    ))
+    enabled: nearbyParamsValid,
+    staleTime: 15000,
+    refetchOnWindowFocus: false
   });
   const supportContactQuery = useQuery({
     queryKey: ["support-contact"],
     queryFn: getSupportContact
   });
 
-  const rides = ridesQuery.data || [];
-  const activeRide = rides.find((ride) => isActiveRide(ride.status)) || null;
   const completedRides = rides.filter((ride) => isCompletedRide(ride.status));
   const cancelledRides = rides.filter((ride) => isCancelledRide(ride.status) || ride.status === "DRIVER_REJECTED");
   const rideChatQuery = useQuery({
@@ -544,10 +552,16 @@ export default function CustomerDashboard() {
         queryClient.invalidateQueries({ queryKey: ["customer-rides"] });
         queryClient.invalidateQueries({ queryKey: ["ride-chat-thread", "customer"] });
       },
-      onNearbyDrivers: () => queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] })
+      onNearbyDrivers: () => {
+        const now = Date.now();
+        if (!activeRideId && now - lastNearbyInvalidationAtRef.current > 10000) {
+          lastNearbyInvalidationAtRef.current = now;
+          queryClient.invalidateQueries({ queryKey: ["nearby-drivers", nearbyDriverParams] });
+        }
+      }
     });
     return disconnect;
-  }, [nearbyDriverParams, queryClient]);
+  }, [activeRideId, nearbyDriverParams, queryClient]);
 
   const requestRideMutation = useMutation({
     mutationFn: requestRide,
