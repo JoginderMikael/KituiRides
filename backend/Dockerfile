@@ -9,7 +9,7 @@ FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 RUN addgroup -g 1000 appuser && adduser -D -u 1000 -G appuser appuser
 COPY --from=build /app/target/kituirides-api-0.0.1-SNAPSHOT.jar app.jar
-RUN chown appuser:appuser app.jar
+RUN mkdir -p /app/uploads && chown -R appuser:appuser /app/uploads app.jar
 USER appuser
 EXPOSE 8080
 HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget --spider -q http://localhost:8080/actuator/health || exit 1
