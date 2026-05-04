@@ -12,6 +12,8 @@ import com.kituirides.api.domain.enums.DistanceSource;
 import com.kituirides.api.domain.enums.PaymentStatus;
 import com.kituirides.api.domain.enums.RideOfferStatus;
 import com.kituirides.api.domain.enums.RideStatus;
+import com.kituirides.api.event.EventType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.matching.DriverMatchResult;
 import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.payment.PriceCalculationService;
@@ -57,6 +59,7 @@ public class RideService {
     private final RealtimePublisher realtimePublisher;
     private final RideStateMachine rideStateMachine;
     private final RideRedisService rideRedisService;
+    private final DomainEventPublisher domainEventPublisher;
 
     private static final int DEFAULT_CAR_ENGINE_SIZE_CC = 1500;
 
@@ -121,6 +124,8 @@ public class RideService {
         saved = rideRepository.save(saved);
 
         realtimePublisher.publishRideUpdate(saved.getId(), "RIDE_REQUESTED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_REQUESTED, saved);
+        domainEventPublisher.publishRideEvent(EventType.DRIVER_MATCHED, saved);
         publishPendingOffers(saved);
         return toResponse(saved);
     }
@@ -174,6 +179,7 @@ public class RideService {
             chatService.ensureRideChatThread(saved);
 
             realtimePublisher.publishRideUpdate(saved.getId(), "RIDE_ACCEPTED", toResponse(saved));
+            domainEventPublisher.publishRideEvent(EventType.DRIVER_ACCEPTED, saved);
             return toResponse(saved);
         } catch (RuntimeException ex) {
             if (driverClaimed) {
@@ -205,6 +211,7 @@ public class RideService {
         }
 
         realtimePublisher.publishRideUpdate(ride.getId(), "RIDE_REJECTED", toResponse(ride));
+        domainEventPublisher.publishRideEvent(EventType.DRIVER_REJECTED, ride);
         return toResponse(ride);
     }
 
@@ -215,6 +222,7 @@ public class RideService {
         ride.setArrivedAt(Instant.now());
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "DRIVER_ARRIVED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.DRIVER_ARRIVED, saved);
         return toResponse(saved);
     }
 
@@ -230,6 +238,7 @@ public class RideService {
         ride.setDriverStartedAt(now);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_STARTED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_STARTED, saved);
         return toResponse(saved);
     }
 
@@ -267,6 +276,7 @@ public class RideService {
         ride.setCompletedAt(Instant.now());
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_COMPLETED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_COMPLETED, saved);
         return toResponse(saved);
     }
 
@@ -301,6 +311,7 @@ public class RideService {
         transitionStatus(ride, RideStatus.TRIP_CANCELLED);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_CANCELLED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_CANCELLED, saved);
         return toResponse(saved);
     }
 
@@ -334,6 +345,7 @@ public class RideService {
         transitionStatus(ride, RideStatus.TRIP_CANCELLED);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_CANCELLED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_CANCELLED, saved);
         return toResponse(saved);
     }
 
@@ -350,6 +362,7 @@ public class RideService {
         applyChargeableDistance(ride, distanceKm, DistanceSource.MANUAL_DRIVER);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "DISTANCE_UPDATED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.DISTANCE_UPDATED, saved);
         return toResponse(saved);
     }
 
@@ -373,6 +386,7 @@ public class RideService {
 
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "PAYMENT_PENDING", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.PAYMENT_PENDING, saved);
         return toResponse(saved);
     }
 
@@ -393,6 +407,7 @@ public class RideService {
 
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "PAYMENT_COMPLETED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.PAYMENT_COMPLETED, saved);
         return toResponse(saved);
     }
 
@@ -407,6 +422,7 @@ public class RideService {
         ride.setSupportTicket(ticket);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "RIDE_DISPUTED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.RIDE_DISPUTED, saved);
         return toResponse(saved);
     }
 
@@ -434,6 +450,7 @@ public class RideService {
 
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "DISPUTE_RESOLVED", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.DISPUTE_RESOLVED, saved);
         return toResponse(saved);
     }
 
@@ -443,6 +460,7 @@ public class RideService {
         applyChargeableDistance(ride, newKms, DistanceSource.SUPPORT_OVERRIDE);
         Ride saved = rideRepository.save(ride);
         realtimePublisher.publishRideUpdate(saved.getId(), "DISTANCE_OVERRIDDEN", toResponse(saved));
+        domainEventPublisher.publishRideEvent(EventType.DISTANCE_UPDATED, saved);
         return toResponse(saved);
     }
 

@@ -13,6 +13,8 @@ import com.kituirides.api.domain.entity.Vehicle;
 import com.kituirides.api.domain.enums.PaymentType;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.event.EventType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.matching.DriverMatchResult;
 import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.payment.PriceCalculationService;
@@ -49,6 +51,7 @@ class RideServiceRequestTest {
     @Mock private ChatService chatService;
     @Mock private RealtimePublisher realtimePublisher;
     @Mock private RideRedisService rideRedisService;
+    @Mock private DomainEventPublisher domainEventPublisher;
 
     @Test
     void shouldCreateRideForSelectedDriverOnly() {
@@ -66,7 +69,8 @@ class RideServiceRequestTest {
             chatService,
             realtimePublisher,
             stateMachine,
-            rideRedisService
+            rideRedisService,
+            domainEventPublisher
         );
 
         User customer = new User();
@@ -175,5 +179,7 @@ class RideServiceRequestTest {
         assertEquals(1, savedOffers.size());
         assertEquals(11L, savedOffers.get(0).getDriver().getId());
         verify(realtimePublisher).publishDriverOffer(eq(11L), any());
+        verify(domainEventPublisher).publishRideEvent(eq(EventType.RIDE_REQUESTED), any(Ride.class));
+        verify(domainEventPublisher).publishRideEvent(eq(EventType.DRIVER_MATCHED), any(Ride.class));
     }
 }

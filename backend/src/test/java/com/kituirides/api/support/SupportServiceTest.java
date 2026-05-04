@@ -11,6 +11,7 @@ import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationType;
 import com.kituirides.api.domain.enums.Role;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.repository.SupportTicketReplyRepository;
 import com.kituirides.api.repository.SupportTicketRepository;
 import com.kituirides.api.repository.UserRepository;
@@ -33,6 +34,7 @@ class SupportServiceTest {
     @Mock private UserRepository userRepository;
     @Mock private ChatService chatService;
     @Mock private AdminSettingsService adminSettingsService;
+    @Mock private DomainEventPublisher domainEventPublisher;
 
     @Test
     void shouldCreateRideSpecificSupportThreadsForDisputes() {
@@ -44,7 +46,8 @@ class SupportServiceTest {
             paymentService,
             userRepository,
             chatService,
-            adminSettingsService
+            adminSettingsService,
+            domainEventPublisher
         );
 
         User customer = new User();
@@ -104,7 +107,8 @@ class SupportServiceTest {
             paymentService,
             userRepository,
             chatService,
-            adminSettingsService
+            adminSettingsService,
+            domainEventPublisher
         );
 
         User driver = new User();

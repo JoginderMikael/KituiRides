@@ -13,6 +13,7 @@ import com.kituirides.api.domain.enums.RideOfferStatus;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.payment.PriceCalculationService;
 import com.kituirides.api.repository.LocationPingRepository;
@@ -47,6 +48,7 @@ class RideServiceCancellationTest {
     @Mock private ChatService chatService;
     @Mock private RealtimePublisher realtimePublisher;
     @Mock private RideRedisService rideRedisService;
+    @Mock private DomainEventPublisher domainEventPublisher;
 
     @Test
     void shouldCancelPreTripRideWithoutCharge() {
@@ -64,7 +66,8 @@ class RideServiceCancellationTest {
             chatService,
             realtimePublisher,
             stateMachine,
-            rideRedisService
+            rideRedisService,
+            domainEventPublisher
         );
 
         User customer = new User();

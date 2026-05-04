@@ -7,6 +7,8 @@ import com.kituirides.api.domain.entity.SupportTicketReply;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.ConversationType;
 import com.kituirides.api.domain.enums.Role;
+import com.kituirides.api.event.EventType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.domain.enums.TicketType;
 import com.kituirides.api.repository.SupportTicketReplyRepository;
 import com.kituirides.api.repository.SupportTicketRepository;
@@ -36,6 +38,7 @@ public class SupportService {
     private final UserRepository userRepository;
     private final ChatService chatService;
     private final com.kituirides.api.admin.AdminSettingsService adminSettingsService;
+    private final DomainEventPublisher domainEventPublisher;
 
     @Transactional
     public TicketResponse createTicket(CreateTicketRequest request) {
@@ -67,6 +70,7 @@ public class SupportService {
             request.description(),
             false
         );
+        domainEventPublisher.publishSupportEvent(EventType.TICKET_CREATED, ticket);
         return toResponse(ticket);
     }
 
@@ -99,7 +103,8 @@ public class SupportService {
         reply.setMessage(request.message());
         supportTicketReplyRepository.save(reply);
         ticket.setUpdatedAt(Instant.now());
-        supportTicketRepository.save(ticket);
+        ticket = supportTicketRepository.save(ticket);
+        domainEventPublisher.publishSupportEvent(EventType.SUPPORT_REPLY, ticket);
         return toResponse(ticket);
     }
 
@@ -121,6 +126,10 @@ public class SupportService {
         }
         ticket = supportTicketRepository.save(ticket);
         chatService.syncResolvedTicket(ticket);
+        domainEventPublisher.publishSupportEvent(
+            request.status() == com.kituirides.api.domain.enums.TicketStatus.RESOLVED ? EventType.TICKET_CLOSED : EventType.TICKET_UPDATED,
+            ticket
+        );
         return toResponse(ticket);
     }
 
@@ -173,6 +182,7 @@ public class SupportService {
                 !ride.getRider().getId().equals(actor.getId())
             );
         }
+        domainEventPublisher.publishSupportEvent(EventType.TICKET_CREATED, ticket);
         return rideService.markDisputed(rideId, ticket, reason);
     }
 
@@ -205,6 +215,7 @@ public class SupportService {
             reason,
             false
         );
+        domainEventPublisher.publishSupportEvent(EventType.TICKET_CREATED, ticket);
         return ticket;
     }
 
@@ -234,6 +245,7 @@ public class SupportService {
         }
         ticket = supportTicketRepository.save(ticket);
         chatService.syncResolvedTicket(ticket);
+        domainEventPublisher.publishSupportEvent(EventType.TICKET_CLOSED, ticket);
         return rideService.resolveDispute(rideId, request.resolvedDistanceKm());
     }
 

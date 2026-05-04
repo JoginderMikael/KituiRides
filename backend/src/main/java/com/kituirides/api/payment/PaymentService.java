@@ -10,6 +10,8 @@ import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.PaymentStatus;
 import com.kituirides.api.domain.enums.PaymentType;
 import com.kituirides.api.domain.enums.Role;
+import com.kituirides.api.event.EventType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.repository.PaymentRepository;
 import com.kituirides.api.ride.RideResponse;
 import com.kituirides.api.ride.RideService;
@@ -35,6 +37,7 @@ public class PaymentService {
     private final DriverWalletService driverWalletService;
     private final AdminSettingsService adminSettingsService;
     private final CurrentUserService currentUserService;
+    private final DomainEventPublisher domainEventPublisher;
 
     @Transactional
     public PaymentResponse initiatePayment(InitiatePaymentRequest request) {
@@ -102,6 +105,7 @@ public class PaymentService {
         }
 
         Payment saved = paymentRepository.save(payment);
+        domainEventPublisher.publishPaymentEvent(EventType.PAYMENT_INITIATED, saved);
         return toResponse(saved);
     }
 
@@ -121,6 +125,7 @@ public class PaymentService {
             payment.setCompletedAt(Instant.now());
         }
         Payment saved = paymentRepository.save(payment);
+        domainEventPublisher.publishPaymentEvent(callback.success() ? EventType.PAYMENT_SUCCESSFUL : EventType.PAYMENT_FAILED, saved);
 
         if (callback.success() && !wasSuccess) {
             settleSuccessfulPayment(saved);
@@ -159,6 +164,7 @@ public class PaymentService {
         payment.setCompletedAt(Instant.now());
 
         Payment saved = paymentRepository.save(payment);
+        domainEventPublisher.publishPaymentEvent(EventType.PAYMENT_SUCCESSFUL, saved);
         settleSuccessfulPayment(saved);
         return toResponse(saved);
     }
@@ -188,6 +194,7 @@ public class PaymentService {
         payment.setCompletedAt(Instant.now());
 
         Payment saved = paymentRepository.save(payment);
+        domainEventPublisher.publishPaymentEvent(EventType.PAYMENT_SUCCESSFUL, saved);
         settleSuccessfulPayment(saved);
         return toResponse(saved);
     }

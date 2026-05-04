@@ -2,6 +2,7 @@ package com.kituirides.api.location;
 
 import com.kituirides.api.domain.entity.LocationPing;
 import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.repository.RideRepository;
 import com.kituirides.api.ride.RideStateMachine;
@@ -31,6 +32,7 @@ public class LocationService {
     private final RealtimePublisher realtimePublisher;
     private final RideRepository rideRepository;
     private final RideStateMachine rideStateMachine;
+    private final DomainEventPublisher domainEventPublisher;
 
     @Transactional
     public void updateMyLocation(LocationUpdateRequest request) {
@@ -48,8 +50,12 @@ public class LocationService {
             "latitude", request.latitude(),
             "longitude", request.longitude()
         ));
-        rideRepository.findByRiderAndStatusIn(user, rideStateMachine.activeDriverStatuses())
-            .forEach(ride -> realtimePublisher.publishRideUpdate(
+        var activeRides = rideRepository.findByRiderAndStatusIn(user, rideStateMachine.activeDriverStatuses());
+        if (activeRides.isEmpty()) {
+            domainEventPublisher.publishDriverLocationUpdated(user.getId(), request.latitude(), request.longitude(), null);
+        }
+        activeRides.forEach(ride -> {
+            realtimePublisher.publishRideUpdate(
                 ride.getId(),
                 "DRIVER_LOCATION_UPDATED",
                 Map.of(
@@ -58,7 +64,9 @@ public class LocationService {
                     "latitude", request.latitude(),
                     "longitude", request.longitude()
                 )
-            ));
+            );
+            domainEventPublisher.publishDriverLocationUpdated(user.getId(), request.latitude(), request.longitude(), ride.getId());
+        });
     }
 
     public List<NearbyDriverResponse> nearbyDrivers(

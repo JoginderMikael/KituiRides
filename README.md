@@ -172,6 +172,47 @@ VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 - `/api/chat`
 - `/api/locations`
 
+## Kafka Event Streaming
+
+Kafka is now wired into the backend as an optional domain event bus. It is enabled automatically in Docker Compose through `APP_KAFKA_ENABLED=true`; when running the backend directly, it stays disabled by default so local development still works without a broker.
+
+Published topics:
+
+- `kituirides.ride-events`
+- `kituirides.payment-events`
+- `kituirides.driver-location-events`
+- `kituirides.notification-events`
+- `kituirides.support-events`
+- `kituirides.analytics-events`
+
+Each topic also has a matching `.DLT` dead-letter topic for messages that still fail after retries.
+
+Useful emitted events include:
+
+- `RIDE_REQUESTED`, `DRIVER_MATCHED`, `DRIVER_ACCEPTED`, `DRIVER_REJECTED`
+- `DRIVER_ARRIVED`, `RIDE_STARTED`, `RIDE_CANCELLED`, `RIDE_COMPLETED`
+- `PAYMENT_PENDING`, `PAYMENT_INITIATED`, `PAYMENT_SUCCESSFUL`, `PAYMENT_FAILED`, `PAYMENT_COMPLETED`
+- `TICKET_CREATED`, `SUPPORT_REPLY`, `TICKET_UPDATED`, `TICKET_CLOSED`
+- `DRIVER_FOUND`, `PAYMENT_RECEIVED`, `DRIVER_ONLINE`, `DRIVER_OFFLINE`
+
+Kafka consumers write processed event IDs to `processed_events` so duplicate deliveries are skipped safely.
+
+Run with Kafka locally:
+
+```bash
+docker compose up --build
+```
+
+To enable Kafka when running the backend outside Docker:
+
+```bash
+# PowerShell
+$env:APP_KAFKA_ENABLED="true"
+$env:KAFKA_BOOTSTRAP_SERVERS="localhost:9092"
+cd backend
+mvn spring-boot:run
+```
+
 ## 7) Initial Admin User Creation
 
 **CRITICAL: On first system launch, the application automatically creates a default superadmin account with the following credentials:**

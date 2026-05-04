@@ -19,6 +19,20 @@ spring:
     redis:
       host: localhost
       port: 6379
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: true
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP:kituirides-api}
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: com.kituirides.api.event.*
   servlet:
     multipart:
       max-file-size: 15MB
@@ -29,6 +43,15 @@ file:
     dir: ${FILE_UPLOAD_DIR:uploads}
 
 app:
+  kafka:
+    enabled: ${APP_KAFKA_ENABLED:false}
+    topics:
+      ride-events: ${APP_KAFKA_RIDE_EVENTS_TOPIC:kituirides.ride-events}
+      payment-events: ${APP_KAFKA_PAYMENT_EVENTS_TOPIC:kituirides.payment-events}
+      driver-location-events: ${APP_KAFKA_DRIVER_LOCATION_EVENTS_TOPIC:kituirides.driver-location-events}
+      notification-events: ${APP_KAFKA_NOTIFICATION_EVENTS_TOPIC:kituirides.notification-events}
+      support-events: ${APP_KAFKA_SUPPORT_EVENTS_TOPIC:kituirides.support-events}
+      analytics-events: ${APP_KAFKA_ANALYTICS_EVENTS_TOPIC:kituirides.analytics-events}
   jwt:
     secret: replace-with-at-least-32-random-characters
     expiration-ms: 86400000

@@ -12,6 +12,7 @@ import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.PaymentStatus;
 import com.kituirides.api.domain.enums.PaymentType;
 import com.kituirides.api.domain.enums.Role;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.repository.PaymentRepository;
 import com.kituirides.api.ride.RideService;
 import com.kituirides.api.security.CurrentUserService;
@@ -31,6 +32,7 @@ class PaymentServiceTest {
     @Mock private DriverWalletService driverWalletService;
     @Mock private AdminSettingsService adminSettingsService;
     @Mock private CurrentUserService currentUserService;
+    @Mock private DomainEventPublisher domainEventPublisher;
 
     @Test
     void shouldForceApproveMpesaAndCreditDriverNetOfCommission() {
@@ -40,7 +42,8 @@ class PaymentServiceTest {
             mpesaClient,
             driverWalletService,
             adminSettingsService,
-            currentUserService
+            currentUserService,
+            domainEventPublisher
         );
 
         User support = new User();
@@ -83,7 +86,8 @@ class PaymentServiceTest {
             mpesaClient,
             driverWalletService,
             adminSettingsService,
-            currentUserService
+            currentUserService,
+            domainEventPublisher
         );
 
         User admin = new User();

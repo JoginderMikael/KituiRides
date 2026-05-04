@@ -10,6 +10,7 @@ import com.kituirides.api.domain.entity.Vehicle;
 import com.kituirides.api.domain.enums.DocumentType;
 import com.kituirides.api.domain.enums.RideStatus;
 import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.payment.DriverWalletService;
 import com.kituirides.api.repository.LocationPingRepository;
 import com.kituirides.api.repository.RiderProfileRepository;
@@ -42,6 +43,7 @@ public class DriverService {
     private final AdminSettingsService adminSettingsService;
     private final LocationPingRepository locationPingRepository;
     private final SupportService supportService;
+    private final DomainEventPublisher domainEventPublisher;
 
     public DriverDashboardResponse dashboard() {
         var current = currentUserService.getCurrentUser();
@@ -104,6 +106,7 @@ public class DriverService {
         }
         profile.setAvailable(request.online());
         riderProfileRepository.save(profile);
+        domainEventPublisher.publishDriverStatusChanged(current.getId(), Boolean.TRUE.equals(request.online()));
         return dashboard();
     }
 
