@@ -6,8 +6,10 @@ COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 mvn -q -DskipTests clean package
 
 FROM eclipse-temurin:21-jre-alpine
+USER root
 WORKDIR /app
-RUN addgroup -g 1000 appuser && adduser -D -u 1000 -G appuser appuser
+RUN getent group appuser >/dev/null 2>&1 || addgroup -g 1000 appuser && \
+    id -u appuser >/dev/null 2>&1 || adduser -D -u 1000 -G appuser appuser
 COPY --from=build /app/target/kituirides-api-0.0.1-SNAPSHOT.jar app.jar
 RUN mkdir -p /app/uploads && chown -R appuser:appuser /app/uploads app.jar
 USER appuser
