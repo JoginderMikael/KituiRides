@@ -4,8 +4,21 @@
 import axios from "axios";
 import { getToken } from "./auth";
 
+export function getApiBaseUrl() {
+  const configured = import.meta.env.VITE_API_URL?.trim();
+  if (!configured) return "/api";
+  if (/^https?:\/\//i.test(configured)) {
+    const normalized = configured.replace(/\/$/, "");
+    if (normalized.includes("localhost") || normalized.includes("127.0.0.1")) {
+      return "/api";
+    }
+    return normalized;
+  }
+  return configured;
+}
+
 export const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "/api"
+  baseURL: getApiBaseUrl()
 });
 
 apiClient.interceptors.request.use((config) => {
