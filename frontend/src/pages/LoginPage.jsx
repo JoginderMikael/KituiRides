@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FiChevronDown, FiMail, FiShield } from "react-icons/fi";
 import { login } from "../features/auth/authApi";
-import { roleHomePath } from "../lib/auth";
+import { absoluteHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
 import {
   AuthCardLayout,
@@ -33,7 +33,7 @@ export default function LoginPage() {
     try {
       const authResponse = await login(form);
       setAuth(authResponse);
-      const targetPath = roleHomePath(authResponse.role);
+      const targetPath = absoluteHomePath(authResponse.role);
       window.location.assign(targetPath);
     } catch (error) {
       const message = error?.response?.data?.message || "Login failed. Please check your credentials.";

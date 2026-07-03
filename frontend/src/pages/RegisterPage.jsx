@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { FiCheckCircle } from "react-icons/fi";
 import { register } from "../features/auth/authApi";
-import { roleHomePath } from "../lib/auth";
+import { absoluteHomePath } from "../lib/auth";
 import { useAuth } from "../hooks/useAuth";
 import { apiClient } from "../lib/apiClient";
 import {
@@ -175,7 +175,7 @@ export default function RegisterPage() {
     },
     onSuccess: (data) => {
       setAuth(data);
-      navigate(roleHomePath(data.role), { replace: true });
+      window.location.assign(absoluteHomePath(data.role));
     }
   });
 

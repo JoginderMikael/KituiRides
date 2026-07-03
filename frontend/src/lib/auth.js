@@ -58,6 +58,11 @@ export function roleHomePath(role) {
   return "/login";
 }
 
+export function absoluteHomePath(role) {
+  const homePath = roleHomePath(role);
+  return `${window.location.origin}${homePath}`;
+}
+
 function decodeJwt(token) {
   if (!token) return null;
   try {
