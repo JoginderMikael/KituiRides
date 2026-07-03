@@ -4,6 +4,8 @@ UPDATE rides SET status = 'TRIP_STARTED' WHERE status = 'STARTED';
 UPDATE rides SET status = 'TRIP_COMPLETED' WHERE status = 'COMPLETED';
 UPDATE rides SET status = 'TRIP_CANCELLED' WHERE status = 'CANCELLED';
 
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS customer_id BIGINT;
+ALTER TABLE rides ADD COLUMN IF NOT EXISTS rider_id BIGINT;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS driver_assigned_at TIMESTAMP;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMP;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS payment_pending_at TIMESTAMP;
@@ -14,6 +16,34 @@ ALTER TABLE rides ADD COLUMN IF NOT EXISTS chargeable_distance_km DECIMAL(10, 2)
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS distance_source VARCHAR(30) DEFAULT 'ESTIMATED';
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS manual_distance_required BOOLEAN DEFAULT FALSE;
 ALTER TABLE rides ADD COLUMN IF NOT EXISTS dispute_reason TEXT;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = 'public'
+          AND table_name = 'rides'
+          AND constraint_name = 'fk_rides_customer'
+    ) THEN
+        ALTER TABLE rides
+            ADD CONSTRAINT fk_rides_customer FOREIGN KEY (customer_id) REFERENCES users(id);
+    END IF;
+END $$;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM information_schema.table_constraints
+        WHERE constraint_schema = 'public'
+          AND table_name = 'rides'
+          AND constraint_name = 'fk_rides_rider'
+    ) THEN
+        ALTER TABLE rides
+            ADD CONSTRAINT fk_rides_rider FOREIGN KEY (rider_id) REFERENCES users(id);
+    END IF;
+END $$;
 
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_checkout_request_id VARCHAR(255);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS provider_merchant_request_id VARCHAR(255);
