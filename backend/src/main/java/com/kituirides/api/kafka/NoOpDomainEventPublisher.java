@@ -4,11 +4,7 @@ import com.kituirides.api.domain.entity.Payment;
 import com.kituirides.api.domain.entity.Ride;
 import com.kituirides.api.domain.entity.SupportTicket;
 import com.kituirides.api.event.EventType;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
-import org.springframework.stereotype.Component;
 
-@Component
-@ConditionalOnMissingBean(DomainEventPublisher.class)
 public class NoOpDomainEventPublisher implements DomainEventPublisher {
     @Override
     public void publishRideEvent(EventType eventType, Ride ride) {

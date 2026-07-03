@@ -1,7 +1,6 @@
 /**
  * @fileoverview Page component for login page.
  */
-import { useMutation } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FiChevronDown, FiMail, FiShield } from "react-icons/fi";
@@ -23,14 +22,26 @@ export default function LoginPage() {
   const [form, setForm] = useState({ email: "admin@example.com", password: "replace-with-a-strong-temporary-password" });
   const [showPassword, setShowPassword] = useState(false);
   const [showAdminSetup, setShowAdminSetup] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const mutation = useMutation({
-    mutationFn: login,
-    onSuccess: (data) => {
-      setAuth(data);
-      navigate(roleHomePath(data.role), { replace: true });
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setSubmitError("");
+    setIsSubmitting(true);
+
+    try {
+      const authResponse = await login(form);
+      setAuth(authResponse);
+      const targetPath = roleHomePath(authResponse.role);
+      window.location.assign(targetPath);
+    } catch (error) {
+      const message = error?.response?.data?.message || "Login failed. Please check your credentials.";
+      setSubmitError(message);
+    } finally {
+      setIsSubmitting(false);
     }
-  });
+  }
 
   return (
     <AuthCardLayout
@@ -52,13 +63,7 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <form
-          className="space-y-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            mutation.mutate(form);
-          }}
-        >
+        <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="relative">
             <AuthInputField
               label="Email Address"
@@ -90,13 +95,13 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {mutation.isError && (
+          {submitError ? (
             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-700">
-              {mutation.error?.response?.data?.message || "Login failed. Please check your credentials."}
+              {submitError}
             </div>
-          )}
+          ) : null}
 
-          <AuthPrimaryButton type="submit" loading={mutation.isPending}>
+          <AuthPrimaryButton type="submit" loading={isSubmitting}>
             Sign In
           </AuthPrimaryButton>
         </form>

@@ -75,8 +75,8 @@ services:
       DB_PASSWORD: kituirides
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      APP_KAFKA_ENABLED: "true"
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}
+      APP_KAFKA_ENABLED: ${APP_KAFKA_ENABLED:-false}
       FILE_UPLOAD_DIR: /app/uploads
       APP_MPESA_BASE_URL: "${APP_MPESA_BASE_URL:-https://sandbox.safaricom.co.ke}"
       APP_MPESA_SHORTCODE: "${APP_MPESA_SHORTCODE:-174379}"
@@ -90,8 +90,6 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_healthy
-      kafka:
         condition: service_healthy
     volumes:
       - backend_uploads:/app/uploads

@@ -43,8 +43,8 @@ export function AuthProvider({ children }) {
     setUser: setUserProfile,
     role: session?.role || null,
     login: (authResponse) => {
-      saveSession(authResponse);
-      setSession(getSession());
+      const session = saveSession(authResponse);
+      setSession(session);
     },
     logout: () => {
       clearSession();

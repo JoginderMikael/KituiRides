@@ -15,12 +15,17 @@ export function saveSession(authResponse) {
   );
   const session = {
     token,
-    userId: authResponse?.userId || decoded?.userId,
-    email: authResponse?.email || decoded?.sub,
+    userId: authResponse?.userId || decoded?.userId || null,
+    email: authResponse?.email || decoded?.sub || null,
     role
   };
-  localStorage.setItem(TOKEN_KEY, token);
+  if (token) {
+    localStorage.setItem(TOKEN_KEY, token);
+  } else {
+    localStorage.removeItem(TOKEN_KEY);
+  }
   localStorage.setItem(USER_KEY, JSON.stringify(session));
+  return session;
 }
 
 export function getToken() {
