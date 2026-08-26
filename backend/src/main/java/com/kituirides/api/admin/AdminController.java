@@ -21,7 +21,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Provides administrative endpoints for managing users, drivers, rides, and support staff.
+ * Provides administrative endpoints for managing users, drivers, rides, and
+ * support staff.
  */
 @RestController
 @RequestMapping("/api/admin")
@@ -34,10 +35,7 @@ public class AdminController {
     private final AdminService adminService;
 
     @GetMapping("/dashboard")
-    @Operation(
-        summary = "Get admin dashboard",
-        description = "Returns aggregate metrics and operational snapshots for administrators."
-    )
+    @Operation(summary = "Get admin dashboard", description = "Returns aggregate metrics and operational snapshots for administrators.")
     public ResponseEntity<ApiResponse<AdminDashboardResponse>> dashboard() {
         return ResponseEntity.ok(ApiResponse.ok(adminService.dashboard()));
     }
@@ -55,33 +53,25 @@ public class AdminController {
     }
 
     @PatchMapping("/drivers/{id}/approve")
-    @Operation(
-        summary = "Approve or reject a driver",
-        description = "Updates a driver's approval state based on the submitted review decision."
-    )
+    @Operation(summary = "Approve or reject a driver", description = "Updates a driver's approval state based on the submitted review decision.")
     public ResponseEntity<ApiResponse<Void>> approveDriver(@PathVariable Long id,
-                                                           @Valid @RequestBody ApproveDriverRequest request) {
+            @Valid @RequestBody ApproveDriverRequest request) {
         String message = adminService.approveDriver(id, request.approved());
         return ResponseEntity.ok(ApiResponse.ok(null, message));
     }
 
     @PatchMapping("/drivers/{id}/details")
-    @Operation(
-        summary = "Update driver details",
-        description = "Applies administrative changes to a driver's registration details."
-    )
+    @Operation(summary = "Update driver details", description = "Applies administrative changes to a driver's registration details.")
     public ResponseEntity<ApiResponse<Void>> updateDriverDetails(@PathVariable Long id,
-                                                                 @Valid @RequestBody UpdateDriverDetailsRequest request) {
+            @Valid @RequestBody UpdateDriverDetailsRequest request) {
         String message = adminService.updateDriverDetails(id, request);
         return ResponseEntity.ok(ApiResponse.ok(null, message));
     }
 
     @PostMapping("/support-agents")
-    @Operation(
-        summary = "Create a support agent",
-        description = "Creates a support agent account that can manage the support queue."
-    )
-    public ResponseEntity<ApiResponse<UserProfileResponse>> createSupportAgent(@Valid @RequestBody CreateSupportAgentRequest request) {
+    @Operation(summary = "Create a support agent", description = "Creates a support agent account that can manage the support queue.")
+    public ResponseEntity<ApiResponse<UserProfileResponse>> createSupportAgent(
+            @Valid @RequestBody CreateSupportAgentRequest request) {
         UserProfileResponse response = adminService.createSupportAgent(request);
         return ResponseEntity.ok(ApiResponse.ok(response, "Support agent created"));
     }
@@ -96,7 +86,7 @@ public class AdminController {
     @PatchMapping("/users/{id}")
     @Operation(summary = "Update a user account", description = "Updates administrative account details for an existing user.")
     public ResponseEntity<ApiResponse<UserProfileResponse>> updateUserAccount(@PathVariable Long id,
-                                                                              @Valid @RequestBody UpdateUserAccountRequest request) {
+            @Valid @RequestBody UpdateUserAccountRequest request) {
         UserProfileResponse response = adminService.updateUserAccount(id, request);
         return ResponseEntity.ok(ApiResponse.ok(response, "User account updated"));
     }

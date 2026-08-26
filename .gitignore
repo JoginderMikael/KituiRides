@@ -6,6 +6,9 @@ frontend/.env.local
 .idea/
 .vscode/
 *.log
+logs.txt
+MICROSERVICES-ARCHITECTURE.txt
+prompt.txt
 errorlog.txt
 phase 3.md
 chatfunction.md

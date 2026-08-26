@@ -75,10 +75,9 @@ public class AdminService {
 
     public AdminDashboardResponse dashboard() {
         return new AdminDashboardResponse(
-            userRepository.count(),
-            rideRepository.count(),
-            rideRepository.countByStatus(RideStatus.REQUESTED)
-        );
+                userRepository.count(),
+                rideRepository.count(),
+                rideRepository.countByStatus(RideStatus.REQUESTED));
     }
 
     public List<UserProfileResponse> allUsers() {
@@ -92,7 +91,7 @@ public class AdminService {
     @Transactional
     public String approveDriver(Long driverUserId, boolean approved) {
         RiderProfile profile = riderProfileRepository.findByUserId(driverUserId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Driver profile not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Driver profile not found"));
         profile.setVerified(approved);
         if (!approved) {
             profile.setAvailable(false);
@@ -104,7 +103,7 @@ public class AdminService {
     @Transactional
     public String upgradeToAdmin(Long userId) {
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
         user.setRole(com.kituirides.api.domain.enums.Role.ADMIN);
         userRepository.save(user);
         return "User upgraded to admin";
@@ -114,7 +113,7 @@ public class AdminService {
     public UserProfileResponse updateUserAccount(Long userId, UpdateUserAccountRequest request) {
         User currentAdmin = currentUserService.getCurrentUser();
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         String email = request.email().trim().toLowerCase();
         String phoneNumber = request.phoneNumber().trim();
@@ -130,8 +129,8 @@ public class AdminService {
         }
         if (user.getRole() == Role.ADMIN && Boolean.TRUE.equals(user.getActive()) && !request.active()) {
             long activeAdmins = userRepository.findByRole(Role.ADMIN).stream()
-                .filter(admin -> Boolean.TRUE.equals(admin.getActive()))
-                .count();
+                    .filter(admin -> Boolean.TRUE.equals(admin.getActive()))
+                    .count();
             if (activeAdmins <= 1) {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot suspend the last active admin account");
             }
@@ -148,9 +147,9 @@ public class AdminService {
     @Transactional
     public String updateDriverDetails(Long driverUserId, UpdateDriverDetailsRequest request) {
         User user = userRepository.findById(driverUserId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
         RiderProfile profile = riderProfileRepository.findByUserId(driverUserId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Driver profile not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Driver profile not found"));
 
         String email = request.email().trim().toLowerCase();
         String phoneNumber = request.phoneNumber().trim();
@@ -161,14 +160,14 @@ public class AdminService {
         if (!user.getPhoneNumber().equals(phoneNumber) && userRepository.existsByPhoneNumber(phoneNumber)) {
             throw new ApiException(HttpStatus.CONFLICT, "Phone number already exists");
         }
-        
+
         user.setFirstName(request.firstName().trim());
         user.setLastName(request.lastName().trim());
         user.setEmail(email);
         user.setPhoneNumber(phoneNumber);
         user.setProfilePhotoUrl(request.profilePhotoUrl());
         userRepository.save(user);
-        
+
         profile.setIdNumber(request.idNumber().trim());
         profile.setLicenseNumber(request.licenseNumber().trim());
         profile.setIsOwner(request.isOwner());
@@ -223,7 +222,7 @@ public class AdminService {
     public String deleteUser(Long userId) {
         User currentAdmin = currentUserService.getCurrentUser();
         User user = userRepository.findById(userId)
-            .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
+                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "User not found"));
 
         if (user.getId().equals(currentAdmin.getId())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "You cannot delete your own account");
@@ -278,7 +277,7 @@ public class AdminService {
             rideTickets.put(ride.getSupportTicket().getId(), ride.getSupportTicket());
         }
         supportTicketRepository.findByRideId(ride.getId())
-            .forEach(ticket -> rideTickets.put(ticket.getId(), ticket));
+                .forEach(ticket -> rideTickets.put(ticket.getId(), ticket));
     }
 
     private void deleteSupportTickets(Iterable<SupportTicket> tickets) {
@@ -292,8 +291,8 @@ public class AdminService {
 
     private void deleteCreatedTickets(User user, Map<Long, SupportTicket> skippedTickets) {
         List<SupportTicket> createdTickets = supportTicketRepository.findByCreatedByOrderByCreatedAtDesc(user).stream()
-            .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
-            .toList();
+                .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
+                .toList();
 
         if (createdTickets.isEmpty()) {
             return;
@@ -312,8 +311,8 @@ public class AdminService {
 
     private void releaseAssignedTickets(User user, Map<Long, SupportTicket> skippedTickets) {
         List<SupportTicket> assignedTickets = supportTicketRepository.findByAssignedTo(user).stream()
-            .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
-            .toList();
+                .filter(ticket -> !skippedTickets.containsKey(ticket.getId()))
+                .toList();
         if (assignedTickets.isEmpty()) {
             return;
         }
@@ -323,8 +322,7 @@ public class AdminService {
 
     private void deleteRemainingConversations(User user) {
         deleteConversations(
-            conversationRepository.findByParticipant1OrParticipant2OrSupportAgent(user, user, user)
-        );
+                conversationRepository.findByParticipant1OrParticipant2OrSupportAgent(user, user, user));
     }
 
     private void deleteConversations(List<Conversation> conversations) {
@@ -370,41 +368,34 @@ public class AdminService {
  * Request payload for create support agent.
  */
 record CreateSupportAgentRequest(
-    @NotBlank(message = "First name is required") String firstName,
-    @NotBlank(message = "Last name is required") String lastName,
-    @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
-    @NotBlank(message = "Phone number is required") String phoneNumber,
-    @NotBlank(message = "Password is required")
-    @Size(min = 8, message = "Support agent password must be at least 8 characters")
-    String password
-) {}
+        @NotBlank(message = "First name is required") String firstName,
+        @NotBlank(message = "Last name is required") String lastName,
+        @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
+        @NotBlank(message = "Phone number is required") String phoneNumber,
+        @NotBlank(message = "Password is required") @Size(min = 8, message = "Support agent password must be at least 8 characters") String password) {
+}
 
 /**
  * Request payload for update driver details.
  */
 record UpdateDriverDetailsRequest(
-    @NotBlank(message = "First name is required") String firstName,
-    @NotBlank(message = "Last name is required") String lastName,
-    @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
-    @NotBlank(message = "Phone number is required") String phoneNumber,
-    @NotBlank(message = "ID number is required") String idNumber,
-    @NotBlank(message = "License number is required") String licenseNumber,
-    @NotNull(message = "Ownership is required") Boolean isOwner,
-    @NotBlank(message = "Vehicle make is required") String carMake,
-    @NotBlank(message = "Vehicle model is required") String carModel,
-    @NotBlank(message = "Plate number is required") String plateNumber,
-    @NotNull(message = "Engine size is required")
-    @Min(value = 1, message = "Engine size must be greater than 0")
-    Integer engineSize,
-    @NotNull(message = "Year of manufacture is required")
-    @Min(value = 1900, message = "Year of manufacture is invalid")
-    Integer yearOfManufacture,
-    @NotNull(message = "Vehicle type is required")
-    com.kituirides.api.domain.enums.VehicleType vehicleType,
-    String profilePhotoUrl,
-    String carFrontUrl,
-    String carRearUrl,
-    String carInteriorUrl,
-    String insurancePhotoUrl,
-    String chassisPhotoUrl
-) {}
+        @NotBlank(message = "First name is required") String firstName,
+        @NotBlank(message = "Last name is required") String lastName,
+        @NotBlank(message = "Email is required") @Email(message = "Enter a valid email address") String email,
+        @NotBlank(message = "Phone number is required") String phoneNumber,
+        @NotBlank(message = "ID number is required") String idNumber,
+        @NotBlank(message = "License number is required") String licenseNumber,
+        @NotNull(message = "Ownership is required") Boolean isOwner,
+        @NotBlank(message = "Vehicle make is required") String carMake,
+        @NotBlank(message = "Vehicle model is required") String carModel,
+        @NotBlank(message = "Plate number is required") String plateNumber,
+        @NotNull(message = "Engine size is required") @Min(value = 1, message = "Engine size must be greater than 0") Integer engineSize,
+        @NotNull(message = "Year of manufacture is required") @Min(value = 1900, message = "Year of manufacture is invalid") Integer yearOfManufacture,
+        @NotNull(message = "Vehicle type is required") com.kituirides.api.domain.enums.VehicleType vehicleType,
+        String profilePhotoUrl,
+        String carFrontUrl,
+        String carRearUrl,
+        String carInteriorUrl,
+        String insurancePhotoUrl,
+        String chassisPhotoUrl) {
+}
