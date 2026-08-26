@@ -19,7 +19,7 @@ import {
 export default function LoginPage() {
   const navigate = useNavigate();
   const { login: setAuth } = useAuth();
-  const [form, setForm] = useState({ email: "admin@example.com", password: "replace-with-a-strong-temporary-password" });
+  const [form, setForm] = useState({ email: "", password: "" });
   const [showPassword, setShowPassword] = useState(false);
   const [showAdminSetup, setShowAdminSetup] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -68,7 +68,7 @@ export default function LoginPage() {
             <AuthInputField
               label="Email Address"
               type="email"
-              placeholder="admin@example.com"
+              placeholder="you@example.com"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               required
@@ -129,8 +129,7 @@ export default function LoginPage() {
           </button>
           {showAdminSetup ? (
             <div className="border-t border-emerald-100 px-4 pb-4 pt-3 text-xs leading-6 text-slate-600">
-              <p>Admin email: admin@example.com</p>
-              <p>Admin password: replace-with-a-strong-temporary-password</p>
+              <p>Set APP_SUPERADMIN_EMAIL and APP_SUPERADMIN_PASSWORD before first launch to create an admin account.</p>
               <p className="mt-2 text-slate-500">Register customer and driver accounts through the app, then approve drivers from the admin dashboard.</p>
             </div>
           ) : null}

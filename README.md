@@ -93,19 +93,22 @@ frontend/src/
 
 ### Option A: Docker Compose
 ```bash
+cp .env.example .env
+# Fill in POSTGRES_PASSWORD, DB_PASSWORD, APP_JWT_SECRET, and any integration keys in .env.
 docker compose up --build
 ```
 
 ### Docker-Only Quickstart (Recommended)
 ```bash
 # 1) Ensure Docker Desktop is running
-# 2) From project root:
+# 2) From project root, create .env from .env.example and fill required values
+# 3) Start the stack:
 docker compose up --build -d
 
-# 3) Check status:
+# 4) Check status:
 docker compose ps
 
-# 4) Open apps:
+# 5) Open apps:
 # Frontend: http://localhost:5174
 # Backend API direct (optional): http://localhost:4050/api
 # Frontend now proxies /api and /ws to backend internally via nginx.
@@ -124,7 +127,7 @@ docker compose down -v
 ### Option B: Run services individually
 ```bash
 # infrastructure
-docker run --name kituirides-postgres -e POSTGRES_DB=kituirides -e POSTGRES_USER=kituirides -e POSTGRES_PASSWORD=kituirides -p 5432:5432 -d postgres:16
+docker run --name kituirides-postgres -e POSTGRES_DB=kituirides -e POSTGRES_USER=kituirides -e POSTGRES_PASSWORD=replace-with-a-local-password -p 5432:5432 -d postgres:16
 docker run --name kituirides-redis -p 6379:6379 -d redis:7
 
 # backend
@@ -140,12 +143,31 @@ npm run dev
 # http://localhost:5174
 ```
 
-### Frontend Environment
+### Environment
+
+Keep real values in `.env` or `frontend/.env.local`. These files are ignored by Git. Use `.env.example` as the public template.
+
+Required backend values:
+
+```bash
+POSTGRES_PASSWORD=replace-with-a-local-postgres-password
+DB_PASSWORD=replace-with-a-local-postgres-password
+APP_JWT_SECRET=replace-with-at-least-32-random-characters
+```
+
+Optional first-run admin bootstrap:
+
+```bash
+APP_SUPERADMIN_EMAIL=admin@example.com
+APP_SUPERADMIN_PASSWORD=replace-with-a-strong-temporary-password
+APP_SUPERADMIN_PHONE=replace-with-admin-phone
+```
+
+If `APP_SUPERADMIN_EMAIL` and `APP_SUPERADMIN_PASSWORD` are blank, no admin account is created automatically.
 
 Google Maps is optional for development, but the live request map only appears when the frontend receives an API key.
 
 ```bash
-# frontend/.env.local
 VITE_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 
 # optional when the frontend is not reverse-proxied to the backend
@@ -215,19 +237,7 @@ mvn spring-boot:run
 
 ## 7) Initial Admin User Creation
 
-**CRITICAL: On first system launch, the application automatically creates a default superadmin account with the following credentials:**
-
-```
-Email: admin@example.com
-Password: replace-with-a-strong-temporary-password
-First Name: Super
-Last Name: Admin
-Phone: replace-with-admin-phone
-```
-
-**⚠️ IMPORTANT**: Change this password immediately after first login in a production environment.
-
-The superadmin account is created automatically via the `DataInitializer` class when the Spring Boot application starts for the first time. If the superadmin already exists, it will not be recreated.
+The app can create the first admin account on startup only when `APP_SUPERADMIN_EMAIL` and `APP_SUPERADMIN_PASSWORD` are provided in the runtime environment. Leave them blank to skip bootstrap creation.
 
 ### Initial Configuration Values
 
@@ -333,17 +343,17 @@ Set datasource explicitly before running backend:
 # PowerShell
 $env:DB_URL="jdbc:postgresql://localhost:5432/kituirides"
 $env:DB_USERNAME="kituirides"
-$env:DB_PASSWORD="kituirides"
+$env:DB_PASSWORD="replace-with-your-local-password"
 mvn spring-boot:run
 ```
 
-If your local PostgreSQL uses `postgres/postgres`, use:
+If your local PostgreSQL uses a different superuser, use its local credentials:
 
 ```bash
 # PowerShell
 $env:DB_URL="jdbc:postgresql://localhost:5432/kituirides"
 $env:DB_USERNAME="postgres"
-$env:DB_PASSWORD="postgres"
+$env:DB_PASSWORD="replace-with-your-local-postgres-password"
 mvn spring-boot:run
 ```
 
@@ -351,6 +361,6 @@ Create DB/user (run inside `psql` as a superuser):
 
 ```sql
 CREATE DATABASE kituirides;
-CREATE USER kituirides WITH ENCRYPTED PASSWORD 'kituirides';
+CREATE USER kituirides WITH ENCRYPTED PASSWORD 'replace-with-a-local-password';
 GRANT ALL PRIVILEGES ON DATABASE kituirides TO kituirides;
 ```

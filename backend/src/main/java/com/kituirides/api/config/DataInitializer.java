@@ -9,13 +9,15 @@ import com.kituirides.api.repository.UserRepository;
 import java.time.Instant;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 /**
  * Initialize system data on application startup:
- * - Create default superadmin user if it doesn't exist
+ * - Create configured superadmin user if credentials are supplied
  * - Create default admin configuration values
  */
 @Slf4j
@@ -23,14 +25,24 @@ import org.springframework.stereotype.Component;
 @RequiredArgsConstructor
 public class DataInitializer implements CommandLineRunner {
 
-    private static final String DEFAULT_SUPERADMIN_EMAIL = "admin@example.com";
-    private static final String DEFAULT_SUPERADMIN_PASSWORD = "replace-with-a-strong-temporary-password";
-    private static final String LEGACY_SUPERADMIN_PASSWORD = "admin@example.com";
-    private static final String LEGACY_SUPERADMIN_HASH = "replace-with-generated-password-hash";
-
     private final UserRepository userRepository;
     private final AdminConfigRepository adminConfigRepository;
     private final PasswordEncoder passwordEncoder;
+
+    @Value("${app.superadmin.email:}")
+    private String superadminEmail;
+
+    @Value("${app.superadmin.password:}")
+    private String superadminPassword;
+
+    @Value("${app.superadmin.first-name:Super}")
+    private String superadminFirstName;
+
+    @Value("${app.superadmin.last-name:Admin}")
+    private String superadminLastName;
+
+    @Value("${app.superadmin.phone:}")
+    private String superadminPhone;
 
     @Override
     public void run(String... args) throws Exception {
@@ -44,54 +56,36 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     /**
-     * Create default superadmin user if none exists
+     * Create configured superadmin user if none exists.
      */
     private void initializeAdminUser() {
-        User existing = userRepository.findByEmail(DEFAULT_SUPERADMIN_EMAIL).orElse(null);
+        if (!StringUtils.hasText(superadminEmail) || !StringUtils.hasText(superadminPassword)) {
+            log.info("Superadmin bootstrap skipped; APP_SUPERADMIN_EMAIL and APP_SUPERADMIN_PASSWORD are not configured");
+            return;
+        }
+
+        User existing = userRepository.findByEmail(superadminEmail).orElse(null);
 
         if (existing != null) {
-            repairLegacySuperadminPassword(existing);
             log.info("Superadmin user already exists");
             return;
         }
 
-        // Create new superadmin user
         User superadmin = new User();
-        superadmin.setFirstName("Super");
-        superadmin.setLastName("Admin");
-        superadmin.setEmail(DEFAULT_SUPERADMIN_EMAIL);
-        superadmin.setPhoneNumber("replace-with-admin-phone");
-        superadmin.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
+        superadmin.setFirstName(superadminFirstName);
+        superadmin.setLastName(superadminLastName);
+        superadmin.setEmail(superadminEmail);
+        superadmin.setPhoneNumber(superadminPhone);
+        superadmin.setPasswordHash(passwordEncoder.encode(superadminPassword));
         superadmin.setRole(Role.ADMIN);
         superadmin.setActive(true);
         superadmin.setCreatedAt(Instant.now());
 
         try {
             userRepository.save(superadmin);
-            log.info("Superadmin user created successfully: {}", DEFAULT_SUPERADMIN_EMAIL);
+            log.info("Superadmin user created successfully: {}", superadminEmail);
         } catch (Exception e) {
             log.error("Error creating superadmin user", e);
-        }
-    }
-
-    private void repairLegacySuperadminPassword(User existing) {
-        String passwordHash = existing.getPasswordHash();
-
-        if (passwordHash == null || !passwordHash.startsWith("$2")) {
-            existing.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
-            userRepository.save(existing);
-            log.warn("Repaired invalid superadmin password hash for {}", DEFAULT_SUPERADMIN_EMAIL);
-            return;
-        }
-
-        if (passwordEncoder.matches(DEFAULT_SUPERADMIN_PASSWORD, passwordHash)) {
-            return;
-        }
-
-        if (LEGACY_SUPERADMIN_HASH.equals(passwordHash) || passwordEncoder.matches(LEGACY_SUPERADMIN_PASSWORD, passwordHash)) {
-            existing.setPasswordHash(passwordEncoder.encode(DEFAULT_SUPERADMIN_PASSWORD));
-            userRepository.save(existing);
-            log.warn("Upgraded legacy superadmin password to the documented default for {}", DEFAULT_SUPERADMIN_EMAIL);
         }
     }
 

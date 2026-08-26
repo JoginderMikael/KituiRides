@@ -18,10 +18,10 @@ import org.springframework.stereotype.Component;
 @Component
 public class JwtTokenProvider {
 
-    @Value("${jwt.secret:replace-with-at-least-32-random-characters}")
+    @Value("${app.jwt.secret}")
     private String jwtSecret;
 
-    @Value("${jwt.expiration:86400000}")  // 24 hours in milliseconds
+    @Value("${app.jwt.expiration-ms}")
     private long jwtExpirationMs;
 
     /**

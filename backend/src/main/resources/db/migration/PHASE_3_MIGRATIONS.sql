@@ -138,8 +138,5 @@ ALTER TABLE vehicles ADD COLUMN insurance_photo_url VARCHAR(500);
 ALTER TABLE vehicles ADD COLUMN chassis_photo_url VARCHAR(500);
 
 -- V10__insert_initial_admin.sql
--- Insert initial admin account
-
-INSERT INTO users (first_name, last_name, email, phone_number, password_hash, role, active, created_at, updated_at) 
-VALUES ('Super', 'Admin', 'admin@example.com', 'replace-with-admin-phone', 'replace-with-generated-password-hash', 'ADMIN', true, NOW(), NOW());
--- Password hash for: admin@example.com
+-- Initial admin seeding is handled by DataInitializer when APP_SUPERADMIN_EMAIL
+-- and APP_SUPERADMIN_PASSWORD are supplied.

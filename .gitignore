@@ -1,15 +1,38 @@
 backend/target/
 frontend/node_modules/
 frontend/dist/
-frontend/.env.local
+node_modules/
+dist/
+build/
+coverage/
+
+# Local environment and secrets
 .env
-.idea/
-.vscode/
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# Logs and local notes
 *.log
 logs.txt
+errorlog.txt
 MICROSERVICES-ARCHITECTURE.txt
 prompt.txt
-errorlog.txt
 phase 3.md
 chatfunction.md
 phase 4.md
+
+.idea/
+.vscode/
+*.iml

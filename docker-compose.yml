@@ -3,9 +3,9 @@ services:
     image: postgres:16
     container_name: kituirides-postgres
     environment:
-      POSTGRES_DB: kituirides
-      POSTGRES_USER: kituirides
-      POSTGRES_PASSWORD: kituirides
+      POSTGRES_DB: ${POSTGRES_DB:-kituirides}
+      POSTGRES_USER: ${POSTGRES_USER:-kituirides}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -70,9 +70,16 @@ services:
     build: ./backend
     container_name: kituirides-backend
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/kituirides
-      DB_USERNAME: kituirides
-      DB_PASSWORD: kituirides
+      DB_URL: ${DB_URL:-jdbc:postgresql://postgres:5432/kituirides}
+      DB_USERNAME: ${DB_USERNAME:-kituirides}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD is required}
+      APP_JWT_SECRET: ${APP_JWT_SECRET:?APP_JWT_SECRET is required}
+      APP_JWT_EXPIRATION_MS: ${APP_JWT_EXPIRATION_MS:-86400000}
+      APP_SUPERADMIN_EMAIL: ${APP_SUPERADMIN_EMAIL:-}
+      APP_SUPERADMIN_PASSWORD: ${APP_SUPERADMIN_PASSWORD:-}
+      APP_SUPERADMIN_FIRST_NAME: ${APP_SUPERADMIN_FIRST_NAME:-Super}
+      APP_SUPERADMIN_LAST_NAME: ${APP_SUPERADMIN_LAST_NAME:-Admin}
+      APP_SUPERADMIN_PHONE: ${APP_SUPERADMIN_PHONE:-}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:29092}

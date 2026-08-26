@@ -5,7 +5,7 @@ spring:
   datasource:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/kituirides}
     username: ${DB_USERNAME:kituirides}
-    password: ${DB_PASSWORD:kituirides}
+    password: ${DB_PASSWORD:}
     driver-class-name: org.postgresql.Driver
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
@@ -53,8 +53,14 @@ app:
       support-events: ${APP_KAFKA_SUPPORT_EVENTS_TOPIC:kituirides.support-events}
       analytics-events: ${APP_KAFKA_ANALYTICS_EVENTS_TOPIC:kituirides.analytics-events}
   jwt:
-    secret: replace-with-at-least-32-random-characters
-    expiration-ms: 86400000
+    secret: ${APP_JWT_SECRET}
+    expiration-ms: ${APP_JWT_EXPIRATION_MS:86400000}
+  superadmin:
+    email: ${APP_SUPERADMIN_EMAIL:}
+    password: ${APP_SUPERADMIN_PASSWORD:}
+    first-name: ${APP_SUPERADMIN_FIRST_NAME:Super}
+    last-name: ${APP_SUPERADMIN_LAST_NAME:Admin}
+    phone: ${APP_SUPERADMIN_PHONE:}
   mpesa:
     base-url: ${APP_MPESA_BASE_URL:https://sandbox.safaricom.co.ke}
     shortcode: ${APP_MPESA_SHORTCODE:174379}
