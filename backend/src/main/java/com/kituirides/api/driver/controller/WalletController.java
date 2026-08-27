@@ -1,10 +1,12 @@
 package com.kituirides.api.driver.controller;
 
+import com.kituirides.api.common.BadRequestException;
+import com.kituirides.api.common.ResourceNotFoundException;
 import com.kituirides.api.domain.entity.DriverWallet;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.payment.DriverWalletService;
 import com.kituirides.api.repository.UserRepository;
-import com.kituirides.api.security.JwtTokenProvider;
+import com.kituirides.api.security.CurrentUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -16,7 +18,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -31,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class WalletController {
 
     private final DriverWalletService walletService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final CurrentUserService currentUserService;
     private final UserRepository userRepository;
 
     /**
@@ -44,10 +45,10 @@ public class WalletController {
     @PreAuthorize("hasRole('DRIVER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Get wallet details", description = "Returns the authenticated driver's wallet information.")
-    public ResponseEntity<DriverWallet> getWallet(@RequestHeader("Authorization") String token) {
-        Long driverId = extractUserIdFromToken(token);
+    public ResponseEntity<DriverWallet> getWallet() {
+        Long driverId = currentUserService.getCurrentUser().getId();
         User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
         
         DriverWallet wallet = walletService.getWalletDetails(driver);
         return ResponseEntity.ok(wallet);
@@ -63,10 +64,10 @@ public class WalletController {
     @PreAuthorize("hasRole('DRIVER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Get wallet balance", description = "Returns the current available wallet balance for the authenticated driver.")
-    public ResponseEntity<BigDecimal> getBalance(@RequestHeader("Authorization") String token) {
-        Long driverId = extractUserIdFromToken(token);
+    public ResponseEntity<BigDecimal> getBalance() {
+        Long driverId = currentUserService.getCurrentUser().getId();
         User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
         
         BigDecimal balance = walletService.getWalletBalance(driver);
         return ResponseEntity.ok(balance);
@@ -82,10 +83,10 @@ public class WalletController {
     @PreAuthorize("hasRole('DRIVER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Get total earnings", description = "Returns the total earnings accumulated by the authenticated driver.")
-    public ResponseEntity<BigDecimal> getTotalEarnings(@RequestHeader("Authorization") String token) {
-        Long driverId = extractUserIdFromToken(token);
+    public ResponseEntity<BigDecimal> getTotalEarnings() {
+        Long driverId = currentUserService.getCurrentUser().getId();
         User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
         
         BigDecimal totalEarnings = walletService.getTotalEarnings(driver);
         return ResponseEntity.ok(totalEarnings);
@@ -103,12 +104,11 @@ public class WalletController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Request a withdrawal", description = "Attempts to withdraw funds from the authenticated driver's wallet.")
     public ResponseEntity<WithdrawalResponse> requestWithdrawal(
-            @RequestHeader("Authorization") String token,
             @RequestBody WithdrawalRequest request) {
         
-        Long driverId = extractUserIdFromToken(token);
+        Long driverId = currentUserService.getCurrentUser().getId();
         User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
         
         try {
             walletService.processWithdrawal(driver, request.getAmount());
@@ -120,20 +120,8 @@ public class WalletController {
                     wallet.getBalance()
             ));
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest()
-                    .body(new WithdrawalResponse(e.getMessage(), null, null));
+            throw new BadRequestException(e.getMessage());
         }
-    }
-
-    /**
-     * Extracts a user identifier from a bearer token.
-     *
-     * @param token authorization header value
-     * @return the authenticated user identifier
-     */
-    private Long extractUserIdFromToken(String token) {
-        String jwt = token.replace("Bearer ", "");
-        return jwtTokenProvider.getUserIdFromToken(jwt);
     }
 
     /**

@@ -1,5 +1,7 @@
 package com.kituirides.api.driver;
 
+import com.kituirides.api.common.BadRequestException;
+import com.kituirides.api.common.ResourceNotFoundException;
 import com.kituirides.api.domain.entity.Document;
 import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.DocumentStatus;
@@ -35,7 +37,7 @@ public class DocumentService {
     public Document uploadDocument(Long driverId, DocumentType documentType, 
                                   String filePath, String fileUrl) {
         User driver = userRepository.findById(driverId)
-                .orElseThrow(() -> new IllegalArgumentException("Driver not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver not found"));
 
         Document document = new Document();
         document.setDriver(driver);
@@ -57,10 +59,10 @@ public class DocumentService {
     @Transactional
     public Document approveDocument(Long documentId, Long adminId) {
         Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
         User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
 
         document.setStatus(DocumentStatus.APPROVED);
         document.setApprovalDate(Instant.now());
@@ -77,10 +79,10 @@ public class DocumentService {
     @Transactional
     public Document rejectDocument(Long documentId, Long adminId, String rejectionReason) {
         Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
         User admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new IllegalArgumentException("Admin not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Admin not found"));
 
         document.setStatus(DocumentStatus.REJECTED);
         document.setApprovalDate(Instant.now());
@@ -147,7 +149,7 @@ public class DocumentService {
      */
     public Document getDocument(Long documentId) {
         return documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
     }
 
     /**
@@ -156,10 +158,10 @@ public class DocumentService {
     @Transactional
     public void deleteDocument(Long documentId) {
         Document document = documentRepository.findById(documentId)
-                .orElseThrow(() -> new IllegalArgumentException("Document not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Document not found"));
 
         if (document.getStatus() != DocumentStatus.PENDING) {
-            throw new IllegalArgumentException("Can only delete pending documents");
+            throw new BadRequestException("Can only delete pending documents");
         }
 
         documentRepository.deleteById(documentId);

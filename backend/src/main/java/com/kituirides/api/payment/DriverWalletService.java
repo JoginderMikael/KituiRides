@@ -1,5 +1,7 @@
 package com.kituirides.api.payment;
 
+import com.kituirides.api.common.BadRequestException;
+import com.kituirides.api.common.ResourceNotFoundException;
 import com.kituirides.api.domain.entity.DriverWallet;
 import com.kituirides.api.domain.entity.RiderProfile;
 import com.kituirides.api.domain.entity.User;
@@ -28,7 +30,7 @@ public class DriverWalletService {
      */
     public DriverWallet getOrCreateWallet(User driver) {
         RiderProfile riderProfile = riderProfileRepository.findByUser(driver)
-                .orElseThrow(() -> new IllegalArgumentException("Driver profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Driver profile not found"));
 
         return walletRepository.findByDriver(riderProfile)
                 .orElseGet(() -> createWallet(riderProfile));
@@ -87,13 +89,17 @@ public class DriverWalletService {
      */
     @Transactional
     public void processWithdrawal(User driver, BigDecimal amount) {
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Withdrawal amount must be greater than zero");
+        }
+
         DriverWallet wallet = getOrCreateWallet(driver);
 
         if (wallet.getOutstandingCommission().compareTo(BigDecimal.ZERO) > 0) {
-            throw new IllegalArgumentException("Outstanding commission must be settled before withdrawal");
+            throw new BadRequestException("Outstanding commission must be settled before withdrawal");
         }
         if (wallet.getBalance().compareTo(amount) < 0) {
-            throw new IllegalArgumentException("Insufficient balance for withdrawal");
+            throw new BadRequestException("Insufficient balance for withdrawal");
         }
 
         wallet.setBalance(wallet.getBalance().subtract(amount));
@@ -126,12 +132,13 @@ public class DriverWalletService {
 
     @Transactional
     public void settleOutstandingCommission(User driver, BigDecimal amount) {
-        DriverWallet wallet = getOrCreateWallet(driver);
-        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Settlement amount must be greater than zero");
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Settlement amount must be greater than zero");
         }
+
+        DriverWallet wallet = getOrCreateWallet(driver);
         if (wallet.getBalance().compareTo(amount) < 0) {
-            throw new IllegalArgumentException("Insufficient wallet balance to settle commission");
+            throw new BadRequestException("Insufficient wallet balance to settle commission");
         }
         if (wallet.getOutstandingCommission().compareTo(BigDecimal.ZERO) <= 0) {
             return;

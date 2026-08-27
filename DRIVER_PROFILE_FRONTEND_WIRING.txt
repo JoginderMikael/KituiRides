@@ -1,0 +1,828 @@
+KituiRides frontend driver profile wiring
+Scanned on 2026-08-27 from C:\S_Projects\kituirides.
+
+Scope
+This note traces how the frontend wires the driver profile and closely related driver account surfaces: routing, auth/session state, API base configuration, profile data, dashboard data, registration/upload data, admin driver management, location, wallet, ride lifecycle, chat, support, and the frontend variables/query keys that connect those pieces.
+
+Frontend app structure involved
+- frontend/src/main.jsx boots React, wraps the app in AuthProvider, QueryClientProvider, and RouterProvider.
+- frontend/src/app/router.jsx defines the routes:
+  - /profile is protected by the generic ProtectedRoute and renders UserProfile.
+  - /driver is nested under ProtectedRoute role="DRIVER" and renders DriverDashboard.
+  - /admin is protected for ADMIN and includes the driver management workspace.
+  - /register can create CUSTOMER or DRIVER accounts.
+- frontend/src/context/AuthContext.jsx loads /users/me whenever a saved session token exists.
+- frontend/src/lib/auth.js stores and normalizes the session.
+- frontend/src/lib/apiClient.js creates the shared axios client, resolves the API base URL, attaches Authorization, and unwraps ApiResponse payloads.
+
+API base URL and environment variables
+- frontend/src/lib/apiClient.js reads import.meta.env.VITE_API_URL.
+- getApiBaseUrl() behavior:
+  - If VITE_API_URL is missing, baseURL is /api.
+  - If VITE_API_URL is an absolute http(s) URL:
+    - trailing slash is removed.
+    - if it contains localhost or 127.0.0.1, the frontend still uses /api.
+    - otherwise it uses that absolute URL.
+  - If VITE_API_URL is a relative value, it is used as-is.
+- frontend/.env.local currently sets:
+  - VITE_API_URL=/api
+  - VITE_GOOGLE_MAPS_API_KEY=<present in file>
+- frontend/src/lib/socket.js reads import.meta.env.VITE_WS_URL. If missing, it uses window.location.origin, then connects SockJS to `${base}/ws`.
+- frontend/src/components/RideMapbox.jsx reads import.meta.env.VITE_GOOGLE_MAPS_API_KEY. Without it, maps show a warning and do not load Google Maps.
+- frontend/vite.config.js:
+  - Loads env with loadEnv.
+  - Uses env.VITE_API_URL || "http://localhost:8080/api".
+  - Derives backendOrigin by stripping /api from an absolute API URL, otherwise defaults to http://localhost:8080.
+  - Dev server port is 5174 with strictPort true.
+  - Proxies /api, /ws, and /uploads to backendOrigin.
+
+Auth/session wiring
+- localStorage keys:
+  - kituirides_token stores the JWT.
+  - kituirides_user stores the normalized session object.
+- saveSession(authResponse) in frontend/src/lib/auth.js:
+  - Reads token from authResponse.token.
+  - Decodes JWT payload to find role, userId, and email where possible.
+  - Normalizes role RIDER to DRIVER.
+  - Stores { token, userId, email, role }.
+- getToken() returns kituirides_token and apiClient attaches it as Authorization: Bearer <token>.
+- AuthProvider state:
+  - session: initialized from getSession().
+  - userProfile: initialized null, populated by GET /users/me if session.token exists.
+  - role: session?.role.
+  - login(authResponse): saveSession(authResponse), then setSession.
+  - logout(): clearSession, setSession(null), setUserProfile(null).
+  - setUser is exposed and used by UserProfile after profile updates.
+- ProtectedRoute:
+  - Redirects unauthenticated users to /login.
+  - If a role prop is supplied and session.role does not match, redirects to roleHomePath(session.role).
+- roleHomePath:
+  - CUSTOMER -> /customer
+  - DRIVER -> /driver
+  - RIDER -> /driver
+  - ADMIN -> /admin
+  - SUPPORT_AGENT -> /support
+  - fallback -> /login
+
+Shared API response assumption
+- Most frontend API helpers call unwrap(apiClient.<method>(...)).
+- unwrap awaits the axios promise and returns response.data.data.
+- That matches backend ApiResponse<T> endpoints such as /api/users/me, /api/driver/dashboard, /api/admin/users, etc.
+- Exception: DocumentUploadPanel reads /documents endpoints directly as response.data because those backend document endpoints return raw Document/VerificationStatus objects, not ApiResponse wrappers.
+
+Driver profile page: /profile
+File: frontend/src/pages/UserProfile.jsx
+
+Route and access
+- /profile is available to any authenticated role through the generic protected route.
+- It is role-aware. Driver-specific content appears only when user.role === "DRIVER".
+
+Imports and dependencies
+- React state/memo: useMemo, useState.
+- React Query: useQuery, useMutation.
+- Router: useNavigate.
+- Auth: useAuth.
+- API: apiClient and unwrap.
+- roleHomePath for back navigation fallback.
+- UI: Badge, Button, Input, LoadingSpinner, Modal.
+
+Local helper variables/functions
+- roleTone maps ADMIN, CUSTOMER, DRIVER, SUPPORT_AGENT to badge classes.
+- fullName(user) joins firstName and lastName, fallback "Profile".
+- initialsFor(user) builds a two-character avatar fallback from fullName.
+- formatRole(role) maps roles to display labels.
+- formatDate(value) formats createdAt to "Month day, year", fallback "Not available".
+- DetailItem renders a label/value card, fallback "Not provided".
+- ProfileStat renders profile metrics.
+- Section renders a titled profile section.
+- ReadOnlyNotice shows driver/admin/support/customer governance copy.
+- DriverSection renders driver-specific identity, verification, availability, and vehicle fields.
+- RoleSection switches between DriverSection, Support Workspace, Administrator Access, and Customer Profile.
+
+Queries and mutations
+- profileQuery:
+  - queryKey: ["user-profile"]
+  - queryFn: unwrap(apiClient.get("/users/me"))
+  - Used as the primary profile source.
+- user:
+  - profileQuery.data || authUser from AuthContext.
+- driverDashboardQuery:
+  - queryKey: ["driver-dashboard"]
+  - queryFn: unwrap(apiClient.get("/driver/dashboard"))
+  - enabled only when user?.role === "DRIVER".
+  - Supplies driverDetails to DriverSection.
+- updateMutation:
+  - mutationFn: unwrap(apiClient.put("/users/me", payload))
+  - On success: setUser(profile), close edit modal, refetch profileQuery.
+  - Only customer profiles can open this edit modal.
+
+Profile page local state
+- isEditingProfile: opens/closes customer edit modal.
+- editData: { firstName, lastName, phoneNumber } for the customer edit form.
+
+Driver fields shown on /profile
+- From /users/me user:
+  - firstName, lastName, email, phoneNumber
+  - role, active, createdAt, profilePhotoUrl
+  - idNumber, licenseNumber
+  - verified, available
+  - carMake, carModel, plateNumber, engineSize, yearOfManufacture
+- From /driver/dashboard driverDetails:
+  - licenseNumber
+  - verified
+  - available
+  - vehicle.make, vehicle.model, vehicle.plateNumber, vehicle.engineSize, vehicle.yearOfManufacture
+- Field precedence inside DriverSection:
+  - License Number: user.licenseNumber || driverDetails?.licenseNumber.
+  - Verification: user.verified || driverDetails?.verified.
+  - ID Number: user.idNumber only.
+  - Availability: user.available || driverDetails?.available.
+  - Vehicle name: user.carMake || vehicle?.make || "Vehicle"; user.carModel || vehicle?.model || "not assigned".
+  - Vehicle meta: plateNumber from user or dashboard vehicle, engineSize from user or dashboard vehicle, yearOfManufacture from user or dashboard vehicle.
+
+Profile page editing behavior
+- canEditOwnProfile is true only for CUSTOMER.
+- Drivers see a read-only notice: driver identity, license, and vehicle records can only be edited by an administrator.
+- Admins get a Manage Profiles button to /admin.
+- Back button:
+  - If window.history.length > 1, navigate(-1).
+  - Otherwise navigate(roleHomePath(role)).
+
+Driver dashboard page: /driver
+File: frontend/src/pages/DriverDashboard.jsx
+
+Route and access
+- /driver is protected by ProtectedRoute role="DRIVER".
+- session.role must be DRIVER; RIDER is normalized to DRIVER at session load/save.
+
+Main imported API helpers
+- From features/driver/driverApi.js:
+  - getDriverDashboard -> GET /driver/dashboard
+  - updateDriverStatus -> POST /driver/status { online }
+  - getDriverRides -> GET /driver/rides
+  - getDriverOffers -> GET /driver/offers
+  - acceptDriverRide -> POST /driver/rides/{rideId}/accept
+  - rejectDriverRide -> POST /driver/rides/{rideId}/reject
+  - markDriverArrival -> POST /driver/rides/{rideId}/arrive
+  - startDriverRide -> POST /driver/rides/{rideId}/start
+  - completeDriverRide -> POST /driver/rides/{rideId}/complete
+  - cancelDriverRide -> POST /driver/rides/{rideId}/cancel { reason }
+  - submitManualDistance -> POST /driver/rides/{rideId}/distance { distanceKm }
+  - updateDriverLocation -> POST /locations/me { latitude, longitude }
+- From features/chat/chatApi.js:
+  - getChatConversations -> GET /chat/threads with normalized params.
+- From features/rides/paymentApi.js:
+  - approveCashPayment -> POST /payments/ride/{rideId}/approve-cash with optional payload.
+  - promptCustomerMpesaPayment -> POST /payments/ride/{rideId}/mpesa-prompt.
+- From features/support/supportApi.js:
+  - getSupportContact -> GET /support/contact.
+
+Dashboard constants
+- DRIVER_NAV_ITEMS:
+  - work/Dashboard
+  - offers/Incoming Offers
+  - trips/My Trips
+  - earnings/Earnings
+  - wallet/Wallet
+  - support/Support
+  - profile/Profile
+- DRIVER_MOBILE_NAV_ITEMS:
+  - work, trips, earnings, wallet, profile
+- The "offers" tab is folded into workspaceTab "work".
+- The "earnings" tab is folded into workspaceTab "wallet".
+- The "profile" nav item navigates to /profile instead of becoming an internal tab.
+
+Dashboard local state
+- selectedRide: ride opened in the Ride Details modal.
+- currentLocation: last location submitted by the current UI session or seeded from dashboard latitude/longitude.
+- locationStatus: user-facing status text for location update state.
+- manualDistance: text input for manual trip kilometers.
+- tripActionStatus: user-facing status text after payment/completion/cancel actions.
+- activeTab: current dashboard tab, default "work".
+- earningsRange: "today", "week", or "month"; currently changes labels only, not API params.
+- menuOpen: controls the mobile workspace menu modal.
+
+Dashboard queries
+- dashboardQuery:
+  - queryKey ["driver-dashboard"]
+  - queryFn getDriverDashboard
+  - refetchInterval 15000 ms
+- ridesQuery:
+  - queryKey ["driver-rides"]
+  - queryFn getDriverRides
+  - refetchInterval 5000 ms
+- offersQuery:
+  - queryKey ["driver-offers"]
+  - queryFn getDriverOffers
+  - refetchInterval 5000 ms
+- supportContactQuery:
+  - queryKey ["support-contact"]
+  - queryFn getSupportContact
+- rideChatQuery:
+  - queryKey ["ride-chat-thread", "driver", activeRide?.id]
+  - queryFn getChatConversations({ threadTypes: ["RIDE_CHAT"], rideId: activeRide.id }), then returns first thread or null
+  - enabled when activeRide?.id is truthy
+  - refetchInterval 5000 ms while activeRide exists
+
+Dashboard derived data
+- rides = ridesQuery.data || [].
+- activeRide = first ride whose status is active, or dashboardQuery.data?.activeTrip, or null.
+- completedRides = rides where isCompletedRide(status) is true.
+- rideChatThread = rideChatQuery.data || null.
+- dashboard = dashboardQuery.data.
+- supportPhone = supportContactQuery.data?.phoneNumber || dashboard?.supportPhoneNumber.
+- offersErrorMessage = offersQuery.error?.response?.data?.message || fallback copy.
+- showManualDistanceForm = activeRide exists and status is TRIP_STARTED, PAYMENT_PENDING, or DISPUTED.
+- driverMapLocation = currentLocation, otherwise dashboard latitude/longitude if available.
+- driverName = auth user firstName/lastName if available, otherwise dashboard.fullName, otherwise session.email, otherwise "Driver".
+- vehicleName = dashboard.vehicle make/model, otherwise "Vehicle pending".
+- vehicleMeta = dashboard.vehicle plateNumber and engineSize, otherwise "Vehicle details unavailable".
+- earningsRangeLabel maps today/week/month to Today/This Week/This Month.
+- highlightedOffer = first offersQuery.data item or null.
+
+Realtime dashboard wiring
+- connectRealtimeSocket is called with userId: session?.userId.
+- It subscribes to:
+  - /topic/rides when onRideUpdate exists.
+  - /topic/drivers/{userId}/offers when userId and onDriverOffer exist.
+- onRideUpdate invalidates:
+  - ["driver-rides"]
+  - ["driver-dashboard"]
+  - ["driver-offers"]
+  - ["ride-chat-thread", "driver"]
+- onDriverOffer invalidates:
+  - ["driver-offers"]
+  - ["driver-dashboard"]
+- Socket reconnectDelay is 5000 ms.
+
+Dashboard refresh helper
+- refresh() refetches:
+  - ["driver-dashboard"]
+  - ["driver-rides"]
+  - ["driver-offers"]
+- Most driver mutations call refresh on success.
+
+Dashboard mutations
+- statusMutation:
+  - updateDriverStatus(online)
+  - used by availability buttons/toggles.
+- acceptMutation:
+  - acceptDriverRide(rideId)
+  - used by incoming offer Accept buttons.
+- rejectMutation:
+  - rejectDriverRide(rideId)
+  - used by incoming offer Reject buttons.
+- arriveMutation:
+  - markDriverArrival(rideId)
+  - used when activeRide.status is DRIVER_ACCEPTED.
+- startMutation:
+  - startDriverRide(rideId)
+  - used when activeRide.status is DRIVER_ARRIVED.
+- distanceMutation:
+  - submitManualDistance(rideId, distanceKm)
+  - clears manualDistance on success.
+- cashMutation:
+  - approveCashPayment(rideId, manualDistanceKm ? { manualDistanceKm } : {})
+  - uses paymentApi, not driverApi.
+  - Sets tripActionStatus on success/error.
+- mpesaPromptMutation:
+  - promptCustomerMpesaPayment(rideId)
+  - Sets tripActionStatus on success/error.
+- completeMutation:
+  - completeDriverRide(rideId)
+  - Sets tripActionStatus on success/error.
+- cancelMutation:
+  - cancelDriverRide(rideId, reason)
+  - Uses window.prompt for reason.
+  - Sets tripActionStatus on success/error.
+- locationMutation:
+  - updateDriverLocation({ latitude, longitude })
+  - On success sets currentLocation to the submitted variables and sets locationStatus.
+  - On error sets an error locationStatus.
+
+Location behavior
+- If dashboard latitude/longitude exist, an effect seeds currentLocation with them and sets locationStatus to:
+  - "Last location update: <localized timestamp>" if dashboard.locationUpdatedAt exists.
+  - Otherwise "Latest saved location is ready."
+- If dashboard lacks coordinates, locationStatus becomes "Update your location to appear to customers within 5 km."
+- updateExactLocation():
+  - Requires navigator.geolocation.
+  - Sets locationStatus to "Getting your exact location..."
+  - Calls navigator.geolocation.getCurrentPosition with enableHighAccuracy true, timeout 15000, maximumAge 0.
+  - Sends latitude and longitude rounded to 6 decimals to POST /locations/me.
+  - If denied/unavailable, sets user-facing status text.
+
+Ride action state machine in the UI
+- canShowManualDistanceForm(status) returns true for TRIP_STARTED, PAYMENT_PENDING, DISPUTED.
+- currentActionCard:
+  - DRIVER_ACCEPTED: "Head to pickup", button Mark Arrived -> arriveMutation.
+  - DRIVER_ARRIVED: "Start trip", button Start Trip -> startMutation.
+  - TRIP_STARTED:
+    - If paymentType CASH: button Approve Cash Payment -> cashMutation with optional manualDistanceKm.
+    - If paymentType MPESA: button Prompt Customer to Pay -> mpesaPromptMutation.
+  - PAYMENT_PENDING:
+    - paymentSettled is true if activeRide.paymentApproved, paymentStatus SUCCESS, or status PAYMENT_COMPLETED.
+    - If settled: button Complete Trip -> completeMutation.
+    - If not settled and CASH: button Approve Cash Payment -> cashMutation.
+    - If not settled and MPESA: button Prompt Customer to Pay -> mpesaPromptMutation.
+  - PAYMENT_COMPLETED: button Complete Trip -> completeMutation.
+  - DISPUTED: support message, optional tel link to supportPhone.
+- An effect clears tripActionStatus when no activeRide exists.
+- The same effect sets "Payment is settled. You can now complete the trip." when activeRide.status is PAYMENT_COMPLETED.
+
+Dashboard fields displayed
+- Availability/status:
+  - dashboard.verified
+  - dashboard.online
+- Vehicle:
+  - dashboard.vehicle.make
+  - dashboard.vehicle.model
+  - dashboard.vehicle.plateNumber
+  - dashboard.vehicle.engineSize
+- Wallet:
+  - dashboard.wallet.balance
+  - dashboard.wallet.outstandingCommission
+  - dashboard.wallet.totalEarned
+  - dashboard.wallet.totalWithdrawn
+- Location:
+  - dashboard.latitude
+  - dashboard.longitude
+  - dashboard.locationUpdatedAt
+- Active ride:
+  - activeRide.id
+  - activeRide.status
+  - activeRide.customerName
+  - activeRide.customerPhone
+  - activeRide.pickupAddress, pickupLat, pickupLng
+  - activeRide.dropoffAddress, dropoffLat, dropoffLng
+  - activeRide.finalFare
+  - activeRide.estimatedDistanceKm
+  - activeRide.chargeableDistanceKm
+  - activeRide.paymentType
+  - activeRide.paymentStatus
+  - activeRide.paymentApproved
+  - activeRide.manualDistanceRequired
+- Offers:
+  - offer.id
+  - offer.rideId
+  - offer.pickupAddress
+  - offer.dropoffAddress
+  - offer.pickupLat, pickupLng, dropoffLat, dropoffLng
+  - offer.customerName
+  - offer.distanceToPickupKm or offer.estimatedDistanceKm
+  - offer.estimatedFare
+  - offer.estimatedDistanceKm
+  - offer.expiresAt
+- Completed rides:
+  - ride.id
+  - ride.completedAt
+  - ride.pickupAddress
+  - ride.dropoffAddress
+  - ride.finalFare
+  - ride.chargeableDistanceKm or ride.estimatedDistanceKm
+
+Map wiring
+- RideMapbox receives pickup/dropoff/customerLocation/driverLocation from activeRide, highlightedOffer, currentLocation, and dashboard saved location.
+- Driver marker is labeled "You".
+- Customer marker on driver dashboard uses activeRide pickup coordinates and activeRide.customerName.
+- RideMapbox centers on pickup by default, defaulting to Kitui coordinates {-1.3771, 38.0106}.
+- It overlays custom colored markers:
+  - pickup teal
+  - dropoff orange
+  - assigned-driver blue
+  - customer violet
+  - nearby driver dark blue
+
+Driver registration wiring
+File: frontend/src/pages/RegisterPage.jsx
+
+Route and role selection
+- /register reads search param role.
+- requestedRole is DRIVER only if searchParams.get("role") === "DRIVER"; otherwise CUSTOMER.
+- The account type select can switch between CUSTOMER and DRIVER.
+- If role is changed away from DRIVER while step is not 1, an effect resets step to 1.
+
+Driver registration steps
+- ACCOUNT_STEPS for non-driver:
+  - 1 Account Details
+  - 2 Review & Submit
+- DRIVER_STEPS:
+  - 1 Account Details
+  - 2 Document Upload
+  - 3 Vehicle Details
+- Driver registration submit only happens on step 3.
+
+Registration form fields
+- Basic account:
+  - firstName
+  - lastName
+  - email
+  - phoneNumber
+  - password
+  - confirmPassword
+  - role
+- Driver identity/document URL fields:
+  - idNumber
+  - licenseNumber
+  - profilePhotoUrl
+  - idFrontUrl
+  - idBackUrl
+  - licenseFrontUrl
+  - licenseBackUrl
+- Driver vehicle fields:
+  - carMake
+  - carModel
+  - carColor
+  - plateNumber
+  - engineSize
+  - yearOfManufacture
+  - isOwner
+  - vehicleType
+  - carFrontUrl
+  - carRearUrl
+  - carInteriorUrl
+  - insurancePhotoUrl
+  - chassisPhotoUrl
+
+Registration validation variables
+- passwordValid: password length >= 8.
+- passwordMatch: maintained by password/confirm password handlers.
+- basicAccountDetailsComplete: firstName, lastName, email, phoneNumber, password, confirmPassword all trim truthy.
+- driverIdentityComplete: idNumber, licenseNumber, profilePhotoUrl, idFrontUrl, idBackUrl, licenseFrontUrl, licenseBackUrl all present.
+- driverVehicleDetailsComplete: carMake, carModel, plateNumber, engineSize, yearOfManufacture, carFrontUrl, carRearUrl, carInteriorUrl, insurancePhotoUrl, chassisPhotoUrl all present.
+- accountStepComplete: basic fields + password match + password valid + for drivers profilePhotoUrl present.
+- canSubmitRegistration: basic fields + password match + password valid + for drivers both identity and vehicle details complete.
+
+Registration API flow
+- mutation.mutate(data):
+  - Calls register(data) -> POST /auth/register.
+  - register uses unwrap(apiClient.post("/auth/register", payload)).
+  - If data.role === "DRIVER", after registration returns token:
+    - Directly calls apiClient.post("/driver/vehicle", vehicle payload, { Authorization: Bearer res.token }).
+    - It manually passes Authorization because AuthContext login has not happened yet.
+  - On success:
+    - setAuth(data), which saves the session.
+    - navigate(roleHomePath(data.role), replace true).
+
+Driver registration payload to /auth/register
+- Sends the whole form plus trimmed:
+  - firstName
+  - lastName
+  - email
+  - phoneNumber
+  - idNumber
+  - licenseNumber
+  - carMake
+  - carModel
+  - carColor
+  - plateNumber
+- Backend RegisterRequest officially accepts:
+  - firstName, lastName, email, phoneNumber, password, role
+  - idNumber, licenseNumber, profilePhotoUrl, idFrontUrl, idBackUrl, licenseFrontUrl, licenseBackUrl
+- Vehicle-only fields are still present in the frontend payload, but the backend vehicle request is the call that uses them.
+
+Vehicle payload to /driver/vehicle during registration
+- make: data.carMake
+- model: data.carModel
+- color: data.carColor
+- plateNumber: data.plateNumber
+- engineSize: parseInt(data.engineSize, 10)
+- yearOfManufacture: parseInt(data.yearOfManufacture, 10)
+- isOwner: data.isOwner
+- vehicleType: data.vehicleType
+- frontPhotoUrl: data.carFrontUrl
+- rearPhotoUrl: data.carRearUrl
+- interiorPhotoUrl: data.carInteriorUrl
+- insurancePhotoUrl: data.insurancePhotoUrl
+- chassisPhotoUrl: data.chassisPhotoUrl
+
+Upload wiring used by registration
+- UploadCard in frontend/src/components/AuthUI.jsx wraps FileUpload.
+- FileUpload in frontend/src/components/FileUpload.jsx:
+  - Keeps uploading and error local state.
+  - Accepts image/*,.pdf.
+  - Builds FormData with field name "file".
+  - POST /upload with Content-Type multipart/form-data.
+  - Reads response.data.data.fileUrl.
+  - Calls onUpload(fileUrl), which stores the URL in the registration form field.
+  - Shows "Uploaded" and a View link when value exists.
+  - Shows 413-specific error for files larger than 15 MB.
+- Backend /api/upload returns data containing:
+  - fileUrl: "/uploads/<uuid>_<filename>"
+  - filePath: absolute server file path
+- Vite proxies /uploads to the backend in development.
+
+Standalone DocumentUploadPanel
+File: frontend/src/components/DocumentUploadPanel.jsx
+
+Current routing status
+- rg found no imports/usages except its own export.
+- It is not mounted in router.jsx, DriverDashboard.jsx, UserProfile.jsx, or AdminPanel.jsx.
+- It is an available component but currently unwired from the visible frontend route tree.
+
+DocumentUploadPanel state and document types
+- Uses useAuth to read user and session.
+- Local state:
+  - documents
+  - verificationStatus
+  - uploading
+  - selectedFile
+  - selectedDocType, default PASSPORT_PHOTO
+- documentTypes values:
+  - PASSPORT_PHOTO
+  - ID_FRONT
+  - ID_BACK
+  - DRIVER_LICENSE_FRONT
+  - DRIVER_LICENSE_BACK
+  - CAR_FRONT
+  - CAR_BACK
+  - CAR_INTERIOR
+  - INSURANCE_STICKER
+  - CHASSIS_NUMBER
+
+DocumentUploadPanel API flow
+- Effect runs when session.token and user.id exist.
+- fetchMyDocuments:
+  - GET /documents/my-documents.
+  - Reads response.data directly and stores an array or [].
+- fetchVerificationStatus:
+  - GET /documents/driver/{user.id}/verification-status.
+  - Reads response.data directly.
+- handleUpload:
+  - Requires selectedFile and selectedDocType.
+  - POST /upload FormData using unwrap; needs filePath and fileUrl.
+  - POST /documents/upload with { documentType, filePath, fileUrl }.
+  - Resets selectedFile and selectedDocType, then refetches docs/status.
+- Status colors:
+  - PENDING yellow
+  - APPROVED green
+  - REJECTED red
+- Reupload button sets selectedDocType to rejected document type and clicks the file input.
+
+Admin driver management wiring
+Files: frontend/src/pages/AdminPanel.jsx and frontend/src/components/DriversManagementWorkspace.jsx
+
+Admin APIs
+- getDashboard -> GET /admin/dashboard.
+- getUsers -> GET /admin/users.
+- getRides -> GET /admin/rides.
+- approveDriver(driverUserId, approved) -> PATCH /admin/drivers/{driverUserId}/approve { approved }.
+- updateDriverDetails(driverUserId, payload) -> PATCH /admin/drivers/{driverUserId}/details payload.
+- deleteUser(userId) -> DELETE /admin/users/{userId}.
+- updateUserAccount and support-agent/admin settings APIs exist but are not driver-profile-specific except when AdminPanel uses them in other views.
+
+AdminPanel driver state and data
+- dashboardQuery:
+  - queryKey ["admin-dashboard"], queryFn getDashboard.
+- usersQuery:
+  - queryKey ["admin-users"], queryFn getUsers.
+- ridesQuery:
+  - queryKey ["admin-rides"], queryFn getRides.
+- ticketsQuery:
+  - queryKey ["support-tickets"], queryFn supportTickets.
+- driverUsers = users.filter(user.role === "DRIVER").
+- pendingDrivers = users.filter(user.role === "DRIVER" && !user.verified).
+- driverEditRequests = tickets.filter(ticket.ticketType === "DRIVER_EDIT_REQUEST").
+- selectedUserMedia is computed with getDriverMedia(selectedUser) only when selectedUser.role === "DRIVER".
+
+Admin driver media fields
+- DRIVER_MEDIA_FIELDS in AdminPanel:
+  - profilePhotoUrl: Passport Photo
+  - idFrontUrl: National ID Front
+  - idBackUrl: National ID Back
+  - licenseFrontUrl: License Front
+  - licenseBackUrl: License Back
+  - carFrontUrl: Vehicle Front
+  - carRearUrl: Vehicle Rear
+  - carInteriorUrl: Vehicle Interior
+  - insurancePhotoUrl: Insurance Sticker
+  - chassisPhotoUrl: Chassis Number
+- resolveMediaUrl:
+  - Leaves http(s), blob:, and data: URLs alone.
+  - Converts backslashes to slashes.
+  - If it sees /uploads/<file>, returns that browser path.
+  - If path contains uploads/, returns /uploads/<tail>.
+  - Otherwise returns the path.
+- isImageFile checks png, jpg/jpeg, gif, bmp, webp, svg, avif.
+- Admin selected-user modal previews image media inline; non-image files show "File uploaded. Click to preview."
+
+Admin driver approval mutations
+- approveMutation:
+  - Calls approveDriver(id, approved).
+  - On success invalidates ["admin-users"] and ["admin-dashboard"].
+  - If selectedUser id matches, closes selected user and image preview.
+- bulkDriverStatusMutation:
+  - Calls approveDriver for each selected driver id with Promise.all.
+  - On success invalidates ["admin-users"] and ["admin-dashboard"].
+- DriversManagementWorkspace calls these through onApproveDriver and onBulkStatusChange.
+- UI labels:
+  - "Approve driver" when not verified.
+  - "Suspend driver" when verified.
+  - Selected user modal says "Unverify & Lock Driver" for verified drivers.
+
+Admin driver edit wiring
+- buildDriverEditForm(user) initializes:
+  - id
+  - firstName
+  - lastName
+  - email
+  - phoneNumber
+  - idNumber
+  - licenseNumber
+  - isOwner, default true
+  - carMake
+  - carModel
+  - plateNumber
+  - engineSize, default 1500
+  - yearOfManufacture, default 2015
+  - vehicleType, default CAR
+  - profilePhotoUrl
+  - carFrontUrl
+  - carRearUrl
+  - carInteriorUrl
+  - insurancePhotoUrl
+  - chassisPhotoUrl
+- editDriverForm state holds this full object.
+- The edit modal currently renders inputs only for:
+  - firstName
+  - lastName
+  - email
+  - phoneNumber
+  - idNumber
+  - licenseNumber
+  - carMake
+  - carModel
+  - plateNumber
+  - engineSize
+- The form submits the entire editDriverForm object to PATCH /admin/drivers/{id}/details.
+- Because yearOfManufacture, vehicleType, isOwner, profilePhotoUrl, and vehicle/document URL fields are initialized but not rendered in the modal, they are preserved from the selected user object but not editable in this modal.
+- updateDriverMutation:
+  - Calls updateDriverDetails(id, payload).
+  - On success invalidates ["admin-users"] and closes editDriverForm.
+
+DriversManagementWorkspace derived driver record
+- DRIVER_DOCUMENT_KEYS:
+  - profilePhotoUrl
+  - idFrontUrl
+  - idBackUrl
+  - licenseFrontUrl
+  - licenseBackUrl
+  - carFrontUrl
+  - carRearUrl
+  - carInteriorUrl
+  - insurancePhotoUrl
+  - chassisPhotoUrl
+- Document stats:
+  - uploaded = count of truthy driver document keys.
+  - required = 10.
+  - completion >= 0.9 -> Complete/emerald.
+  - completion >= 0.6 -> Needs review/amber.
+  - otherwise Incomplete/rose.
+- ACTIVE_RIDE_STATUSES for admin workspace:
+  - DRIVER_ASSIGNED
+  - DRIVER_ACCEPTED
+  - DRIVER_ARRIVED
+  - TRIP_STARTED
+  - PAYMENT_PENDING
+  - DISPUTED
+- buildDriverRecord(driver, rides):
+  - accountEnabled = driver.active !== false.
+  - driverRides = rides where ride.riderId === driver.id, sorted newest first.
+  - completedRides = TRIP_COMPLETED or PAYMENT_COMPLETED.
+  - cancelledRides = TRIP_CANCELLED or DRIVER_REJECTED.
+  - disputedRides = DISPUTED.
+  - activeTrips = rides whose status is in ACTIVE_RIDE_STATUSES.
+  - revenue = sum finalFare or estimatedFare for completedRides.
+  - completionRate = completedRides / totalTrips * 100.
+  - rating is derived client-side from completed/disputed/cancelled/id, clamped 3.9 to 5.
+  - verificationState = VERIFIED or UNVERIFIED.
+  - accountState:
+    - SUSPENDED if !accountEnabled.
+    - PENDING if enabled but !verified.
+    - ACTIVE otherwise.
+  - activityState:
+    - BUSY if enabled and activeTrips exist.
+    - ONLINE if enabled, verified, and driver.available.
+    - Locked if !accountEnabled.
+    - Awaiting review if !verified.
+    - Offline otherwise.
+  - vehicleLabel = carMake + carModel, fallback "Vehicle".
+  - zone is inferred from latest ride addresses or picked deterministically from a Kitui zone pool using id/engineSize.
+- Filtering searches:
+  - name, driverCode, email, phoneNumber, idNumber, plateNumber, vehicleLabel.
+- Filters include:
+  - account status
+  - availability
+  - verification
+  - vehicle
+  - rating
+  - date range
+- Sorts include:
+  - pending first
+  - latest
+  - oldest
+  - highest rating
+  - most rides
+  - highest earnings.
+
+Driver profile-related endpoint inventory from the frontend
+- Auth/profile:
+  - POST /auth/login
+  - POST /auth/register
+  - GET /users/me
+  - PUT /users/me
+- Driver dashboard/account:
+  - GET /driver/dashboard
+  - POST /driver/status with { online }
+  - POST /driver/vehicle with vehicle payload
+- Driver rides:
+  - GET /driver/rides
+  - GET /driver/offers
+  - POST /driver/rides/{rideId}/accept
+  - POST /driver/rides/{rideId}/reject
+  - POST /driver/rides/{rideId}/arrive
+  - POST /driver/rides/{rideId}/start
+  - POST /driver/rides/{rideId}/complete
+  - POST /driver/rides/{rideId}/cancel with { reason }
+  - POST /driver/rides/{rideId}/distance with { distanceKm }
+- Driver location:
+  - POST /locations/me with { latitude, longitude }
+- Uploads/documents:
+  - POST /upload multipart field "file"
+  - GET /documents/my-documents
+  - GET /documents/driver/{driverId}/verification-status
+  - POST /documents/upload with { documentType, filePath, fileUrl }
+- Payments used by driver dashboard:
+  - POST /payments/ride/{rideId}/approve-cash with optional { manualDistanceKm }
+  - POST /payments/ride/{rideId}/mpesa-prompt
+- Chat/support used by driver dashboard:
+  - GET /chat/threads with params threadTypes=RIDE_CHAT and rideId=<activeRide.id>
+  - GET /support/contact
+- Admin driver management:
+  - GET /admin/dashboard
+  - GET /admin/users
+  - GET /admin/rides
+  - PATCH /admin/drivers/{driverUserId}/approve with { approved }
+  - PATCH /admin/drivers/{driverUserId}/details with editDriverForm payload
+  - DELETE /admin/users/{userId}
+
+Backend response fields confirmed for frontend assumptions
+- DriverDashboardResponse from backend:
+  - userId
+  - fullName
+  - licenseNumber
+  - verified
+  - online
+  - totalEarnings
+  - activeTrip
+  - pendingOfferCount
+  - supportPhoneNumber
+  - latitude
+  - longitude
+  - locationUpdatedAt
+  - vehicle { make, model, color, plateNumber, engineSize, yearOfManufacture }
+  - wallet { balance, totalEarned, totalWithdrawn, outstandingCommission }
+- UserProfileResponse from backend:
+  - id
+  - firstName
+  - lastName
+  - email
+  - phoneNumber
+  - role
+  - active
+  - createdAt
+  - profilePhotoUrl
+  - idNumber
+  - licenseNumber
+  - isOwner
+  - carMake
+  - carModel
+  - plateNumber
+  - engineSize
+  - yearOfManufacture
+  - vehicleType
+  - verified
+  - available
+  - idFrontUrl
+  - idBackUrl
+  - licenseFrontUrl
+  - licenseBackUrl
+  - carFrontUrl
+  - carRearUrl
+  - carInteriorUrl
+  - insurancePhotoUrl
+  - chassisPhotoUrl
+
+Current wiring notes and mismatches
+- /profile for drivers is view-only and intentionally admin-managed. It does not provide driver self-service editing.
+- DriverDashboard has a Profile nav item, but it navigates to /profile rather than rendering an internal profile tab. Since workspaceTab only renders work/trips/wallet/support, profile is purely a route transition.
+- DriverDashboard imports approveCashPayment from features/rides/paymentApi.js. features/driver/driverApi.js also exports approveCashPayment(rideId), but that duplicate helper is not used by the driver dashboard and does not accept the optional payload used by the current dashboard flow.
+- features/driver/driverApi.js exports updateVehicleDetails(payload), but current frontend usage found by rg does not call it. Registration posts directly to /driver/vehicle with apiClient and a manual bearer token.
+- DocumentUploadPanel is currently not mounted anywhere in the frontend route tree. Driver registration still stores document URLs through /auth/register and /driver/vehicle, and backend vehicle update also creates document records for vehicle images.
+- DocumentUploadPanel uses /documents endpoints that return raw response bodies, while most frontend helpers expect ApiResponse and unwrap response.data.data.
+- Registration requires profilePhotoUrl already at step 1 for drivers through accountStepComplete, then requires all identity and vehicle document URL fields before final submit.
+- Admin driver edit modal submits a full editDriverForm object, but only a subset of the initialized fields are editable in the visible modal.
+- Driver dashboard earningsRange changes the displayed label (Today/This Week/This Month), but there is no endpoint param or client-side range calculation tied to it in the current code.
+- Driver dashboard wallet balance is reused as "Earnings" in multiple dashboard labels; totalEarned is only shown in the account snapshot area.
+- The dashboard online toggle does not check dashboard.verified before calling POST /driver/status; UI copy says only verified drivers can go online, so enforcement is expected from backend.
+- Git status could not be checked in this sandbox because Git reported dubious repository ownership for C:/S_Projects/KituiRides.

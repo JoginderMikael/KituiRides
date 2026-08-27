@@ -1,10 +1,11 @@
 package com.kituirides.api.driver.controller;
 
 import com.kituirides.api.domain.entity.Document;
+import com.kituirides.api.domain.entity.User;
 import com.kituirides.api.domain.enums.DocumentStatus;
 import com.kituirides.api.domain.enums.DocumentType;
 import com.kituirides.api.driver.DocumentService;
-import com.kituirides.api.security.JwtTokenProvider;
+import com.kituirides.api.security.CurrentUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -19,7 +20,6 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class DocumentController {
 
     private final DocumentService documentService;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final CurrentUserService currentUserService;
 
     /**
      * Uploads a document for the authenticated driver.
@@ -48,10 +48,9 @@ public class DocumentController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Upload a document", description = "Stores a driver document and associates it with the authenticated driver.")
     public ResponseEntity<Document> uploadDocument(
-            @RequestHeader("Authorization") String token,
             @RequestBody UploadDocumentRequest request) {
         
-        Long driverId = extractUserIdFromToken(token);
+        Long driverId = currentUserService.getCurrentUser().getId();
         Document document = documentService.uploadDocument(
                 driverId,
                 request.getDocumentType(),
@@ -72,8 +71,8 @@ public class DocumentController {
     @PreAuthorize("hasAnyRole('DRIVER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "List my documents", description = "Returns every uploaded document for the authenticated driver.")
-    public ResponseEntity<List<Document>> getMyDocuments(@RequestHeader("Authorization") String token) {
-        Long driverId = extractUserIdFromToken(token);
+    public ResponseEntity<List<Document>> getMyDocuments() {
+        Long driverId = currentUserService.getCurrentUser().getId();
         List<Document> documents = documentService.getDriverDocuments(driverId);
         return ResponseEntity.ok(documents);
     }
@@ -88,8 +87,8 @@ public class DocumentController {
     @PreAuthorize("hasAnyRole('DRIVER')")
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "List my pending documents", description = "Returns only the authenticated driver's pending documents.")
-    public ResponseEntity<List<Document>> getMyPendingDocuments(@RequestHeader("Authorization") String token) {
-        Long driverId = extractUserIdFromToken(token);
+    public ResponseEntity<List<Document>> getMyPendingDocuments() {
+        Long driverId = currentUserService.getCurrentUser().getId();
         List<Document> documents = documentService.getDriverDocumentsByStatus(driverId, DocumentStatus.PENDING);
         return ResponseEntity.ok(documents);
     }
@@ -150,10 +149,10 @@ public class DocumentController {
     @SecurityRequirement(name = "bearerAuth")
     @Operation(summary = "Approve a document", description = "Approves a pending driver document as an administrator.")
     public ResponseEntity<Document> approveDocument(
-            @PathVariable Long documentId,
-            @RequestHeader("Authorization") String token) {
+            @PathVariable Long documentId) {
         
-        Long adminId = extractUserIdFromToken(token);
+        User admin = currentUserService.getCurrentUser();
+        Long adminId = admin.getId();
         Document document = documentService.approveDocument(documentId, adminId);
         
         return ResponseEntity.ok(document);
@@ -173,10 +172,10 @@ public class DocumentController {
     @Operation(summary = "Reject a document", description = "Rejects a pending driver document and stores the rejection reason.")
     public ResponseEntity<Document> rejectDocument(
             @PathVariable Long documentId,
-            @RequestHeader("Authorization") String token,
             @RequestBody RejectDocumentRequest request) {
         
-        Long adminId = extractUserIdFromToken(token);
+        User admin = currentUserService.getCurrentUser();
+        Long adminId = admin.getId();
         Document document = documentService.rejectDocument(documentId, adminId, request.getRejectionReason());
         
         return ResponseEntity.ok(document);
@@ -198,17 +197,6 @@ public class DocumentController {
         
         VerificationStatus status = new VerificationStatus(hasAllDocuments, hasVehicleDocuments);
         return ResponseEntity.ok(status);
-    }
-
-    /**
-     * Extracts a user identifier from a bearer token.
-     *
-     * @param token authorization header value
-     * @return the authenticated user identifier
-     */
-    private Long extractUserIdFromToken(String token) {
-        String jwt = token.replace("Bearer ", "");
-        return jwtTokenProvider.getUserIdFromToken(jwt);
     }
 
     /**

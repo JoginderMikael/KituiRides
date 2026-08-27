@@ -1,5 +1,6 @@
 package com.kituirides.api.security;
 
+import com.kituirides.api.common.UnauthorizedException;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -52,8 +53,8 @@ public class JwtTokenProvider {
             String subject = claims.getSubject();
             return Long.parseLong(subject);
         } catch (Exception e) {
-            log.error("Error extracting user ID from token", e);
-            throw new IllegalArgumentException("Invalid JWT token");
+            log.warn("Rejected invalid JWT while extracting user ID: {}", e.getMessage());
+            throw new UnauthorizedException("Invalid or expired token");
         }
     }
 
@@ -70,8 +71,8 @@ public class JwtTokenProvider {
             
             return claims.get("email", String.class);
         } catch (Exception e) {
-            log.error("Error extracting email from token", e);
-            throw new IllegalArgumentException("Invalid JWT token");
+            log.warn("Rejected invalid JWT while extracting email: {}", e.getMessage());
+            throw new UnauthorizedException("Invalid or expired token");
         }
     }
 
@@ -88,8 +89,8 @@ public class JwtTokenProvider {
             
             return claims.get("role", String.class);
         } catch (Exception e) {
-            log.error("Error extracting role from token", e);
-            throw new IllegalArgumentException("Invalid JWT token");
+            log.warn("Rejected invalid JWT while extracting role: {}", e.getMessage());
+            throw new UnauthorizedException("Invalid or expired token");
         }
     }
 
@@ -104,7 +105,7 @@ public class JwtTokenProvider {
                     .parseSignedClaims(token);
             return true;
         } catch (Exception e) {
-            log.error("JWT token validation failed: {}", e.getMessage());
+            log.warn("JWT token validation failed: {}", e.getMessage());
             return false;
         }
     }
@@ -122,7 +123,7 @@ public class JwtTokenProvider {
             
             return claims.getExpiration().before(new Date());
         } catch (Exception e) {
-            log.error("Error checking token expiration", e);
+            log.warn("Could not check JWT expiration: {}", e.getMessage());
             return true;
         }
     }
