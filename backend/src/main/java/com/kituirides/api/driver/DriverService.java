@@ -104,6 +104,9 @@ public class DriverService {
         if (Boolean.TRUE.equals(request.online()) && !Boolean.TRUE.equals(profile.getVerified())) {
             throw new ApiException(HttpStatus.BAD_REQUEST, "Driver must be approved before going online");
         }
+        if (Boolean.TRUE.equals(request.online()) && vehicleRepository.findByRiderProfile(profile).isEmpty()) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "Add your vehicle details before going online");
+        }
         profile.setAvailable(request.online());
         riderProfileRepository.save(profile);
         domainEventPublisher.publishDriverStatusChanged(current.getId(), Boolean.TRUE.equals(request.online()));

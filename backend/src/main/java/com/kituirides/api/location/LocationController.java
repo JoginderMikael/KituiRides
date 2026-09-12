@@ -30,10 +30,10 @@ public class LocationController {
     private final LocationService locationService;
 
     @PostMapping("/me")
-    @PreAuthorize("hasRole('DRIVER')")
+    @PreAuthorize("hasAnyRole('DRIVER', 'CUSTOMER')")
     @Operation(
         summary = "Update my location",
-        description = "Stores the authenticated driver's latest location and availability context."
+        description = "Stores the authenticated customer or driver's latest device location."
     )
     public ResponseEntity<ApiResponse<Void>> updateMyLocation(@Valid @RequestBody LocationUpdateRequest request) {
         locationService.updateMyLocation(request);

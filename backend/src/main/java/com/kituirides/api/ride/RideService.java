@@ -35,6 +35,7 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -278,6 +279,39 @@ public class RideService {
         realtimePublisher.publishRideUpdate(saved.getId(), "TRIP_COMPLETED", toResponse(saved));
         domainEventPublisher.publishRideEvent(EventType.RIDE_COMPLETED, saved);
         return toResponse(saved);
+    }
+
+    /**
+     * Closes requests whose drivers did not respond before every offer expired.
+     * This releases the customer's active-ride guard so they can immediately
+     * search again instead of remaining stuck in DRIVER_ASSIGNED.
+     */
+    @Scheduled(fixedDelayString = "${rides.offer-expiry.fixed-delay-ms:5000}")
+    @Transactional
+    public void expireUnansweredRideOffers() {
+        List<RideOffer> expiredOffers = rideOfferRepository.findByStatusAndExpiresAtBefore(
+            RideOfferStatus.PENDING,
+            Instant.now()
+        );
+        if (expiredOffers.isEmpty()) {
+            return;
+        }
+
+        expiredOffers.forEach(this::expireOffer);
+        expiredOffers.stream()
+            .map(RideOffer::getRide)
+            .distinct()
+            .filter(ride -> ride.getStatus() == RideStatus.DRIVER_ASSIGNED)
+            .filter(ride -> rideOfferRepository
+                .findByRideAndStatusOrderByOfferedAtAsc(ride, RideOfferStatus.PENDING)
+                .isEmpty())
+            .forEach(ride -> {
+                transitionStatus(ride, RideStatus.DRIVER_REJECTED);
+                Ride saved = rideRepository.save(ride);
+                RideResponse response = toResponse(saved);
+                realtimePublisher.publishRideUpdate(saved.getId(), "NO_DRIVER_AVAILABLE", response);
+                domainEventPublisher.publishRideEvent(EventType.DRIVER_REJECTED, saved);
+            });
     }
 
     @Transactional
@@ -528,7 +562,7 @@ public class RideService {
         return rideRepository.findByRiderOrderByRequestedAtDesc(currentUser).stream().map(this::toResponse).toList();
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<RideOfferResponse> myDriverOffers() {
         User currentUser = currentUserService.getCurrentUser();
         expireStaleOffersForDriver(currentUser);
@@ -584,6 +618,9 @@ public class RideService {
         LocationPing latestRiderLocation = ride.getRider() == null
             ? null
             : locationPingRepository.findTopByUserOrderByTimestampDesc(ride.getRider()).orElse(null);
+        LocationPing latestCustomerLocation = locationPingRepository
+            .findTopByUserOrderByTimestampDesc(ride.getCustomer())
+            .orElse(null);
         return new RideResponse(
             ride.getId(),
             ride.getCustomer().getId(),
@@ -623,7 +660,16 @@ public class RideService {
             ride.getManualDistanceRequired(),
             ride.getPaymentApproved(),
             ride.getSupportTicket() != null ? ride.getSupportTicket().getId() : null,
-            ride.getDisputeReason()
+            ride.getDisputeReason(),
+            ride.getRider() != null ? ride.getRider().getId() : null,
+            ride.getRider() != null ? ride.getRider().getFirstName() + " " + ride.getRider().getLastName() : null,
+            ride.getRider() != null ? ride.getRider().getPhoneNumber() : null,
+            latestRiderLocation != null ? latestRiderLocation.getLatitude() : null,
+            latestRiderLocation != null ? latestRiderLocation.getLongitude() : null,
+            latestRiderLocation != null ? latestRiderLocation.getTimestamp() : null,
+            latestCustomerLocation != null ? latestCustomerLocation.getLatitude() : null,
+            latestCustomerLocation != null ? latestCustomerLocation.getLongitude() : null,
+            latestCustomerLocation != null ? latestCustomerLocation.getTimestamp() : null
         );
     }
 

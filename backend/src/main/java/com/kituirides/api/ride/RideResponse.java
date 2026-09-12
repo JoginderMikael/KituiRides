@@ -50,6 +50,15 @@ public record RideResponse(
     Boolean manualDistanceRequired,
     Boolean paymentApproved,
     Long supportTicketId,
-    String disputeReason
+    String disputeReason,
+    Long driverId,
+    String driverName,
+    String driverPhone,
+    Double driverLat,
+    Double driverLng,
+    Instant driverLocationUpdatedAt,
+    Double customerLat,
+    Double customerLng,
+    Instant customerLocationUpdatedAt
 ) {
 }

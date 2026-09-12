@@ -16,6 +16,7 @@ public record NearbyDriverResponse(
     VehicleType vehicleType,
     Integer etaMinutes,
     BigDecimal distanceToPickupKm,
-    BigDecimal estimatedPrice
+    BigDecimal estimatedPrice,
+    Long driverId
 ) {
 }

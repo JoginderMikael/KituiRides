@@ -2,6 +2,7 @@ package com.kituirides.api.location;
 
 import com.kituirides.api.domain.entity.LocationPing;
 import com.kituirides.api.domain.enums.VehicleType;
+import com.kituirides.api.domain.enums.Role;
 import com.kituirides.api.kafka.DomainEventPublisher;
 import com.kituirides.api.matching.MatchingService;
 import com.kituirides.api.repository.RideRepository;
@@ -37,16 +38,33 @@ public class LocationService {
     @Transactional
     public void updateMyLocation(LocationUpdateRequest request) {
         var user = currentUserService.getCurrentUser();
-        log.info("Driver {} updating location to lat={}, lng={}", user.getId(), request.latitude(), request.longitude());
+        log.info("User {} ({}) updating location to lat={}, lng={}", user.getId(), user.getRole(), request.latitude(), request.longitude());
         LocationPing ping = new LocationPing();
         ping.setUser(user);
         ping.setLatitude(request.latitude());
         ping.setLongitude(request.longitude());
         ping.setTimestamp(Instant.now());
         locationPingRepository.save(ping);
+        if (user.getRole() == Role.CUSTOMER) {
+            rideRepository.findByCustomerAndStatusIn(user, rideStateMachine.activeCustomerStatuses()).forEach(ride ->
+                realtimePublisher.publishRideUpdate(
+                    ride.getId(),
+                    "CUSTOMER_LOCATION_UPDATED",
+                    Map.of(
+                        "rideId", ride.getId(),
+                        "customerId", user.getId(),
+                        "latitude", request.latitude(),
+                        "longitude", request.longitude()
+                    )
+                )
+            );
+            return;
+        }
+
         realtimePublisher.publishNearbyDrivers(Map.of(
             "type", "DRIVER_LOCATION_UPDATED",
             "riderId", user.getId(),
+            "driverId", user.getId(),
             "latitude", request.latitude(),
             "longitude", request.longitude()
         ));
@@ -61,6 +79,7 @@ public class LocationService {
                 Map.of(
                     "rideId", ride.getId(),
                     "riderId", user.getId(),
+                    "driverId", user.getId(),
                     "latitude", request.latitude(),
                     "longitude", request.longitude()
                 )
@@ -87,7 +106,8 @@ public class LocationService {
                 match.vehicleType(),
                 match.etaMinutes(),
                 BigDecimal.valueOf(match.distanceToPickupKm()).setScale(2, RoundingMode.HALF_UP),
-                match.estimatedPrice()
+                match.estimatedPrice(),
+                match.driver().getId()
             ))
             .toList();
         log.debug(
