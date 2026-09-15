@@ -28,6 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class LocationController {
 
     private final LocationService locationService;
+    private final DirectionsService directionsService;
 
     @PostMapping("/me")
     @PreAuthorize("hasAnyRole('DRIVER', 'CUSTOMER')")
@@ -55,6 +56,23 @@ public class LocationController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
             locationService.nearbyDrivers(pickupLat, pickupLng, dropoffLat, dropoffLng, vehicleType)
+        ));
+    }
+
+    @GetMapping("/directions")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'DRIVER', 'ADMIN')")
+    @Operation(
+        summary = "Get driving directions",
+        description = "Proxies Google Directions so web clients are not blocked by browser CORS restrictions."
+    )
+    public ResponseEntity<ApiResponse<DirectionsRouteResponse>> directions(
+        @RequestParam double originLat,
+        @RequestParam double originLng,
+        @RequestParam double destinationLat,
+        @RequestParam double destinationLng
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+            directionsService.route(originLat, originLng, destinationLat, destinationLng)
         ));
     }
 }

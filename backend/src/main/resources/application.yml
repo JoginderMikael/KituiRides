@@ -70,6 +70,9 @@ app:
     consumer-secret: ${APP_MPESA_CONSUMER_SECRET:sandbox-secret}
     transaction-type: ${APP_MPESA_TRANSACTION_TYPE:CustomerPayBillOnline}
     simulated: ${APP_MPESA_SIMULATED:true}
+  google-maps:
+    base-url: ${APP_GOOGLE_MAPS_BASE_URL:https://maps.googleapis.com}
+    server-api-key: ${APP_GOOGLE_MAPS_SERVER_API_KEY:}
 
 logging:
   level:

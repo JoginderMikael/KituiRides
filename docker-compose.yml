@@ -93,6 +93,7 @@ services:
       APP_MPESA_CONSUMER_SECRET: "${APP_MPESA_CONSUMER_SECRET:-sandbox-secret}"
       APP_MPESA_TRANSACTION_TYPE: "${APP_MPESA_TRANSACTION_TYPE:-CustomerPayBillOnline}"
       APP_MPESA_SIMULATED: "${APP_MPESA_SIMULATED:-true}"
+      APP_GOOGLE_MAPS_SERVER_API_KEY: "${APP_GOOGLE_MAPS_SERVER_API_KEY:-}"
     depends_on:
       postgres:
         condition: service_healthy
